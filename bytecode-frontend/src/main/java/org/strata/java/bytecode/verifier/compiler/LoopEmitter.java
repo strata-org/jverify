@@ -41,8 +41,8 @@ import java.util.Set;
 /**
  * Emits Laurel loops from CFG loop regions: recovers do-while vs pre-tested
  * (while/for) shapes, consumes leading loop-contract markers (invariants),
- * re-stamps loop-body statement ranges, and applies JFE's emitLoop wrapping
- * (break/continue labels present iff a jump minted them).
+ * re-stamps loop-body statement ranges, and wraps each loop in its labeled
+ * blocks (break/continue labels present iff a jump minted them).
  */
 final class LoopEmitter {
 
@@ -77,8 +77,8 @@ final class LoopEmitter {
         int latch = dom.loopTail.get(header);
         BasicBlock lb = cfg.blocks.get(latch);
 
-        // do-while: the latch carries the bottom test. Always labeled (the
-        // driver's DoStmt arm minted both labels unconditionally).
+        // do-while: the latch carries the bottom test. Always labeled (both
+        // labels are minted unconditionally).
         if (lb.isConditional() && (lb.branch == header || lb.fall == header)) {
             boolean backOnBranch = (lb.branch == header);
             int exit = backOnBranch ? lb.fall : lb.branch;
@@ -190,7 +190,7 @@ final class LoopEmitter {
     }
 
     /**
-     * Header scan over the emitted loop body (JFE's extractLoopParts):
+     * Header scan over the emitted loop body:
      * leading spec markers are consumed — invariants convert (at their
      * argument range, contract-checked), reads/modifies/decreases drop, and
      * pre/postconditions refuse. The markers are removed from the body.
@@ -203,8 +203,8 @@ final class LoopEmitter {
             if (spec == null) {
                 break;
             }
-            // Consumed as a loop-contract clause: it is no longer a method
-            // spec marker (the driver's refusal passes must not see it).
+            // Consumed as a loop-contract clause: removed from the method
+            // spec markers (the driver's refusal passes must not see it).
             body.specStmts.remove(bodyStmts.get(i));
             switch (spec.name()) {
                 case "precondition", "postcondition" ->
@@ -243,13 +243,13 @@ final class LoopEmitter {
         return invariants;
     }
 
-    /** do-while as the driver encoded it: while(true){ {body}:cont; if(!cond) exit(break); } wrapped :break. */
+    /** do-while encoding: while(true){ {body}:cont; if(!cond) exit(break); } wrapped :break. */
     private AstNode<StmtExpr> buildDoWhile(AstNode<StmtExpr> cond, List<AstNode<StmtExpr>> invariants,
                                            List<AstNode<StmtExpr>> bodyStmts, ControlFlowStructurer.Ctx c) {
         AstNode<StmtExpr> wrappedBody = body.e(new StmtExpr.Block(
                 List.of(s.blockOf(bodyStmts)), Optional.of(c.continueLabel)));
-        // The driver's DoStmt arm wrapped `!(cond)` VERBATIM (UnaryExpr
-        // conversion -> $not), never flipping the comparison.
+        // The exit test wraps `!(cond)` as-is (a Not over the condition),
+        // never flipping the comparison.
         AstNode<StmtExpr> notCond = body.e(LaurelFactory.primitiveOp(new Operation.Not(), cond));
         AstNode<StmtExpr> exitIfDone = body.e(new StmtExpr.IfThenElse(notCond,
                 s.exit(c.breakLabel), Optional.empty()));
@@ -263,7 +263,7 @@ final class LoopEmitter {
     /**
      * Pre-tested loop, recovering {@code for} vs {@code while} from the CRT
      * (step on the header's source line -> a {@code for} update clause).
-     * JFE's emitLoop wrapping (break/continue labels, step placement) is
+     * The loop wrapping (break/continue labels, step placement) is
      * applied via {@link #wrapPreTested}.
      */
     private AstNode<StmtExpr> buildPreTested(AstNode<StmtExpr> cond, List<AstNode<StmtExpr>> invariants,
@@ -285,7 +285,7 @@ final class LoopEmitter {
         return wrapPreTested(cond, invariants, bodyStmts, null, List.of(), c);
     }
 
-    /** JFE's emitLoop wrapping, with labels present iff this loop minted them. */
+    /** Loop wrapping, with labels present iff this loop minted them. */
     private AstNode<StmtExpr> wrapPreTested(AstNode<StmtExpr> cond, List<AstNode<StmtExpr>> invariants,
                                             List<AstNode<StmtExpr>> bodyStmts,
                                             AstNode<StmtExpr> step, List<AstNode<StmtExpr>> preamble, ControlFlowStructurer.Ctx c) {

@@ -20,67 +20,20 @@ public enum Blocker {
      *
      * <p>Composite fields themselves ARE emitted, and a direct field read works:
      * {@code void f(C c) { precondition(c.x == 5); check(c.x == 5); }} verifies.
-     * What is missing is the constructor:
-     *
-     * <ul>
-     * <li>{@code visitMethodDef} DEFERS {@code isConstructor(sym)}, so a user
-     * constructor emits no Laurel at all (its contract is never checked, and
-     * {@code markSkipped} demotes it).
-     * <li>the {@code JCNewClass} arm converts the arguments only to run refusal
-     * checks and then yields a bare {@code StmtExpr.New(name, typeArgs)} -- the
-     * ARGUMENTS ARE DISCARDED and no constructor call is emitted.
-     * </ul>
-     *
-     * <p>So {@code new C(5)} produces a freshly allocated object whose fields are
-     * completely unconstrained, and every assertion a caller makes about a field
-     * after construction fails ("assertion does not hold") even though the
+     * What is missing is the constructor wherever {@code Constructors.eligible}
+     * rejects it (an enum, record, generic or inner class, or a body that is not
+     * structural): such a constructor is not translated, its contract is never
+     * checked, and {@code new C(5)} yields a freshly allocated object whose fields
+     * are unconstrained. Every assertion a caller makes about a field after that
+     * construction is reported as "assertion could not be proved", even though the
      * constructor's own postcondition is provable.
-     *
-     * <p>Fixing it needs (a) constructors emitted as instance procedures under a
-     * mangled name (not {@code <init>}), with the synthesized {@code super()}
-     * chain handled, and (b) statement HOISTING at a {@code new} site --
-     * {@code New} carries no arguments, so an allocation in expression position
-     * must become {@code var t := New(C); t.<ctor>(args); ... t}. The Laurel
-     * converter has no pending-statement mechanism today, which is the bulk of
-     * the work.
      *
      * <p>Field INITIALIZERS ({@code private int g = 22;}) are a separate,
      * Strata-side gap; see {@link #STRATA_FIELD_INITIALIZERS}. */
     FRONTEND_FIELDS,
-    /**
-     * Polymorphic dispatch refusal (incl. over-refusal of monomorphic calls).
-     *
-     * <p>The SOURCE front end no longer has this gate: Laurel dispatches an
-     * overridden composite method on the receiver's runtime tag and
-     * {@code CheckOverrideRefinement} discharges the Liskov obligation that makes
-     * reasoning against the declared type's contract sound, so
-     * {@code RefusalGates.dispatchRefusal} was deleted. The value remains because
-     * the BYTECODE front end still refuses in
-     * {@code ClassResolver.enforceDispatchGate}; see the temporary block in
-     * {@code bytecode-xfails.txt}, which goes away when the gate is removed there
-     * too.
-     */
-    FRONTEND_DISPATCH,
-    /**
-     * A SOURCE-level construct the source front end refuses but javac desugars before
-     * the bytecode front end sees it: a compound assignment to a field or static
-     * (`JCAssignOp`), a multi-init / multi-step `for`, a switch EXPRESSION. The bytecode
-     * front end translates the desugared form, so the fixture pins ITS output and the
-     * source front end records the gap in {@code source-xfails.txt}. Delete an entry
-     * when the source front end translates the construct.
-     */
-    FRONTEND_SOURCE_CONSTRUCT,
     /** Front-end catch-all: operator / cast / numeric plumbing, impure-equality,
      *  abstract-contracts. Heterogeneous by design; split candidate (follow-up). */
     FRONTEND_OTHER,
-    /**
-     * Overload name mangling. The SOURCE front end now disambiguates overloaded
-     * methods by appending their erased parameter types, so this no longer blocks
-     * any source fixture. It remains only as a BYTECODE-frontend gap: the bytecode
-     * front end still refuses overloaded names, so {@code bytecode-xfails.txt}
-     * force-xfails the relevant fixtures under it. Delete when overloads are
-     * ported to the bytecode front end. */
-    FRONTEND_OVERLOAD,
     /** Anonymous / local class synthesis. */
     FRONTEND_ANON,
     /** Exception-support gaps deliberately deferred -- throw bodies in

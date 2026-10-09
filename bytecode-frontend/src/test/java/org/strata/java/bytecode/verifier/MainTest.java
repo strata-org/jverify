@@ -2,9 +2,6 @@ package org.strata.java.bytecode.verifier;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import picocli.CommandLine;
-import picocli.CommandLine.Model.CommandSpec;
-import picocli.CommandLine.Model.OptionSpec;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -19,9 +16,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.TreeSet;
 import javax.tools.ToolProvider;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -57,13 +51,6 @@ class MainTest {
                 }
             }
             """;
-
-    /** This frontend's options that JFE does not have. */
-    private static final Set<String> BYTECODE_FRONTEND_ONLY = Set.of("--no-constant-folding");
-
-    /** JFE's options this command does not implement, rejected as unknown. */
-    private static final Set<String> SOURCE_FRONTEND_ONLY =
-            Set.of("--filter-position", "--include-filter-dependencies");
 
     private record Run(int exitCode, String out, String err) {
     }
@@ -106,7 +93,7 @@ class MainTest {
 
     @Test
     void aDeletedSpecLibraryIsExtractedAgain(@TempDir Path tmp) throws Exception {
-        Files.delete(Main.specLibrary());
+        Files.delete(VerifierDriver.specLibraryLocation());
         var r = run(write(tmp, "NatParam.java", NAT_PARAM).toString());
         assertEquals(0, r.exitCode(), r::toString);
     }
@@ -576,7 +563,7 @@ class MainTest {
     }
 
     @Test
-    void sourceFrontendOnlyOptionIsRejected(@TempDir Path tmp) throws Exception {
+    void unknownOptionIsRejected(@TempDir Path tmp) throws Exception {
         var r = run("--filter-position=NatParam.java:7", write(tmp, "NatParam.java", NAT_PARAM).toString());
         assertEquals(2, r.exitCode(), r::toString);
         assertTrue(r.err().contains("Unknown option"), r::toString);
@@ -659,10 +646,28 @@ class MainTest {
         assertTrue(r.out().contains("Found 0 errors"), r::toString);
     }
 
+    /** Without a verdict the error count counts errors only, not warnings. */
+    @Test
+    void errorCountWithoutVerdictIgnoresWarnings(@TempDir Path tmp) throws Exception {
+        var r = run(write(tmp, "W.java", """
+                import org.strata.jverify.Verify;
+                class W {
+                    @Verify(false)
+                    static int helper() { return 1; }
+                    int viaHelper() { return helper(); }
+                    static boolean strings(String a, String b) { return a == b; }
+                }
+                """).toString());
+        assertEquals(2, r.exitCode(), r::toString);
+        assertTrue(r.out().contains("warning: instance method 'viaHelper' was not verified"), r::toString);
+        assertTrue(r.out().contains("error: '==' is only allowed"), r::toString);
+        assertTrue(r.out().contains("Found 1 errors"), r::toString);
+    }
+
     /**
      * Operations javac folds, {@code 6 & 3} to 2 and {@code "a" + "b" == "ab"} to true (a constant String
      * is interned). Unfolded, the translation sees the {@code &} and the {@code ==} on Strings, and refuses
-     * both, as JFE does.
+     * both.
      */
     private static final String REFUSED = """
             package p;
@@ -864,42 +869,59 @@ class MainTest {
     }
 
     /**
-     * Every option is JFE's, with JFE's arity, type and default, but
-     * --no-constant-folding, and every JFE option is here but the two this
-     * frontend does not implement: a new JFE option fails this until it is
-     * added or listed.
+     * A cast to {@code @Impure Object} makes its operand a reference, whichever
+     * side of the {@code ==} it is on. The cast emits no instruction; its CAST
+     * type annotation names the instruction after its operand.
      */
     @Test
-    void optionsMatchTheSourceFrontend() throws Exception {
-        var jfeCommand = Class.forName("org.strata.jverify.verifier.AppCommand").getDeclaredConstructor();
-        jfeCommand.setAccessible(true);
-        var jfe = options(new CommandLine(jfeCommand.newInstance()).getCommandSpec());
-        var ours = options(new CommandLine(new Main.VerifyCommand(name -> null)).getCommandSpec());
-        ours.keySet().removeAll(BYTECODE_FRONTEND_ONLY);
-
-        var expected = new TreeSet<>(jfe.keySet());
-        expected.removeAll(SOURCE_FRONTEND_ONLY);
-        assertEquals(expected, ours.keySet());
-        for (var name : ours.keySet()) {
-            OptionSpec a = jfe.get(name);
-            OptionSpec b = ours.get(name);
-            assertEquals(a.arity(), b.arity(), name);
-            assertEquals(a.type(), b.type(), name);
-            assertEquals(a.defaultValue(), b.defaultValue(), name);
-        }
-
-        var jfeInputs = new CommandLine(jfeCommand.newInstance()).getCommandSpec().positionalParameters();
-        var ourInputs = new CommandLine(new Main.VerifyCommand(name -> null)).getCommandSpec().positionalParameters();
-        assertEquals(1, ourInputs.size());
-        assertEquals(jfeInputs.getFirst().arity(), ourInputs.getFirst().arity());
-        assertEquals(jfeInputs.getFirst().type(), ourInputs.getFirst().type());
+    void anImpureCastAllowsReferenceEquality(@TempDir Path tmp) throws Exception {
+        var r = run(write(tmp, "I.java", """
+                import org.strata.jverify.Impure;
+                class I {
+                    static boolean right(Object a, Object b) { return a == (@Impure Object) b; }
+                    static boolean left(Object a, Object b) { return (@Impure Object) a == b; }
+                }
+                """).toString());
+        assertEquals(0, r.exitCode(), r::toString);
+        assertTrue(r.out().contains("Found 0 errors"), r::toString);
     }
 
-    private static Map<String, OptionSpec> options(CommandSpec spec) {
-        var byName = new TreeMap<String, OptionSpec>();
-        for (OptionSpec o : spec.options()) {
-            byName.put(o.longestName(), o);
-        }
-        return byName;
+    /** Without the cast, the same comparison is refused. */
+    @Test
+    void objectReferenceEqualityIsRefused(@TempDir Path tmp) throws Exception {
+        var r = run(write(tmp, "O.java", """
+                class O {
+                    static boolean plain(Object a, Object b) { return a == b; }
+                }
+                """).toString());
+        assertEquals(2, r.exitCode(), r::toString);
+        assertTrue(r.out().contains("error: '==' is only allowed when at least one operand's type is impure"),
+                r::toString);
+    }
+
+    /**
+     * Only JVerify's own {@code @Impure} relaxes the reference-equality rule:
+     * an unrelated annotation of the same simple name does not.
+     */
+    @Test
+    void foreignImpureAnnotationDoesNotAllowReferenceEquality(@TempDir Path tmp) throws Exception {
+        var annotation = write(Files.createDirectories(tmp.resolve("foo")), "Impure.java", """
+                package foo;
+                import java.lang.annotation.ElementType;
+                import java.lang.annotation.Target;
+                @Target(ElementType.TYPE_USE)
+                public @interface Impure {
+                }
+                """);
+        var file = write(tmp, "F.java", """
+                class F {
+                    static boolean strings(@foo.Impure String a, String b) { return a == b; }
+                }
+                """);
+        var r = run(annotation.toString(), file.toString());
+        assertEquals(2, r.exitCode(), r::toString);
+        assertTrue(r.out().contains("error: '==' is only allowed when at least one operand's type is impure"),
+                r::toString);
+        assertTrue(r.out().contains("Found 1 errors"), r::toString);
     }
 }

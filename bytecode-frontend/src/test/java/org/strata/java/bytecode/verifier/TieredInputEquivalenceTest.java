@@ -113,9 +113,7 @@ class TieredInputEquivalenceTest {
     }
 
     private static Path libraryClasses() {
-        return Path.of(java.util.Objects.requireNonNull(
-                System.getProperty("bytecode.library.jar"),
-                "bytecode.library.jar system property not set"));
+        return org.strata.java.bytecode.verifier.VerifierDriver.specLibraryLocation();
     }
 
     private static VerifierOptions options() {

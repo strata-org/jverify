@@ -3,14 +3,13 @@
 // last method checks a sign the contract rules out.
 package org.strata.jverify.verifier.tests.jcl;
 
-import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import java.math.BigInteger;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, useBuiltinContracts = true, exitCode = 4, methodsVerified = 2, methodsInvalid = 1, errorCount = 1)
+@JVerifyTest(useBuiltinContracts = true, exitCode = 4, methodsVerified = 2, methodsInvalid = 1, errorCount = 1)
 class BigIntegerContracts {
     static int positiveSign(long x) {
         precondition(x > 0);

@@ -38,8 +38,8 @@ import org.strata.java.bytecode.frontend.StructException;
  * The bytecode-to-Laurel expression layer: an operand-stack simulation over
  * a method's instructions whose stack holds Laurel {@code AstNode<StmtExpr>}
  * directly. Every translation decision — including refusals and their exact
- * message texts — matches JFE's observable behavior (the corpus asserts
- * byte-identical diagnostics), applied at the corresponding instruction.
+ * message texts — is pinned by the corpus (which asserts byte-identical
+ * diagnostics) and applied at the corresponding instruction.
  * Invocations, JVerify spec calls, and field accesses are delegated to
  * {@link InvokeTranslator}, {@link SpecCallTranslator}, and
  * {@link FieldAccessTranslator}, which share this body's stack and side
@@ -100,6 +100,7 @@ final class BodyTranslator {
     int pendingIncSlot = -1;                 // deferred mid-expression iinc (prefix ++x)
     int pendingIncDelta;
     Map<Integer, List<java.lang.classfile.Annotation>> slotTypeAnnos = Map.of();
+    List<org.strata.java.bytecode.frontend.MethodBody.SlotRange> impureLocals = List.of();
 
     // --- Laurel-side side tables (identity-keyed on the nodes this layer built) ---
     /** Pushed value's JVM descriptor where known (boolean/int erasure oracle). */
@@ -112,6 +113,12 @@ final class BodyTranslator {
      * type variable (their erased descriptor says {@code Object}).
      */
     final Set<AstNode<StmtExpr>> typeVarValues = Collections.newSetFromMap(new IdentityHashMap<>());
+    /**
+     * Loads of a local declared {@code @Impure} (a local or parameter type
+     * annotation, or a type variable with an {@code @Impure} bound): a heap
+     * object, so {@code ==} on it is a reference comparison.
+     */
+    final Set<AstNode<StmtExpr>> impureValues = Collections.newSetFromMap(new IdentityHashMap<>());
     /** {@code String} constants pushed by {@code ldc} (markers never enter). */
     final Set<AstNode<StmtExpr>> stringLiterals = Collections.newSetFromMap(new IdentityHashMap<>());
     /** Results of string concatenation ({@code invokedynamic makeConcatWithConstants}). */
@@ -126,7 +133,7 @@ final class BodyTranslator {
      * rendering (simple names, generics rendered), where one is recoverable
      * (locals via the LVT, casts, allocations, this). Used by the call
      * layer's receiver resolution — deliberately blind to library types'
-     * packages, matching JFE's simple-name resolution.
+     * packages (simple-name resolution).
      */
     final Map<AstNode<StmtExpr>, TypeRef> staticTypeOf = new IdentityHashMap<>();
     /**
@@ -137,8 +144,8 @@ final class BodyTranslator {
     final Map<AstNode<StmtExpr>, String> deferredRefusal = new IdentityHashMap<>();
     /**
      * Lambda / method-reference handles produced by invokedynamic: consumed
-     * specially by spec calls and `return`; anywhere else refuses with
-     * JFE's JCLambda message.
+     * specially by spec calls and `return`; anywhere else refuses with the
+     * JCLambda message.
      */
     final Map<AstNode<StmtExpr>, LambdaHandle> lambdas = new IdentityHashMap<>();
 
@@ -148,16 +155,15 @@ final class BodyTranslator {
     }
 
     /**
-     * A lambda used as a VALUE -- passed to a method, or stored -- as JFE's
-     * LambdaToAnonymousClassCompiler lowers it: an allocation of a fresh composite
-     * that extends the functional interface and declares no procedures. JFE emits
-     * exactly that ({@code new Enclosing.lambda.<line>_<col>}), so the body is not
-     * translated and a call through the interface reasons from the interface's own
-     * contract. The sort is named after the synthetic impl method, qualified by the
+     * A lambda used as a VALUE -- passed to a method, or stored -- lowers to an
+     * allocation of a fresh composite that extends the functional interface and
+     * declares no procedures ({@code new Enclosing.lambda.<line>_<col>}), so the
+     * body is not translated and a call through the interface reasons from the
+     * interface's own contract. The sort is named after the synthetic impl method, qualified by the
      * class that declares it, so two classes whose lambdas sit at the same place
      * cannot share a sort (SameLineAndColumnLambdaA/B).
      *
-     * <p>Left as the handle -- and refused where it is placed, with JFE's message --
+     * <p>Left as the handle -- and refused where it is placed (corpus-pinned message) --
      * for a method reference, and for a functional interface that is a generic
      * class of this program, whose instantiation this sort could not name.
      */
@@ -188,7 +194,7 @@ final class BodyTranslator {
     /**
      * Lambdas hidden behind a functional-interface CHECKCAST: the marker
      * refuses as JCLambda where a bare lambda is required, but throwsOn case
-     * postconditions unwrap the cast (as JFE unwraps parens and casts).
+     * postconditions unwrap the cast.
      */
     final Map<AstNode<StmtExpr>, LambdaHandle> castWrappedLambdas = new IdentityHashMap<>();
 
@@ -410,7 +416,7 @@ final class BodyTranslator {
             return;
         }
         // POST-order (children first, left to right): the deepest-leftmost
-        // refusal wins, matching JFE's bottom-up conversion order.
+        // refusal wins (a bottom-up order pinned by the corpus).
         for (AstNode<StmtExpr> child : childrenOf(n.val())) {
             checkPlaceable(child);
         }
@@ -461,7 +467,7 @@ final class BodyTranslator {
             if (arrays.isArrayConstructorRef(lambdas.get(n))) {
                 throw new JavaViolationException(ArrayModel.CTOR_REF);
             }
-            // JFE's convertExpression default-arm message on a lambda/method reference.
+            // The corpus-pinned refusal for a lambda/method reference in value position.
             throw new JavaViolationException("Unsupported expression: JCLambda");
         }
     }
@@ -711,9 +717,9 @@ final class BodyTranslator {
                 : new TypeRef(TypeRef.Kind.CLASS, simple, simple, simple, false, false, false, fqn);
     }
 
-    // --- Coercions (fused Body.coerce/coerceTo/coerceArg + convert-time forms) ---
+    // --- Coercions (coerce / coerceTo / coerceArg) ---
 
-    /** boolean target: 0/1 literals become false/true (old coerce(v,"Z")). */
+    /** boolean target: 0/1 literals become false/true. */
     AstNode<StmtExpr> coerce(AstNode<StmtExpr> v, String desc) {
         if ("Z".equals(desc) && v.val() instanceof StmtExpr.LiteralInt li
                 && (li.value() == 0 || li.value() == 1)) {
@@ -780,7 +786,7 @@ final class BodyTranslator {
 
     /**
      * A bare `null` has no translation: refusal "Unsupported expression:
-     * NullLiteralExpr" (JFE's message) unless a coercion consumes it (a cast
+     * NullLiteralExpr" unless a coercion consumes it (a cast
      * at a call argument). The marker
      * keeps the value distinguishable for coerceArg.
      */
@@ -793,7 +799,7 @@ final class BodyTranslator {
         deferredRefusal.put(n, message);
     }
 
-    /** LOAD: push the named local (fused NameExpr conversion: renames + this -> self?). */
+    /** LOAD: push the named local (applying renames; {@code this} -> self?). */
     void load(LoadInstruction li) {
         if (pendingIncSlot == li.slot()) {
             int c = pendingIncDelta;
@@ -822,7 +828,27 @@ final class BodyTranslator {
         if (t != null && t.kind() == TypeRef.Kind.CLASS && !t.scoped()
                 && ctx.typeParams.contains(t.simpleName())) {
             typeVarValues.add(n);
+            if (ctx.impureTypeParams.contains(t.simpleName())) {
+                impureValues.add(n);
+            }
         }
+        if (isImpureLocalHere(li.slot())) {
+            impureValues.add(n);
+        }
+    }
+
+    /** Whether the local occupying {@code slot} at the current instruction is declared {@code @Impure}. */
+    private boolean isImpureLocalHere(int slot) {
+        if (impureLocals.isEmpty() || seqToBci == null || pos < 0 || pos >= seqToBci.length) {
+            return false;
+        }
+        int bci = seqToBci[pos];
+        for (var r : impureLocals) {
+            if (r.covers(slot, bci)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private AstNode<Variable> localVarTarget(int slot) {
@@ -872,7 +898,7 @@ final class BodyTranslator {
             return;
         }
         if (declared.add(varKey(si.slot()))) {
-            // Declaration (old: VariableDeclarationExpr -> convertVariableDeclaration).
+            // First store to the slot: a local declaration.
             String nm = localName(si.slot());
             LaurelFactory.refuseReservedName(nm);
             TypeRef t = localTypeRef(si.slot());
@@ -943,8 +969,8 @@ final class BodyTranslator {
 
     /**
      * Recover {@code x++} / {@code ++x} from a store whose value updates the
-     * same slot by one while a value is still live on the stack (old
-     * asIncrementExpr / asIncrementExprOn for the local case).
+     * same slot by one while a value is still live on the stack (the local
+     * case of {@link #asIncrementExprOn}).
      */
     boolean asIncrementExpr(int slot, AstNode<StmtExpr> val) {
         return asIncrementExprOn(localVarTarget(slot), val);
@@ -994,7 +1020,7 @@ final class BodyTranslator {
                 ? (plus ? 1 : -1) : 0;
     }
 
-    // --- Operators (fused Body.operator + convertBinary/convertUnary) ---
+    // --- Operators (arithmetic, comparison and boolean ops) ---
 
     /** Binary $op push. */
     void bin(Operation op) {
@@ -1182,9 +1208,8 @@ final class BodyTranslator {
     }
 
     /**
-     * A bitwise/shift operator. Reported as a hard error AT THE OPERATOR, like
-     * JFE's UnsupportedConstructValidator, rather than deferred into a
-     * whole-method refusal: the bit-level opcodes survive into bytecode intact,
+     * A bitwise/shift operator. Reported as a hard error AT THE OPERATOR, rather
+     * than deferred into a whole-method refusal: the bit-level opcodes survive into bytecode intact,
      * so there is nothing source-only about this check. Translation continues
      * (with a placeholder) so EVERY occurrence is reported, and
      * {@code constructErrorReported} turns the method into a demotion at the end.
@@ -1229,16 +1254,20 @@ final class BodyTranslator {
      * body with several offending constructs reports each one.
      */
     void reportConstructError(String message) {
+        reportConstructError(ctx.src.positionRange(stmtRange(pos, false)), message);
+    }
+
+    /** {@link #reportConstructError(String)}, anchored at {@code range}. */
+    private void reportConstructError(org.strata.jverify.common.Range range, String message) {
         if (ctx.contractMode) {
             throw new JavaViolationException(message);
         }
         // An opted-out method still DEMOTES -- the construct is untranslatable
         // either way -- but reports nothing, which is what @Verify(false) asks for
-        // (ClassLevelOptOutSuppressesConstructs). JFE's validator honours the same
-        // opt-out, walking the owner chain for a class-level one.
+        // (ClassLevelOptOutSuppressesConstructs). The opt-out is the resolved one,
+        // so a class-level @Verify(false) covers its methods.
         if (!ctx.method.info.quiet) {
-            ctx.reporter.reportError(ctx.src.uri,
-                    ctx.src.positionRange(stmtRange(pos, false)), message);
+            ctx.reporter.reportError(ctx.src.uri, range, message);
         }
         ctx.method.info.constructErrorReported = true;
     }
@@ -1265,11 +1294,11 @@ final class BodyTranslator {
             cmp3NanHigh.put(n, nanHigh);
         }
         // Unconsumed, a bare 3-way compare surfaces as a Long.compare-style
-        // call to an unknown class and refuses (JFE's behavior).
+        // call to an unknown class and refuses.
         defer(n, "Call to unknown class '" + boxType + "' is not supported");
     }
 
-    // --- Boolean materialization (fused materializeComparison/cmp/cmpLit/unaryBool) ---
+    // --- Boolean materialization (comparisons and unary boolean ops) ---
 
     /** The materialized boolean is the NEGATION of the branch condition. */
     AstNode<StmtExpr> materializeComparison(java.lang.classfile.Opcode op) {
@@ -1301,60 +1330,10 @@ final class BodyTranslator {
         };
     }
 
-    /**
-     * Reference {@code ==} / {@code !=}. Sound only when at least one operand is a
-     * HEAP object. A type translated to a Laurel VALUE -- a boxed primitive,
-     * {@code String}, a record, or a bare {@code Object}, which says nothing about
-     * its runtime class -- has no reference identity to compare, so Laurel equality
-     * would answer a different question than Java does. JFE reports this from
-     * UnsupportedConstructValidator; the opcode and both operand descriptors survive
-     * into bytecode, so the rule carries over. A comparison against {@code null} is
-     * IFNULL/IFNONNULL -- a different opcode that never reaches this arm, matching
-     * JFE's exemption for a null operand.
-     */
+    /** Reference {@code ==} / {@code !=}: see {@link #refuseUnsoundReferenceEquality}. */
     private AstNode<StmtExpr> cmpRef(Operation op, String symbol) {
-        var it = stack.iterator();
-        AstNode<StmtExpr> top = it.hasNext() ? it.next() : null;
-        AstNode<StmtExpr> under = it.hasNext() ? it.next() : null;
-        if (!ctx.method.mentionsImpure && top != null && under != null
-                && translatesToValue(top) && translatesToValue(under)) {
-            reportConstructError("'" + symbol
-                    + "' is only allowed when at least one operand's type is impure");
-        }
+        refuseUnsoundReferenceEquality(symbol);
         return cmp(op);
-    }
-
-    /**
-     * The operand's static type is translated to a Laurel VALUE rather than a heap
-     * composite. Unknown or non-class descriptors answer false: the check only
-     * accuses when both sides are positively value-typed.
-     */
-    private boolean translatesToValue(AstNode<StmtExpr> n) {
-        // A generic call's result carries the ERASED descriptor (Object) until a
-        // checkcast recovers its type, so its descriptor says nothing about the
-        // value. Unknown, and the rule only accuses on positive evidence
-        // (ErasedResultEquality). The cost: `id("a") == id("b")`, with no cast in
-        // between, escapes a rejection the source frontend makes.
-        if (erasedResults.contains(n.val())) {
-            return false;
-        }
-        String desc = descOf.get(n);
-        if (desc == null || !desc.startsWith("L")) {
-            return false;
-        }
-        String fqn = JavaNames.dottedFqn(desc.substring(1, desc.length() - 1));
-        switch (fqn) {
-            case "java.lang.Object", "java.lang.String", "java.lang.Integer",
-                 "java.lang.Long", "java.lang.Short", "java.lang.Byte",
-                 "java.lang.Character", "java.lang.Boolean", "java.lang.Float",
-                 "java.lang.Double" -> {
-                return true;
-            }
-            default -> { }
-        }
-        var cm = ctx.resolver.programClassModels.get(fqn);
-        return cm != null
-                && cm.findAttribute(java.lang.classfile.Attributes.record()).isPresent();
     }
 
     private AstNode<StmtExpr> cmp(Operation op) {
@@ -1364,6 +1343,97 @@ final class BodyTranslator {
             b = coerce(b, "Z");
         }
         return e(LaurelFactory.primitiveOp(op, a, b));
+    }
+
+    /**
+     * The reference types whose Java identity is lost in translation -- the
+     * boxed primitives (translated as their primitive), {@code String} (a
+     * Laurel string) and {@code Record} -- together with their supertypes,
+     * whose values may be one of them.
+     */
+    private static final Set<String> VALUE_TRANSLATED_TYPES = Set.of(
+            "java.lang.Boolean", "java.lang.Byte", "java.lang.Short", "java.lang.Character",
+            "java.lang.Integer", "java.lang.Long", "java.lang.Float", "java.lang.Double",
+            "java.lang.String", "java.lang.Record",
+            "java.lang.Object", "java.lang.Number", "java.lang.Comparable", "java.lang.CharSequence",
+            "java.io.Serializable", "java.lang.constant.Constable", "java.lang.constant.ConstantDesc");
+
+    /**
+     * Refuse a reference comparison ({@code if_acmpeq}/{@code if_acmpne}) whose
+     * meaning the translation would not keep.
+     *
+     * <p>Java's {@code ==} on references compares identity, but a value of a
+     * {@linkplain #VALUE_TRANSLATED_TYPES value-translated type} or a record
+     * becomes a Laurel value, where two distinct but equal objects compare
+     * equal: accepting the comparison would prove what Java does not guarantee.
+     * It is sound when either operand {@linkplain #keepsReferenceIdentity keeps
+     * its identity}. Otherwise it is a construct error on the comparison's line
+     * ({@link #reportConstructError}): every occurrence is reported and the
+     * method is demoted. In a method opted out of verification the method is
+     * demoted silently: its contract is not emitted, and calls to it are
+     * refused at the call site. Library contract members are not checked.
+     *
+     * <p>A generic call's result carries the ERASED descriptor ({@code Object})
+     * until a checkcast recovers its type, so it is not accused
+     * (ErasedResultEquality). The cost: {@code id("a") == id("b")}, with no cast
+     * in between, is accepted.
+     */
+    private void refuseUnsoundReferenceEquality(String op) {
+        if (ctx.contractMode || stack.size() < 2) {
+            return;
+        }
+        var it = stack.iterator();
+        AstNode<StmtExpr> b = it.next();
+        AstNode<StmtExpr> a = it.next();
+        if (keepsReferenceIdentity(a) || keepsReferenceIdentity(b)
+                || erasedResults.contains(a.val()) || erasedResults.contains(b.val())) {
+            return;
+        }
+        reportConstructError(ctx.src.pointOf(comparisonRange()),
+                "'" + op + "' is only allowed when at least one operand's type is impure");
+    }
+
+    /**
+     * Whether {@code n} certainly holds a heap object (or null): the
+     * {@code null} constant, a value typed {@code @Impure}, or a value whose
+     * static (erased) type is neither a {@linkplain #VALUE_TRANSLATED_TYPES
+     * value-translated type or supertype of one} nor a record. A type
+     * variable erases to its bound, so it is decided by the bound, as Java
+     * knows nothing else about its instantiation. An operand of unknown type
+     * may hold anything.
+     */
+    private boolean keepsReferenceIdentity(AstNode<StmtExpr> n) {
+        if (isNullMarker(n) || impureValues.contains(n)) {
+            return true;
+        }
+        String desc = descOf.get(n);
+        TypeRef type = desc != null && (desc.startsWith("L") || desc.startsWith("["))
+                ? TypeRef.ofDescriptor(desc)
+                : staticTypeOf.get(n);
+        if (type == null) {
+            return false;
+        }
+        if (type.kind() == TypeRef.Kind.ARRAY) {
+            return true;
+        }
+        String fqn = type.fqnFromContext();
+        return fqn != null
+                && !VALUE_TRANSLATED_TYPES.contains(fqn)
+                && !"java.lang.Record".equals(ctx.resolver.superclassOf(fqn));
+    }
+
+    /**
+     * The comparison's position: its LineNumberTable line, else the
+     * enclosing statement's span.
+     */
+    private FileRange comparisonRange() {
+        if (lines != null && seqToBci != null && pos >= 0 && pos < seqToBci.length) {
+            FileRange r = ctx.src.lineRange(lines.lineAt(seqToBci[pos]));
+            if (r != SourceMap.UNKNOWN_RANGE) {
+                return r;
+            }
+        }
+        return stmtRange(pos, false);
     }
 
     private AstNode<StmtExpr> cmpNull(Operation op) {
@@ -1434,7 +1504,7 @@ final class BodyTranslator {
 
     /**
      * User-call nodes -> the {@code declaringFqn_name} key of the driver's
-     * pureMethods map: the heap-write fallback (bodyPotentiallyWritesHeap)
+     * pureMethods map: the heap-write fallback ({@code writesHeap})
      * walks the emitted Laurel tree and answers call purity through this.
      */
     final Map<StmtExpr, String> calleeKeys = new IdentityHashMap<>();
@@ -1453,19 +1523,18 @@ final class BodyTranslator {
     /**
      * {@code INSTANCEOF} instructions that test a pattern-bind shape, filled by
      * {@link ControlFlowStructurer#markPatternBindTests}. Laurel's {@code is} has
-     * nowhere to put the binding, so these refuse exactly as JFE refuses an
-     * {@code instanceof} carrying a {@code JCBindingPattern}.
+     * nowhere to put the binding, so an {@code instanceof} with a pattern
+     * refuses.
      */
     final java.util.Set<java.lang.classfile.instruction.TypeCheckInstruction> patternBindTests =
             java.util.Collections.newSetFromMap(new IdentityHashMap<>());
     /**
      * Call results whose DECLARED type is a type variable, so the
      * {@code CHECKCAST} javac puts after them is an erasure artefact rather than
-     * a cast the user wrote. JFE never sees these: it walks the typed source tree,
-     * where {@code identity(x)} already has the instantiated type and the cast is
-     * a no-op by {@code isOwnDowncast}'s subtype test. From bytecode only the
-     * erased {@code Object -> C} remains, which is a genuine downcast on its face,
-     * so the provenance has to be carried here instead.
+     * a cast the user wrote. In the source, {@code identity(x)} already has the
+     * instantiated type and the cast is a no-op. From bytecode only the erased
+     * {@code Object -> C} remains, which is a genuine downcast on its face, so the
+     * provenance has to be carried here.
      */
     final java.util.Set<StmtExpr> erasedResults =
             java.util.Collections.newSetFromMap(new IdentityHashMap<>());
@@ -1473,8 +1542,8 @@ final class BodyTranslator {
     /**
      * Spec-call statements (precondition/postcondition/.../throwsOn chains)
      * emitted as marker statements: the driver's contract extraction reads
-     * this table. A marker in body position past the header refuses with the
-     * old "call to contract method must come before the rest of the body".
+     * this table. A marker in body position past the header refuses with
+     * "call to contract method must come before the rest of the body".
      */
     final Map<AstNode<StmtExpr>, SpecStmt> specStmts = new IdentityHashMap<>();
 
@@ -1487,7 +1556,7 @@ final class BodyTranslator {
     record SpecLink(String name, AstNode<StmtExpr> arg, BodyTranslator.LambdaHandle lambdaArg) {
     }
 
-    /** Emitted Throw statements -> the thrown static type fqn (or null): driver prescan parity. */
+    /** Emitted Throw statements -> the thrown static type fqn (or null). */
     final Map<AstNode<StmtExpr>, String> throwStmts = new IdentityHashMap<>();
 
     /** Contract mode: the value a {@code new ContractException()} pushes. */
@@ -1500,10 +1569,10 @@ final class BodyTranslator {
     final Set<AstNode<StmtExpr>> contractThrows = Collections.newSetFromMap(new IdentityHashMap<>());
 
     /**
-     * Structuring gaps (old {@code todo()} EmptyStmt comments). The old
-     * translateMethod scanned these FIRST and refused the whole method with
-     * the comment text, before any conversion refusal could fire; collected
-     * here and thrown by the driver ahead of other refusals.
+     * Structuring gaps recorded by {@link #todo}. Method translation checks
+     * these FIRST and refuses the whole method with the first gap's text
+     * ("unsupported control flow ..."), ahead of every other refusal in the
+     * body.
      */
     final List<String> todos = new ArrayList<>();
 
@@ -1511,7 +1580,7 @@ final class BodyTranslator {
         todos.add("TODO unsupported: " + msg);
     }
 
-    // --- Dispatch (ports of Body.run / translateInstrs / translateSpan) ---
+    // --- Dispatch (translateInstrs / translateSpan) ---
 
     static int seqAt(List<Integer> idxs, int p) {
         return idxs == null ? p : idxs.get(p);
@@ -1576,8 +1645,35 @@ final class BodyTranslator {
         }
     }
 
-    /** MAIN opcode switch (Body.translate fused with the conversion layer). */
+    /** One instruction to its Laurel form; then marks the value of an {@code @Impure} cast it produces. */
     void translate(Instruction in) {
+        int at = pos;
+        translateInstruction(in);
+        if (!impureCasts.isEmpty() && producesImpureCast(in, at) && !stack.isEmpty()) {
+            impureValues.add(stack.peek());
+        }
+    }
+
+    /**
+     * Whether {@code in}, at seq index {@code at}, leaves an {@code @Impure}
+     * cast's value on the stack (see {@link #impureCasts}): a {@code checkcast}
+     * the CAST entry names, or the instruction just before the bci a cast that
+     * emits no instruction names.
+     */
+    private boolean producesImpureCast(Instruction in, int at) {
+        if (seqToBci == null || at < 0 || at >= seqToBci.length) {
+            return false;
+        }
+        int bci = seqToBci[at];
+        if (in instanceof java.lang.classfile.instruction.TypeCheckInstruction tc
+                && tc.opcode() == java.lang.classfile.Opcode.CHECKCAST && impureCasts.contains(bci)) {
+            return true;
+        }
+        return impureCasts.contains(bci + in.sizeInBytes());
+    }
+
+    /** MAIN opcode switch: one instruction to its Laurel form. */
+    private void translateInstruction(Instruction in) {
         if (!rangeCastAnnotations.isEmpty() && seqToBci != null && pos >= 0 && pos < seqToBci.length
                 && !(in instanceof java.lang.classfile.instruction.ConvertInstruction)
                 && !(in instanceof java.lang.classfile.instruction.TypeCheckInstruction)) {
@@ -1742,8 +1838,8 @@ final class BodyTranslator {
                     return;
                 }
                 stack.pop();
-                // FieldAccessExpr "length": the conversion's field machinery
-                // never resolves it -> "Unsupported field access: x.length".
+                // Without the array model, `x.length` defers a refusal
+                // (wording pinned by the corpus).
                 defer(push(new StmtExpr.LiteralString("$arraylength")),
                         "Unsupported expression: FieldAccessExpr");
             }
@@ -1764,7 +1860,7 @@ final class BodyTranslator {
         try {
             targetType = target.toLaurel(ctx.typeParams, ctx.resolver, ctx.composites);
         } catch (JavaViolationException ex) {
-            // float/double conversions: JFE's fully-qualified cast refusal.
+            // float/double conversions: the fully-qualified cast refusal.
             defer(push(new StmtExpr.LiteralString("$cast")),
                     "Cast to " + targetName + " is not yet supported");
             return;
@@ -1777,7 +1873,7 @@ final class BodyTranslator {
         }
         // `(short) l` compiles to `l2i; i2s`. Two range checks (int64 -> int32, then
         // int32 -> int16) hold exactly when one does (int64 -> int16), which is the
-        // single obligation JFE states and the message it gives -- so the pair is fused.
+        // single obligation with a single message -- so the pair is fused.
         if (isIntNarrowing(cv.opcode()) && operand.val() instanceof StmtExpr.StaticCall prev
                 && prev.callee().text().equals("java?cast_to_int32_from_int64")
                 && prev.arguments().size() == 1) {
@@ -1785,10 +1881,10 @@ final class BodyTranslator {
         }
         HighType sourceType = inferCastSourceType(operand);
         // Every integral WIDENING is the identity, not only one off an unbounded value:
-        // it is value-preserving (JLS 5.1.2), so it carries no obligation, and JFE
-        // states none. Emitting a cast helper here gave each occurrence its own fresh
-        // result, so `u * i == i * u` with `i` widened twice compared two unrelated
-        // values inside a nonlinear product -- a solver timeout where JFE proves it
+        // it is value-preserving (JLS 5.1.2), so it carries no obligation. A cast
+        // helper here would give each occurrence its own fresh result, so
+        // `u * i == i * u` with `i` widened twice would compare two unrelated values
+        // inside a nonlinear product -- a solver timeout instead of a proof
         // (PrimitiveCasts.unboundedTimesInt).
         if (isJavaWidening(cv.opcode())
                 && (sourceType instanceof HighType.TInt || cv.opcode() == java.lang.classfile.Opcode.I2L)) {
@@ -1825,12 +1921,22 @@ final class BodyTranslator {
      * where {@code x} is an {@code @Unbounded int}) emits no instruction: both sides
      * are JVM {@code int}. Its type annotations survive, though, as CAST entries whose
      * offset names the instruction that consumes the cast value (javac 25). So before
-     * that instruction the stack top gets the cast JFE states, with JFE's message
+     * that instruction the stack top gets the cast's obligation and message
      * ("cast from int to nat does not hold"). An unannotated `(int) x` leaves nothing
      * at all and is indistinguishable from `int i = x;`, so it stays the store's
-     * subset check -- measured: JFE itself words those two differently.
+     * subset check, which words its failure differently.
      */
     final Map<Integer, java.util.Set<String>> rangeCastAnnotations = new HashMap<>();
+
+    /**
+     * The bcis of the CAST entries that carry {@code @Impure}. A cast that
+     * emits a {@code checkcast} is recorded at it; one that emits no
+     * instruction ({@code (@Impure Object) b} on an {@code Object}) at the
+     * instruction after the cast's operand. Either way the cast's value is
+     * {@linkplain #impureValues @Impure}, so {@code a == (@Impure Object) b}
+     * is a reference comparison.
+     */
+    final java.util.Set<Integer> impureCasts = new java.util.HashSet<>();
 
     private void applyRangeCast(java.util.Set<String> annos) {
         if (stack.isEmpty()) {
@@ -1880,8 +1986,8 @@ final class BodyTranslator {
     }
 
     /**
-     * The cast operand's static type without javac attribution (old
-     * inferCastSourceType): a local's declared type when known, a stacked
+     * The cast operand's static type without javac attribution: a local's
+     * declared type when known, a stacked
      * cast's target, int64 for long literals, else int32.
      */
     private HighType inferCastSourceType(AstNode<StmtExpr> operand) {
@@ -1909,7 +2015,7 @@ final class BodyTranslator {
         return new HighType.UserDefined(LaurelFactory.ident("int32"));
     }
 
-    /** CHECKCAST / INSTANCEOF fused with convertTypeCast / InstanceOfExpr conversion. */
+    /** CHECKCAST / INSTANCEOF: lowers a reference cast or type test. */
     void typeCheck(java.lang.classfile.instruction.TypeCheckInstruction tc) {
         if (arrays.enabled() && tc.type().asSymbol().isArray()) {
             throw new JavaViolationException(ArrayModel.CAST);
@@ -1920,8 +2026,8 @@ final class BodyTranslator {
         if (tc.opcode() == java.lang.classfile.Opcode.CHECKCAST) {
             // An erasure cast carries no obligation: the value came from a call
             // whose declared type is a type variable, so javac is restoring the
-            // instantiation the source already had. Treated as the identity, which
-            // is what JFE does for the same program (see erasedResults).
+            // instantiation the source already had. Treated as the identity (see
+            // erasedResults).
             if (fqn != null && ctx.resolver.libraryContracts.values().stream()
                     .anyMatch(c -> c.fqn().equals(fqn))) {
                 stack.push(v);
@@ -1939,9 +2045,9 @@ final class BodyTranslator {
                 return;
             }
             // A reference DOWNCAST is Laurel's `as`, whose embedded type test
-            // becomes a real obligation. Exception types took this path already;
-            // it generalises to any composite THIS compilation declares, now that
-            // every sort carries its supertype closure and a runtime tag. An
+            // becomes a real obligation. It applies to exception types and to any
+            // composite THIS compilation declares: every sort carries its
+            // supertype closure and a runtime tag. An
             // UPCAST never reaches here: javac emits no instruction for it, so it
             // is already the identity. A library target stays refused -- several
             // (String, the boxed primitives) are modelled as Laurel values rather
@@ -1963,10 +2069,10 @@ final class BodyTranslator {
                         CLASS_CAST_EXCEPTION));
                 return;
             }
-            // A functional-interface cast over a lambda/method reference: the
-            // old CastExpr conversion converted the INNER expression first and
-            // refused on it as JCLambda. throwsOn case postconditions unwrap
-            // such casts (convertCasePostcondition's skipParens+Cast loop).
+            // A functional-interface cast over a lambda/method reference
+            // defers the JCLambda refusal on the inner lambda. throwsOn case
+            // postconditions unwrap such casts (castWrappedLambdas, read by
+            // convertCasePostcondition).
             if (lambdas.containsKey(v)) {
                 AstNode<StmtExpr> n = push(new StmtExpr.LiteralString("$castLambda"));
                 castWrappedLambdas.put(n, lambdas.get(v));
@@ -1979,12 +2085,10 @@ final class BodyTranslator {
             defer(n, "Cast to " + ctx.resolver.qualifyTypeName(t.nameWithScope())
                     + " is not yet supported");
         } else {
-            // A plain type test maps onto Laurel's `is`. This used to be restricted
-            // to exception types, on the grounds that other reference types were
-            // opaque sorts with no declared hierarchy, so `is` on them would be
-            // vacuous. CompositeModel.emitComposite now declares every sort's FULL
-            // supertype closure and Laurel keeps a runtime tag per composite, so
-            // `is` decides properly for any composite this compilation declares.
+            // A plain type test maps onto Laurel's `is`. CompositeModel.emitComposite
+            // declares every sort's FULL supertype closure and Laurel keeps a runtime
+            // tag per composite, so `is` decides properly for any composite this
+            // compilation declares.
             if (fqn == null || patternBindTests.contains(tc)
                     || !(ctx.resolver.isThrowableSubtype(fqn)
                             || ctx.resolver.programClassModels.containsKey(fqn))) {
@@ -2032,7 +2136,7 @@ final class BodyTranslator {
         return null;
     }
 
-    /** Resolve a class TypeRef to an fqn, matching JFE's resolution (see parity notes). */
+    /** Resolve a class TypeRef to an fqn: program classes by name, library classes by descriptor. */
     String resolveFqn(TypeRef t) {
         if (t.kind() != TypeRef.Kind.CLASS) {
             return null;
@@ -2134,7 +2238,7 @@ final class BodyTranslator {
     }
 
     /**
-     * Coerce a call ARGUMENT to its parameter type (old coerceArg): boolean
+     * Coerce a call ARGUMENT to its parameter type: boolean
      * coercion, and the null-argument cast that then refuses (exception target -> NullLiteralExpr refusal; other reference
      * target -> the cast refusal).
      */
@@ -2192,7 +2296,7 @@ final class BodyTranslator {
         return ctx.resolver.qualifyTypeName(t.nameWithScope(), t.fqnFromContext());
     }
 
-    /** The thrown expression's static type fqn (old thrownStaticTypeFqn), or null. */
+    /** The thrown expression's static type fqn, or null. */
     String thrownStaticTypeFqn(AstNode<StmtExpr> thrown) {
         if (thrown.val() instanceof StmtExpr.New nw) {
             return nw.ref().text();                     // allocation: the sort IS the fqn
@@ -2268,11 +2372,11 @@ final class BodyTranslator {
                      List<CrtRange> crt, ControlFlowGraph cfg) {
     }
 
-    // --- Fields (fused Body.field + FieldAccessExpr conversion) ---
+    // --- Fields (GETFIELD / PUTFIELD / GETSTATIC / PUTSTATIC: FieldAccessTranslator) ---
 
     // --- invokedynamic (LambdaMetafactory / StringConcatFactory) ---
 
-    // --- Peepholes (ports of tryArrayInit / tryCompoundAssign / tryBooleanRegion) ---
+    // --- Peepholes (tryArrayInit / tryCompoundAssign / tryBooleanRegion) ---
 
     int tryArrayInit(List<CodeElement> seq, List<Integer> idxs, int k) {
         if (!(seq.get(k) instanceof Instruction na)) {
@@ -2376,8 +2480,8 @@ final class BodyTranslator {
             return 0;
         }
         stack.pop();   // the size (implied by the initializer)
-        // Old shape: ArrayCreationExpr with initializer. The conversion
-        // reported at the FIRST element's text and threw ReportedViolation.
+        // Array creation with initializer: the marker refuses at placement,
+        // reported at the FIRST element's text (see refuseNode).
         AstNode<StmtExpr> marker = push(new StmtExpr.LiteralString("$arrayInit"));
         arrayInitNeedles.put(marker, renderNeedle(elems.get(0)));
         return p - k;
@@ -2469,7 +2573,7 @@ final class BodyTranslator {
         return 0;
     }
 
-    /** Compound-assignment operator support, refusing the rest with JFE's operator names. */
+    /** Compound-assignment operator support, refusing the rest with their operator names. */
     private Operation compoundOp(java.lang.classfile.Opcode op) {
         return switch (op) {
             case IADD, LADD, FADD, DADD -> new Operation.Add();
@@ -2499,7 +2603,7 @@ final class BodyTranslator {
                 && a.name().equals(b.name());
     }
 
-    /** Boolean materialization region (old tryBooleanRegion; && folds to $andThen). */
+    /** Boolean materialization region ({@code &&} folds to $andThen). */
     int tryBooleanRegion(List<CodeElement> seq, int k,
                          java.lang.classfile.instruction.BranchInstruction first) {
         java.lang.classfile.Label lfalse = first.target();
@@ -2564,7 +2668,7 @@ final class BodyTranslator {
         }
         AstNode<StmtExpr> result = guards.get(0);
         for (int i = 1; i < guards.size(); i++) {
-            // Old: BinaryExpr.AND -> convertBinary -> AndThen.
+            // `&&` guards fold left to right into AndThen.
             result = e(LaurelFactory.primitiveOp(new Operation.AndThen(), result, guards.get(i)));
         }
         bools.add(result);

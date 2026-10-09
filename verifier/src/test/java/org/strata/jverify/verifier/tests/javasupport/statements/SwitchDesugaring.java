@@ -7,8 +7,8 @@ import static org.strata.jverify.JVerify.postcondition;
 import static org.strata.jverify.JVerify.precondition;
 
 /**
- * Regression test for arrow-form switches reaching JavaToLaurelCompiler as
- * if/conditional chains. Switches.java covers more forms but stays skipped
+ * Regression test for arrow-form switch statements and expressions.
+ * Switches.java covers more forms but stays skipped
  * pending case-null support.
  */
 @JVerifyTest(exitCode = 4, methodsVerified = 14, errorCount = 1)

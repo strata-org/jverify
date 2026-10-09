@@ -1,5 +1,6 @@
 package org.strata.jverify.verifier.tests.javasupport.statements;
 
+import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.check;
@@ -12,11 +13,11 @@ import static org.strata.jverify.JVerify.invariant;
  * be violated; bound correctly, the inner loop never completes, so `after`
  * is never incremented.
  *
- * <p>Kept separate from VerifyBreakContinue because the bytecode frontend
- * aborts without a verdict on this shape (exit 2); xfailed in
- * bytecode-xfails.txt.
+ * <p>Kept separate from VerifyBreakContinue and expected to fail: the
+ * unconditional labeled continue to the outer loop aborts without a verdict
+ * (exit 2).
  */
-@JVerifyTest(methodsVerified = 2)
+@JVerifyTest(expectedToFail = true, blockedBy = Blocker.FRONTEND_OTHER, methodsVerified = 2)
 class LabeledContinue {
     static void labeledContinueOuter() {
         int after = 0;

@@ -15,12 +15,12 @@ class IncrementDecrementField {
         int n;
     }
 
-    // Regression: a method whose ONLY heap effect is `c.n++` (no
-    // preceding assignment) must still get a synthesized modifies
-    // clause. Before the visitUnary arm was added to
-    // bodyPotentiallyWritesHeap, this failed with "modifies clause
-    // could not be proved" at (1:1-1:1) because the JCAssign detector
-    // never fired.
+    // A method whose ONLY heap effect is `c.n++` (no preceding
+    // assignment) must still get a synthesized modifies clause: the
+    // heap-write fallback counts a field increment as a heap write
+    // just as it counts an assignment. Without that clause the
+    // method fails with "modifies clause could not be proved" at
+    // (1:1-1:1).
     static class UnboundedCounter {
         @Unbounded int n;
     }

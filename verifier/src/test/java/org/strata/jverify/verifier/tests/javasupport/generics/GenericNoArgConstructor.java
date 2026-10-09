@@ -6,8 +6,8 @@ import org.strata.jverify.testengine.JVerifyTest;
  * A generic class whose constructor takes NO arguments, so its instantiation cannot
  * be solved from constructor arguments.
  *
- * <p>This is the case that distinguishes the two sources a frontend can use. The
- * source frontend reads {@code <Thing>} straight off the tree. A bytecode frontend
+ * <p>This is the case that distinguishes the two sources a frontend can use. A
+ * frontend reading the source tree sees {@code <Thing>} directly. From bytecode it
  * cannot: the {@code new} instruction names the raw class and the constructor
  * descriptor is {@code ()V}, so there is nothing to unify against. The instantiation
  * survives only on the local it is stored into, in the LocalVariableTypeTable.

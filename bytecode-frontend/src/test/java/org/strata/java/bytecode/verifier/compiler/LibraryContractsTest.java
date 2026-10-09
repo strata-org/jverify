@@ -38,9 +38,7 @@ class LibraryContractsTest {
     private static final URI OBJECT_CONTRACT_URI = URI.create("string:///object-contract.java");
 
     private static Path libraryJar() {
-        return Path.of(java.util.Objects.requireNonNull(
-                System.getProperty("bytecode.library.jar"),
-                "bytecode.library.jar system property not set"));
+        return org.strata.java.bytecode.verifier.VerifierDriver.specLibraryLocation();
     }
 
     private static List<Path> classPath() {

@@ -76,17 +76,18 @@ The constructs rejected this way are:
 
 - Bitwise and shift operators (`&`, `|`, `^`, `~`, `<<`, `>>`, `>>>`)
 - `%` on `float` or `double`
-- `==` where neither operand's type is impure — including boxed comparisons such as
-  `Integer == Integer`
+- `==` and `!=` on references where neither operand's type is impure — including boxed
+  comparisons such as `Integer == Integer`
 - Instance and static initializer blocks
-- A record's explicit canonical constructor, component accessor, `equals` or
-  `hashCode`
 - `isAbstract()` anywhere but a precondition
 - A contract call (`precondition`, `postcondition`, …) placed after the body, in a
   loop, or otherwise out of position
 - A `@Pure` method whose body is not reducible to an expression — it must end in a
   `return` (or an `if`/`else` that does), and may otherwise contain only variable
   declarations, each with an initializer, and no mutation
+- A malformed `@Contract` class
+- Any construct that cannot be translated in a **static** method: a static method that
+  cannot be translated is an error, an instance method a warning
 
 To keep building while one of these is present, opt the code out of verification
 with `@Verify(false)`. It is honored on the method and on any enclosing class.

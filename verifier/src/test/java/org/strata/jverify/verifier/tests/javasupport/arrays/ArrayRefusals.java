@@ -7,11 +7,10 @@
 // covered by the bytecode frontend's unit tests.
 package org.strata.jverify.verifier.tests.javasupport.arrays;
 import java.util.function.IntFunction;
-import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 import org.strata.jverify.*;
 import static org.strata.jverify.JVerify.*;
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_ARRAYS}, continueOnErrors = true, exitCode = 0, methodsInvalid = 0, errorCount = 0, methodsVerified = 3, methodsSkipped = 20)
+@JVerifyTest(continueOnErrors = true, exitCode = 0, methodsInvalid = 0, errorCount = 0, methodsVerified = 3, methodsSkipped = 20)
 class ArrayRefusals {
     static int ok(int[] a) {
         precondition(a.length > 0);

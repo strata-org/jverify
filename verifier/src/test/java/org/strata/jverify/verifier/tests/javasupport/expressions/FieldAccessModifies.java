@@ -130,7 +130,7 @@ class FieldAccessModifies {
 
     // ---- Case 6: impure call INSIDE a postcondition lambda --------------
     //
-    // bodyPotentiallyWritesHeap must not descend into
+    // The heap-write fallback must not descend into
     // precondition/postcondition/invariant/reads/modifies/decreases
     // subtrees. Otherwise an impure call in a *spec* position (not a
     // runtime effect) would trigger the synthesized `modifies *`
@@ -141,14 +141,14 @@ class FieldAccessModifies {
     static boolean impureBooleanHelper() { return true; }
 
     /** Callee's body is empty, but its postcondition lambda calls an
-     *  impure method. Before the fix, this method's callers lost frame
-     *  precision because `bodyPotentiallyWritesHeap` scanned the whole
-     *  method (spec included) and synthesized `modifies *`. */
+     *  impure method. The heap-write fallback skips the spec, so this
+     *  method gets no synthesized `modifies *` and its callers keep
+     *  frame precision. */
     static void cleanBodyImpurePostcondLambda(Point p) {
         postcondition(() -> impureBooleanHelper() == impureBooleanHelper());
     }
 
-    /** Caller can now prove p.x survives the call because the callee
+    /** Caller proves p.x survives the call because the callee
      *  has no synthesized `modifies *`. */
     static void callerOfCleanBodyImpurePostcondLambda() {
         Point p = new Point();

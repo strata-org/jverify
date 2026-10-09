@@ -2,10 +2,9 @@
 // object-contract.java's Object.equals and the call verifies.
 package org.strata.jverify.verifier.tests.jcl;
 
-import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, useBuiltinContracts = true, methodsVerified = 2, methodsSkipped = 0)
+@JVerifyTest(useBuiltinContracts = true, methodsVerified = 2, methodsSkipped = 0)
 class InheritedContracts {
     static boolean sameValue(Integer a, Integer b) {
         return a.equals(b);

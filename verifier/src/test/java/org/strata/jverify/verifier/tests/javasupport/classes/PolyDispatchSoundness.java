@@ -29,18 +29,15 @@ import static org.strata.jverify.JVerify.*;
  * contract that genuinely refines ({@code r >= 5}) and this same call site verifies.
  * </ul>
  *
- * <p>This replaces the front end's old blanket "polymorphic dispatch ... not yet
- * supported" refusal, which an earlier revision of this file used as its first line of
- * defence. Laurel now dispatches an overridden composite method on the receiver's
+ * <p>No front-end refusal of polymorphic calls is needed for soundness: Laurel
+ * dispatches an overridden composite method on the receiver's
  * runtime tag ({@code LiftInstanceProcedures}) and {@code CheckOverrideRefinement}
  * discharges the obligation that makes reasoning against the declared type's contract
- * sound, so the refusal is no longer load bearing and {@code root} is translated rather
+ * sound, so {@code root} is translated rather
  * than skipped.
  *
- * <p>The bytecode frontend reports the same message on the inherited clause instead:
- * the anchor is the override's method NAME, and a name built by
- * {@code LaurelFactory.ident} carries {@code UNKNOWN_RANGE}, so it takes the fallback.
- * It carries an XFAIL in {@code bytecode-xfails.txt} saying so.
+ * <p>The Liskov failure is anchored at the override: the procedure's name identifier
+ * carries the method's range.
  *
  * <p>Counts: the three implicit constructors and {@code BaseP.compute} verify;
  * {@code SubP.compute} fails its refinement obligation and {@code root} fails its

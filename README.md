@@ -8,6 +8,8 @@ JVerify is built on top of [Strata](https://github.com/strata-org/Strata), a pla
 
 **JVerify is not yet ready for production use.** Java language support, user experience, and reliability are all early. You can still experiment with it today to get a feel for what it can do. See the user guide for a current list of [supported features](https://github.com/strata-org/jverify/blob/main/docs/guide/src/supported_java_features.md).
 
+JVerify translates Java bytecode to Laurel; the earlier source frontend (javac AST to Laurel) is archived on branch `archive/source-frontend` at commit `630a5ba334af66ead3602f291f5dc65e4a0699c2`.
+
 ## Getting started
 
 See the [user guide](docs/guide/src/overview.md) for installation instructions and a first-verification walkthrough.

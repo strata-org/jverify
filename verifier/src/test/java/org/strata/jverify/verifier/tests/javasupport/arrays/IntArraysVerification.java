@@ -2,11 +2,10 @@
 // and a copy between arrays verify. intArrayOfSizeN's check(i == n) does not
 // follow from the loop's invariants (none bounds i from above), so it fails.
 package org.strata.jverify.verifier.tests.javasupport.arrays;
-import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 import org.strata.jverify.*;
 import static org.strata.jverify.JVerify.*;
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_ARRAYS}, exitCode = 4, methodsInvalid = 1, errorCount = 1, methodsVerified = 3, methodsSkipped = 0)
+@JVerifyTest(exitCode = 4, methodsInvalid = 1, errorCount = 1, methodsVerified = 3, methodsSkipped = 0)
 class IntArraysVerification {
     static void intArrayOfSize10() {
         int[] a = new int[10];

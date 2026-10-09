@@ -46,7 +46,7 @@ final class SpecCallTranslator {
         this.ctx = b.ctx;
     }
 
-    /** JVerify static spec/assertion calls (JFE's convertJVerifyCall arms + header markers). */
+    /** JVerify static spec/assertion calls (assertion arms + header spec markers). */
     static final String ABSTRACT_MARKER = "$isAbstract";
 
     void jverifyInvoke(java.lang.classfile.instruction.InvokeInstruction inv,
@@ -111,7 +111,7 @@ final class SpecCallTranslator {
                 b.bools.add(r);
             }
             case "preconditionOf" -> {
-                // JFE's PreconditionOfCompiler: the callee's preconditions, with its
+                // The callee's preconditions, with its
                 // parameters replaced by the call's arguments. The callee may not be
                 // translated yet, so a placeholder stands in and is inlined after the
                 // whole compilation (BytecodeToLaurelCompiler.inlinePreconditionOf).
@@ -189,8 +189,8 @@ final class SpecCallTranslator {
                         b.staticTypeOf.put(r, t);
                     }
                 } else if (name.equals("old") || name.equals("result")) {
-                    // JFE spec vocabulary without a translation: same
-                    // refusal as JFE's unsupported spec methods.
+                    // JVerify spec vocabulary without a translation: refused
+                    // like any other unsupported spec method.
                     throw new JavaViolationException("Unsupported JVerify method: " + name);
                 } else {
                     throw new JavaViolationException("Unsupported JVerify method: " + name);
@@ -251,9 +251,8 @@ final class SpecCallTranslator {
     /**
      * A supplier-style clause given as a reference to a {@code @Pure} static method of
      * this program ({@code precondition(Foo::truth)}) is a call to that method with no
-     * arguments, as JFE translates it. Null for anything else -- an instance or
-     * library method, an impure one, one taking arguments -- which keeps JFE's
-     * refusal.
+     * arguments. Null for anything else -- an instance or library method, an impure
+     * one, one taking arguments -- which keeps the refusal.
      */
     private AstNode<StmtExpr> methodReferenceCall(BodyTranslator.LambdaHandle lambda,
                                                   Map<String, String> extraRenames) {
@@ -386,8 +385,8 @@ final class SpecCallTranslator {
     }
 
     /**
-     * Translate a spec lambda's impl body as a single expression (old
-     * convertLambdaBody's expression-or-single-return constraint), under
+     * Translate a spec lambda's impl body as a single expression (the body
+     * must be one expression or a single return), under
      * {@code extraRenames} (postcondition's param -> $result etc.) and the
      * contract context.
      */
@@ -397,8 +396,8 @@ final class SpecCallTranslator {
             if (call != null) {
                 return call;
             }
-            // Any other method reference in a spec position refuses with JFE's
-            // JCLambda message.
+            // Any other method reference in a spec position refuses with the
+            // corpus-pinned JCLambda message (only literal lambdas are supported).
             throw new JavaViolationException("Unsupported expression: JCLambda");
         }
         var impl = findImplMethod(lambda);
@@ -482,7 +481,7 @@ final class SpecCallTranslator {
         }
     }
 
-    /** JFE's refuseAllocationInContract, applied over a finished Laurel subtree. */
+    /** Refuse allocation inside a contract, checked over a finished Laurel subtree. */
     void checkContractSubtree(AstNode<StmtExpr> n) {
         if (n.val() instanceof StmtExpr.New) {
             throw new JavaViolationException(

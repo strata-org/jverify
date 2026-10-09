@@ -53,10 +53,10 @@ final class FieldAccessTranslator {
         }
         switch (fi.opcode()) {
             case GETSTATIC -> {
-                // Old shape: FieldAccessExpr(NameExpr(owner), fn). Conversion:
-                // program-class owner -> "static field access is not yet
-                // supported"; anything else falls into ensureFieldOnComposite's
-                // unique-field fallback or its refusal.
+                // Static reads are not modelled; the refusal is deferred. A
+                // program-class owner refuses with "static field access is
+                // not yet supported"; any other owner refuses with
+                // "Unsupported field access: <owner>.<name>".
                 if (ctx.resolver.knownClasses.containsKey(ownerRef.nameWithScope())) {
                     AstNode<StmtExpr> n = b.push(new StmtExpr.LiteralString("$getstatic"));
                     b.staticTypeOf.put(n, TypeRef.ofDescriptor(fdesc));
@@ -77,7 +77,7 @@ final class FieldAccessTranslator {
                 TypeRef declared = declareAccessedField(recv, fn);
                 if (superRead) {
                     // A super-field read refuses AFTER the field-registration
-                    // side effects (JFE's ordering).
+                    // side effects (an ordering pinned by the corpus).
                     AstNode<StmtExpr> n = b.push(new StmtExpr.LiteralString("$superfield"));
                     b.defer(n, "Unsupported expression: SuperExpr");
                     b.noteDesc(n, fdesc);
@@ -100,8 +100,8 @@ final class FieldAccessTranslator {
             case PUTSTATIC -> {
                 AstNode<StmtExpr> v = b.coerce(b.stack.pop(), fdesc);
                 b.arrays.refuseAsObject(v, fdesc);
-                // Old: AssignExpr(FieldAccessExpr(owner, fn)) -> convertVariable
-                // -> refuseStaticFieldAccess.
+                // A program-class owner refuses with "static field access is
+                // not yet supported".
                 if (ctx.resolver.knownClasses.containsKey(ownerRef.nameWithScope())) {
                     throw new JavaViolationException("static field access is not yet supported");
                 }
@@ -156,7 +156,7 @@ final class FieldAccessTranslator {
     /**
      * Resolve the owning composite from the receiver's static type
      * (fallback: the unique declaring class), then declare the accessed
-     * field on it (the source frontend's ensureFieldOnComposite). Contract
+     * field on that composite (registering it as referenced). Contract
      * code has no fallback: several contract classes declare fields of the
      * same name, so only the receiver's own sort may own the field.
      *

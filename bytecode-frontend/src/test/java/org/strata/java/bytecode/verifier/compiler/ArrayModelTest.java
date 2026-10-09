@@ -35,9 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ArrayModelTest {
 
     private static List<Path> classPath() {
-        return List.of(Path.of(java.util.Objects.requireNonNull(
-                System.getProperty("bytecode.library.jar"),
-                "bytecode.library.jar system property not set")));
+        return List.of(org.strata.java.bytecode.verifier.VerifierDriver.specLibraryLocation());
     }
 
     private static LibraryContracts objectOnly(ClassResolver resolver) {

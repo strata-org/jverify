@@ -58,6 +58,18 @@ public final class ClassfileQueries {
         return out;
     }
 
+    /** The descriptor of JVerify's {@code @Impure} type annotation. */
+    private static final String IMPURE_DESCRIPTOR = "Lorg/strata/jverify/Impure;";
+
+    /**
+     * True if {@code a} is JVerify's {@code @Impure}. The match is on the exact
+     * descriptor: {@code @Impure} relaxes the reference-equality gate, so an
+     * unrelated annotation that happens to be named {@code Impure} must not.
+     */
+    public static boolean isImpure(java.lang.classfile.Annotation a) {
+        return a.className().stringValue().equals(IMPURE_DESCRIPTOR);
+    }
+
     /**
      * True if this method is a bridge: the erasure shim the compiler adds when a generic method is
      * implemented at a narrower type. It has no source form, and emitting it alongside the real method

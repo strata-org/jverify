@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * compiler; this test enforces presence.
  *
  * <p>Source-scan based (not reflection) so it does not require loading every test
- * class, mirroring how {@code JVerifyTestEngine} locates sources. The scan covers
+ * class, mirroring how the bytecode frontend's test engine locates sources. The scan covers
  * <em>every</em> module's {@code src/test/java} under the located root, not just
  * this module's, so an xfail added under any module is still checked.
  */
@@ -38,9 +38,10 @@ public class XfailAnnotationInvariantsTest {
 
     /**
      * An {@code expectedToFail} test must not also carry a non-empty legacy {@code skip=}.
-     * The two are mutually exclusive: {@link org.strata.jverify.testengine.JVerifyTestEngine}
-     * evaluates the {@code skip=} hard-skip BEFORE the xfail branch, so a test with both
-     * would abort as skipped and never reach the XPASS tripwire -- silently disabling the
+     * The two are mutually exclusive: the test engine
+     * ({@code org.strata.java.bytecode.testengine.BytecodeTestEngine}) evaluates the
+     * {@code skip=} hard-skip BEFORE the xfail branch, so a test with both would abort
+     * as skipped and never reach the XPASS tripwire -- silently disabling the
      * "a fixed feature can no longer stay skipped" guarantee the xfail scheme exists for.
      */
     @Test

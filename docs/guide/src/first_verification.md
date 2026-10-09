@@ -11,13 +11,13 @@ Let's try running JVerify on the following Java program, found [here](https://gi
 To run JVerify, from the repository root:
 
 ```
-./verifier/build/install/verifier/bin/verifier ./examples/src/test/java/org/strata/jverify/examples/GaussianSum.java
+./bytecode-frontend/build/install/bytecode-verifier/bin/bytecode-verifier ./examples/src/test/java/org/strata/jverify/examples/GaussianSum.java
 ```
 
 or on Windows:
 
 ```
-./verifier/build/install/verifier/bin/verifier.bat ./examples/src/test/java/org/strata/jverify/examples/GaussianSum.java
+./bytecode-frontend/build/install/bytecode-verifier/bin/bytecode-verifier.bat ./examples/src/test/java/org/strata/jverify/examples/GaussianSum.java
 ```
 
 You should see the following output:
@@ -34,14 +34,14 @@ If the `JVERIFY_STRATA` environment variable is not set, pass the Strata project
 Try editing `GaussianSum.java` to introduce a bug — for example, change `return s;` to `return s + 1;` — and re-run. JVerify reports:
 
 ```
-GaussianSum.java(16:36-16:58): Error: assertion could not be proved
+GaussianSum.java(16:1-16:60): Error: postcondition could not be proved
 Found 1 errors
 Verified methods: 1
 Failed methods: 1
 Skipped methods: 0
 ```
 
-The line and column point at the failing postcondition.
+The line points at the failing postcondition.
 
 ## Adding JVerify to a Java project
 

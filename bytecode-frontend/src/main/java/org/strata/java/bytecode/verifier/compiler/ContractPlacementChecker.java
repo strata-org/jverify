@@ -18,8 +18,7 @@ import java.util.Set;
 
 /**
  * Where a JVerify contract call may appear, checked over a method's bytecode: the
- * two placement rules of JFE's UnsupportedConstructValidator that survive
- * compilation.
+ * two placement rules that survive compilation.
  *
  * <ul>
  * <li>{@code isAbstract()} only in a {@code precondition}. The clause that consumes
@@ -38,7 +37,7 @@ final class ContractPlacementChecker {
 
     private static final String JVERIFY = "org/strata/jverify/JVerify";
 
-    /** JFE's isHeaderContractCall: the clauses that belong in a contract header. */
+    /** The clauses that belong in a contract header. */
     private static final Set<String> HEADER_CALLS = Set.of(
             "precondition", "postcondition", "invariant", "decreases", "reads", "modifies");
 
@@ -195,7 +194,7 @@ final class ContractPlacementChecker {
      * mistaken for it.
      */
     /**
-     * Report every initializer block of {@code cm}, as JFE's validator does: an
+     * Report every initializer block of {@code cm}: an
      * instance block {@code { ... }} or a static one {@code static { ... }}.
      *
      * <p>Not visible in the instructions -- javac splices a block's statements into

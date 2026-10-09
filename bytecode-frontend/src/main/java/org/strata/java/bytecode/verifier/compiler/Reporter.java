@@ -12,22 +12,17 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Collects frontend (translation-phase) diagnostics. Port of JFE's Reporter
- * with the javac diagnostic factory replaced by a plain range-carrying
- * diagnostic.
+ * Collects frontend (translation-phase) diagnostics as plain range-carrying
+ * diagnostics.
  *
- * <p>Message texts mirror JFE's {@code messages.properties} entries so the
- * ported test suite matches on identical strings (e.g. {@code
- * translatorError={0}}, {@code wrongContract={0} are not allowed in a {1}}).
- * Frontend diagnostics format javac-style with a lowercase {@code error: }
- * prefix (JFE's Driver.formatMessage for JCDiagnostics), unlike Strata
- * diagnostics which use {@code Error: }.
+ * <p>Frontend diagnostics format javac-style with a lowercase {@code error: }
+ * prefix, unlike Strata diagnostics which use {@code Error: }.
  */
 public class Reporter {
     private final List<Diagnostic<?>> diagnostics = new ArrayList<>();
     private boolean hasErrors = false;
 
-    /** A frontend diagnostic; formats "error: msg" like JFE's javac diagnostics. */
+    /** A frontend diagnostic; formats "error: msg" like javac's diagnostics. */
     public static final class FrontendDiagnostic extends StrataDiagnostic {
         public FrontendDiagnostic(URI uri, Range range, String message, int severity) {
             super(uri, range, message, severity);
@@ -62,7 +57,7 @@ public class Reporter {
         reportError(uri, range, format(message, args));
     }
 
-    /** {@code MessageFormat}-lite: only the {n} placeholders JFE's keys use. */
+    /** {@code MessageFormat}-lite: only {n} placeholders. */
     private static String format(String template, Object... args) {
         String out = template;
         for (int i = 0; i < args.length; i++) {

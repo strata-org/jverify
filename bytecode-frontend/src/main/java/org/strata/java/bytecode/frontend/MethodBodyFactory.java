@@ -94,7 +94,7 @@ public final class MethodBodyFactory {
     /**
      * The CRT ranges flagged STATEMENT or BLOCK. The outermost BLOCK range
      * opens at the method's declaration line (its {@code {}), which is where
-     * the source frontend anchors method-level diagnostics -- the min start
+     * method-level diagnostics anchor (pinned by the corpus) -- the min start
      * over these is the method-name line, unlike the statement-only min (the
      * first body statement). Empty without {@code -Xjcov}.
      */
@@ -534,13 +534,22 @@ public final class MethodBodyFactory {
         List<CrtRange> crt = crtRanges(code);
         int[] seqToBci = bciTable(seq);
         Map<Integer, List<java.lang.classfile.Annotation>> slotAnnos = new HashMap<>();
+        // @Impure decides whether `==` on a load is a reference comparison, so
+        // it keeps each local's pc range: a later local reusing the slot does
+        // not inherit it.
+        List<MethodBody.SlotRange> impureLocals = new ArrayList<>();
         for (var ta : ClassfileQueries.typeAnnotationsOn(code)) {
             if (!ta.targetPath().isEmpty()) {
                 continue;
             }
             if (ta.targetInfo() instanceof java.lang.classfile.TypeAnnotation.LocalVarTarget lv) {
                 for (var entry : lv.table()) {
-                    slotAnnos.computeIfAbsent(entry.index(), k -> new ArrayList<>()).add(ta.annotation());
+                    if (ClassfileQueries.isImpure(ta.annotation())) {
+                        impureLocals.add(new MethodBody.SlotRange(entry.index(),
+                                code.labelToBci(entry.startLabel()), code.labelToBci(entry.endLabel())));
+                    } else {
+                        slotAnnos.computeIfAbsent(entry.index(), k -> new ArrayList<>()).add(ta.annotation());
+                    }
                 }
             }
         }
@@ -560,8 +569,13 @@ public final class MethodBodyFactory {
                     instanceof java.lang.classfile.TypeAnnotation.FormalParameterTarget fp
                     && fp.formalParameterIndex() >= 0
                     && fp.formalParameterIndex() < paramSlot.length) {
-                slotAnnos.computeIfAbsent(paramSlot[fp.formalParameterIndex()],
-                        k -> new ArrayList<>()).add(ta.annotation());
+                int pslot = paramSlot[fp.formalParameterIndex()];
+                if (ClassfileQueries.isImpure(ta.annotation())) {
+                    // A parameter occupies its slot for the whole body.
+                    impureLocals.add(new MethodBody.SlotRange(pslot, 0, code.codeLength()));
+                } else {
+                    slotAnnos.computeIfAbsent(pslot, k -> new ArrayList<>()).add(ta.annotation());
+                }
             }
         }
         String retDesc = mt.returnType().descriptorString();
@@ -575,8 +589,8 @@ public final class MethodBodyFactory {
         }
         boolean localsWithoutDebugInfo = lvs.isEmpty() && code.maxLocals() > (isStatic ? 0 : 1);
         return new MethodBody(cfg, dom, locals, seq, slotName, slotDesc, declared,
-                crt, LineNumbers.of(code), seqToBci, slotAnnos, retDesc, isCtor, isStatic, hoisted,
-                localsWithoutDebugInfo);
+                crt, LineNumbers.of(code), seqToBci, slotAnnos, impureLocals, retDesc, isCtor, isStatic,
+                hoisted, localsWithoutDebugInfo);
     }
 
     /**

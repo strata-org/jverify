@@ -1,5 +1,6 @@
 package org.strata.java.bytecode.verifier;
 
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.strata.jverify.common.Position;
 import org.strata.jverify.common.Range;
 import org.strata.jverify.verifier.DiagnosticWithRange;
@@ -16,6 +17,7 @@ import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 import javax.tools.SimpleJavaFileObject;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.UncheckedIOException;
 import java.io.Writer;
@@ -26,12 +28,12 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
  * End-to-end verification driver: javac ({@code -g -Xjcov}) -> classfiles ->
- * direct bytecode-to-Laurel translation -> strataLaurel. The bytecode-frontend counterpart of
- * JFE's {@code Driver.getDriver(options).verifyJavaFiles(files)}.
+ * direct bytecode-to-Laurel translation -> strataLaurel.
  */
 public class VerifierDriver {
 
@@ -41,7 +43,44 @@ public class VerifierDriver {
         this.options = options;
     }
 
+    private static @Nullable Path specLibrary;
+
+    /**
+     * The JVerify spec library ({@code org.strata.jverify}) the inputs are
+     * compiled against: a CLASS-retention build of {@code :library}, so the
+     * spec annotations survive into the classfiles this frontend reads. This
+     * module's jar carries it as a resource (see build.gradle.kts); it is
+     * extracted once, and again if the file is gone, as a temp-directory
+     * cleaner can make it. {@code :library} itself keeps SOURCE retention, so
+     * the annotations do not end up in the classfiles of user builds.
+     */
+    public static synchronized Path specLibraryLocation() {
+        if (specLibrary == null || !Files.exists(specLibrary)) {
+            try {
+                Path jar = Files.createTempFile("bytecode-frontend-lib", ".jar");
+                jar.toFile().deleteOnExit();
+                try (InputStream in = VerifierDriver.class.getResourceAsStream("bytecode-frontend-lib.jar");
+                     var out = Files.newOutputStream(jar)) {
+                    Objects.requireNonNull(in, "bytecode-frontend-lib.jar resource missing").transferTo(out);
+                }
+                specLibrary = jar;
+            } catch (IOException e) {
+                throw new UncheckedIOException("cannot extract the spec library", e);
+            }
+        }
+        return specLibrary;
+    }
+
     public JVerifyResults verifyJavaPaths(List<Path> files) throws IOException {
+        return verifyJavaFiles(readSources(files));
+    }
+
+    /** Verify {@code files}, print the diagnostics and summary, and return the exit code. */
+    public int verifyJavaPathsExit(List<Path> files) throws IOException {
+        return verifyJavaFilesExit(readSources(files));
+    }
+
+    private List<JavaFileObject> readSources(List<Path> files) throws IOException {
         List<JavaFileObject> readFiles = new ArrayList<>();
         for (Path p : files) {
             Path normalized = options.workingDirectory().resolve(p).normalize();
@@ -57,14 +96,14 @@ public class VerifierDriver {
                 }
             });
         }
-        return verifyJavaFiles(readFiles);
+        return readFiles;
     }
 
     public JVerifyResults verifyJavaFiles(List<JavaFileObject> readFiles) throws IOException {
         var reporter = new Reporter();
 
         // 1. javac with -g -Xjcov. A Java error stops the run with usage exit
-        //    (mirrors JFE's NoVerdict on javac errors).
+        //    (NoVerdict).
         Path classesDir = Files.createTempDirectory("bytecode-classes");
         try {
             var compileResult = options.time("Compiling Java with -g -Xjcov",
@@ -91,7 +130,7 @@ public class VerifierDriver {
                         diagnostics.add(javacDiagnostic(d));
                     }
                 }
-                return new JVerifyResults.NoVerdict(diagnostics, 2 /* picocli USAGE */);
+                return new JVerifyResults.NoVerdict(diagnostics, 2 /* usage */);
             }
 
             // 2. The rest of the pipeline (read the classfiles, translate to
@@ -201,18 +240,13 @@ public class VerifierDriver {
         return report(verifyJavaFiles(readFiles));
     }
 
-    /** {@link #verifyJavaPaths}, reporting the results as JFE's CLI does; returns the exit code. */
-    public int verifyJavaPathsExit(List<Path> files) throws IOException {
-        return report(verifyJavaPaths(files));
-    }
-
     private int report(JVerifyResults results) {
         outputVerificationResults(results, options.outWriter());
         options.outWriter().flush();
         return results.exitCode();
     }
 
-    /** Map a javac diagnostic into our range-carrying diagnostic (message: JFE's javaError key). */
+    /** Map a javac diagnostic into our range-carrying diagnostic. */
     private static Diagnostic<?> javacDiagnostic(Diagnostic<? extends JavaFileObject> d) {
         URI uri = d.getSource() != null ? d.getSource().toUri() : URI.create("file:///unknown");
         var start = new Position((int) Math.max(1, d.getLineNumber()), (int) Math.max(1, d.getColumnNumber()));
@@ -222,7 +256,7 @@ public class VerifierDriver {
                 StrataDiagnostic.SEVERITY_ERROR);
     }
 
-    /** Port of JFE Driver.outputVerificationResults (non-javac branch). */
+    /** Print the diagnostics, the error count and the per-method counts. */
     private void outputVerificationResults(JVerifyResults results, Writer outputWriter) {
         var pw = new PrintWriter(outputWriter);
         for (var diagnostic : results.diagnostics()) {

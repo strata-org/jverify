@@ -4,7 +4,7 @@ JVerify can currently only be used by building it from source.
 
 ## Prerequisites
 
-1. **Java 23.** If you have a different default Java version installed, pass `-Dorg.gradle.java.home=path-to-java-23` to the gradle commands below.
+1. **Java 25.** If you have a different default Java version installed, pass `-Dorg.gradle.java.home=path-to-java-25` to the gradle commands below.
 2. **Java 17.** Required by the subprojects library, common, and javac-plugin.
 3. **[Lean 4](https://lean-lang.org/)** (via `elan`) — needed to build the [Strata](https://github.com/strata-org/Strata) verification back-end.
 4. **[cvc5](https://cvc5.github.io/)** SMT solver on your `PATH`.
@@ -17,7 +17,7 @@ JVerify can currently only be used by building it from source.
    git clone https://github.com/strata-org/jverify.git --recurse-submodules
    ```
 2. Navigate to the JVerify repository directory.
-3. Build the verifier CLI:
+3. Build the verifier CLI (installed as `bytecode-frontend/build/install/bytecode-verifier/bin/bytecode-verifier`):
    ```
    ./gradlew installDist     # macOS / Linux
    ./gradlew.bat installDist # Windows

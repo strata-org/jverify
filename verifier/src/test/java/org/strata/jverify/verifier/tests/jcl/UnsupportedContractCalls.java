@@ -2,13 +2,12 @@
 // method that makes them; the plain method still verifies.
 package org.strata.jverify.verifier.tests.jcl;
 
-import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import java.math.BigInteger;
 import java.util.Optional;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, useBuiltinContracts = true, continueOnErrors = true, methodsVerified = 2, methodsSkipped = 7)
+@JVerifyTest(useBuiltinContracts = true, continueOnErrors = true, methodsVerified = 2, methodsSkipped = 7)
 class UnsupportedContractCalls {
     static int literalReceiver(String s) {
 //                                       ^ error: call to 'length' on a receiver whose static type is not a class is not yet supported

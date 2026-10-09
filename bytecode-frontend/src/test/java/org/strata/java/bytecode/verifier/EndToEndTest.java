@@ -17,20 +17,13 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Full pipeline: source -> javac -g -Xjcov -> classfiles -> Laurel -> Strata.
- * The fixtures mirror JFE's AssertFalse / ShouldVerify-class tests, including
- * the expected diagnostic ranges (JFE convention: the whole spec-call
- * expression, semicolon excluded).
+ * Full pipeline: source -> javac -g -Xjcov -> classfiles -> Laurel -> Strata,
+ * with exact diagnostic ranges.
  */
 class EndToEndTest {
 
     private static Path libraryClasses() {
-        // The CLASS-retention spec library (bytecode-frontend-lib.jar), passed by the
-        // test task. The JVerify class LOADED here is JFE's SOURCE-retention
-        // :library, whose annotations would not survive into classfiles.
-        return Path.of(java.util.Objects.requireNonNull(
-                System.getProperty("bytecode.library.jar"),
-                "bytecode.library.jar system property not set"));
+        return org.strata.java.bytecode.verifier.VerifierDriver.specLibraryLocation();
     }
 
     private static VerifierOptions options() {
@@ -49,7 +42,6 @@ class EndToEndTest {
 
     @Test
     void assertFalseFails(@TempDir Path tmp) throws Exception {
-        // Mirror of JFE's verifier/src/test/resources/AssertFalse.java.
         var source = """
                 package org.strata.jverify.verifier.tests;
 
@@ -72,13 +64,13 @@ class EndToEndTest {
                 () -> diagnostic.getMessage(null));
         var withRange = assertInstanceOf(DiagnosticWithRange.class, diagnostic);
         // `check(false)` on line 8: exact bytecode-native CRT statement span,
-        // 8:9-8:22. START (8:9) matches JFE; END is 8:22 -- one past the
-        // trailing ';' (col 21), which the statement-level span includes,
-        // where JFE stops at 8:21. Pinned exactly so the column-level oracle
-        // (which the corpus relaxes) is still exercised somewhere.
+        // 8:9-8:22. END is 8:22 -- one past the trailing ';' (col 21), which
+        // the statement-level span includes. Pinned exactly so the
+        // column-level oracle (which the corpus relaxes) is still exercised
+        // somewhere.
         assertEquals(new Range(new Position(8, 9), new Position(8, 22)), withRange.getRange());
         assertEquals(1, ran.verificationResults().verificationFailedMethods());
-        // 1 verified: the implicit constructor (JFE counts it the same way).
+        // 1 verified: the implicit constructor.
         assertEquals(1, ran.verificationResults().verificationPassedMethods());
     }
 
@@ -119,7 +111,7 @@ class EndToEndTest {
     @Test
     void loopWithInvariantVerifies(@TempDir Path tmp) throws Exception {
         // Both invariants are needed (i >= 0 for the int32 constraint on
-        // i + 1): verified against JFE, which fails without the first one too.
+        // i + 1).
         var source = """
                 import static org.strata.jverify.JVerify.*;
 
@@ -142,7 +134,7 @@ class EndToEndTest {
         var ran = assertInstanceOf(JVerifyResults.Ran.class, results, () -> "got: " + results);
         assertEquals(List.of(), ran.diagnostics(), "no diagnostics expected");
         assertEquals(0, ran.exitCode());
-        // countTo + implicit constructor (JFE reports 2 as well).
+        // countTo + implicit constructor.
         assertEquals(2, ran.verificationResults().verificationPassedMethods());
     }
 

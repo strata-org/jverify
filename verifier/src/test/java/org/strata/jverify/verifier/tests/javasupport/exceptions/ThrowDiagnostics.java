@@ -1,5 +1,6 @@
 package org.strata.jverify.verifier.tests.javasupport.exceptions;
 
+import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 /**
@@ -10,7 +11,12 @@ import org.strata.jverify.testengine.JVerifyTest;
  * declared-throws discipline itself, per method, leaving siblings verifiable
  * (same skip machinery TranslatorSkip pins).
  */
+// 'undeclared' is translated and fails verification at its reachable throw
+// instead of being refused: an undeclared unchecked throw is an error only if
+// it can happen.
 @JVerifyTest(
+        expectedToFail = true,
+        blockedBy = Blocker.FRONTEND_EXCEPTIONS,
         continueOnErrors = true,
         exitCode = 0,
         methodsVerified = 4, // fine() + 3 implicit constructors (2 nested + the test class)

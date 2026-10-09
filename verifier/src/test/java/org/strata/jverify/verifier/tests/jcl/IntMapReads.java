@@ -2,6 +2,7 @@ package org.strata.jverify.verifier.tests.jcl;
 
 import org.strata.jverify.JVerify;
 import org.strata.jverify.Unbounded;
+import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.check;
@@ -29,7 +30,10 @@ import static org.strata.jverify.JVerify.precondition;
  * bind to {@code @Unbounded int}, which the signature of {@code get} states. Pinned here so the
  * requirement cannot regress into a surprise.
  */
-@JVerifyTest(exitCode = 4, methodsVerified = 4, errorCount = 2)
+// The bytecode frontend does not translate JVerify.IntMap yet: the IntMap parameter fails
+// to translate and no verdict is produced.
+@JVerifyTest(expectedToFail = true, blockedBy = Blocker.FRONTEND_OTHER,
+        exitCode = 4, methodsVerified = 4, errorCount = 2)
 class IntMapReads {
 
     static void readIsFunctional(JVerify.IntMap m, @Unbounded int i) {

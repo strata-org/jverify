@@ -45,18 +45,16 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
- * Compiles JVM classfiles to Laurel. The bytecode-frontend mirror of JFE's
- * {@code JavaToLaurelCompiler} + {@code MethodOrLoopContractCompiler}: same
- * Laurel encodings (binary ops as {@code $op} StaticCalls,
- * constrained-integer prelude, cast helper procedures, loop label scheme),
- * but driven straight by the classfiles with CharacterRangeTable spans
- * instead of attributed javac trees.
+ * Compiles JVM classfiles to Laurel: binary ops as {@code $op} StaticCalls,
+ * a constrained-integer prelude, cast helper procedures and a loop label
+ * scheme, driven straight by the classfiles with CharacterRangeTable spans.
  *
  * <p>Position fidelity: the CRT gives statement-level source ranges. The
  * whole statement's range (minus trailing {@code ;}) stamps the translated
- * statement, matching JFE's {@code sourceTreeFor}; contract clause ranges
+ * statement; contract clause ranges
  * are narrowed to the spec call's argument text. Sub-expression nodes
  * default to the enclosing statement's range.
  */
@@ -109,7 +107,7 @@ public class BytecodeToLaurelCompiler {
 
     /** Per-method accounting: refusal fixpoint, callee edges, refusal diagnostics. */
     private final MethodGraph graph;
-    /** Synthesized name binding the thrown value in a `throws (e: T)` clause (JFE's THROWN_BINDING). */
+    /** Synthesized name binding the thrown value in a `throws (e: T)` clause. */
     private static final String THROWN_BINDING = LaurelFactory.THROWN_BINDING;
 
     public BytecodeToLaurelCompiler(Reporter reporter) {
@@ -264,8 +262,8 @@ public class BytecodeToLaurelCompiler {
         }
 
         new ContractValidator(reporter, src, decls, resolver).validate();
-        // A relocated source contract's fields become the contractee's
-        // (JFE's handleSourceContract appends them to the contractee's members).
+        // A relocated source contract's fields become the contractee's (appended
+        // to the contractee's members).
         for (var e : decls.sourceContracts.entrySet()) {
             collectDeclaredFields(e.getKey(), e.getValue().cm());
         }
@@ -295,7 +293,7 @@ public class BytecodeToLaurelCompiler {
 
         translateLibraryMembers();
 
-        // Refusal propagation (JFE's demoteCallersOfRefusedMethods): a method
+        // Refusal propagation: a method
         // that calls a refused one is itself demoted -- soundness, since its
         // callee's contract was never established. Iterated to a fixpoint so
         // A -> B -> C chains demote fully. Library members no surviving
@@ -311,7 +309,7 @@ public class BytecodeToLaurelCompiler {
         // Composite declarations: every referenced class-typed sort together
         // with its full Java supertype closure (superclass chain + interfaces,
         // transitively including Object), each with only its accessed fields.
-        // Port of JFE's emitComposite: every sort `extends` its DIRECT
+        // Every sort `extends` its DIRECT
         // supertypes and Strata walks those edges transitively, so a subtype
         // value flows to any supertype-typed position exactly as Java subtyping
         // allows. ANCESTORS FIRST: Laurel builds a composite's scope by copying
@@ -588,6 +586,7 @@ public class BytecodeToLaurelCompiler {
         ctx.currentClassFqn = m.sortOrFqn();
         ctx.typeParams = typeParams;
         ctx.methodTypeParams = methodTypeParams;
+        ctx.impureTypeParams = Set.of();
         ctx.beginMethod(info);
         var signature = buildSignature(m.sortOrFqn(), cm, mm, null, m.isStatic(), typeParams, methodTypeParams);
         refuseUnfixedTypeParams(methodTypeParams, signature.inputs());
@@ -741,8 +740,8 @@ public class BytecodeToLaurelCompiler {
     }
 
     /**
-     * Port of JFE's demoteCallersOfRefusedMethods: one round marks every
-     * method that calls an already-refused one, reporting {@code call to
+     * Caller demotion: each round marks every method that calls an
+     * already-refused one, reporting {@code call to
      * 'X', which could not be translated} (severity by the CALLER's own
      * staticness, anchored at the caller's declaration name, deduped per
      * (caller, reason) -- the demotion itself is never deduped). Iterated to
@@ -755,7 +754,7 @@ public class BytecodeToLaurelCompiler {
     }
 
     /**
-     * Drop the emitted procedures of demoted methods (JFE's post-fixpoint
+     * Drop the emitted procedures of demoted methods (the post-fixpoint
      * drop pass): their bodies reference unemitted callees, and Strata would
      * fail resolution on them.
      */
@@ -846,7 +845,7 @@ public class BytecodeToLaurelCompiler {
         return annos.stream().anyMatch(a -> ArrayModel.isNullableAnnotation(a.className().stringValue()));
     }
 
-    // --- External @Contract validation (JFE's ExternalContractCompiler checks) ---
+    // --- External @Contract validation ---
 
     /** Load a classfile from the javac classpath (dirs and jars), or null. */
     private java.lang.classfile.ClassModel loadClassModel(String fqn) {
@@ -864,7 +863,7 @@ public class BytecodeToLaurelCompiler {
      * (Strata echoes it back opaquely), but throw for a URI that was never a
      * frontend input -- so the diagnostic parser degrades it to a counted
      * malformed-diagnostic instead of fabricating a position for a phantom
-     * file (the behavior the per-file line map used to provide).
+     * file.
      */
     static PositionResolver positionResolver(java.util.Set<URI> knownUris) {
         return (uri, offset) -> {
@@ -931,11 +930,11 @@ public class BytecodeToLaurelCompiler {
         return src.positionRange(range);
     }
 
-    // --- Contract extraction (mirror of MethodOrLoopContractCompiler) ---
+    // --- Contract extraction ---
 
     // --- Types ---
 
-    // --- Exception hierarchy (JFE's superclassOf/isSubclassOf/LCA/linkExtends) ---
+    // --- Exception hierarchy (superclass chain, subclass test, LCA, extends edges) ---
 
     /**
      * Resolve a class reference to an fqn: this compilation's
@@ -946,14 +945,14 @@ public class BytecodeToLaurelCompiler {
         return resolver.resolveClassFqn(name);
     }
 
-    /** The Laurel sort name of {@code java.lang.Object} (JFE's OBJECT_SORT). */
+    /** The Laurel sort name of {@code java.lang.Object}. */
     private static final String OBJECT_SORT = CompositeModel.OBJECT_SORT;
 
     /**
      * Emit composite {@code sortName} and its full supertype closure, ANCESTORS
      * FIRST (parents before children, as Laurel requires for scope copying).
-     * Mirror of JFE's {@code emitComposite}: each sort {@code extends} its
-     * direct supertypes (superclass + interfaces); a sort with no supertype
+     * Each sort {@code extends} its direct supertypes (superclass +
+     * interfaces); a sort with no supertype
      * other than itself gets an explicit {@code Object} parent (an interface
      * has no superclass edge -- JLS 4.10.2 -- and a synthetic lambda class
      * carries no supertype). Strata walks these edges transitively, so a value
@@ -1020,7 +1019,7 @@ public class BytecodeToLaurelCompiler {
      * both sorts. Membership in composites.referencedCompositeTypes and the edge in
      * compositeExtends always move together, so a linked child cannot
      * silently miss its declaration; a conflicting parent edge is refused
-     * loudly (JFE's linkExtends).
+     * loudly.
      */
     private void linkExtends(String childSort, String parentSort) {
         composites.linkExtends(childSort, parentSort);
@@ -1033,7 +1032,7 @@ public class BytecodeToLaurelCompiler {
      * all the way up -- not just to a declared join -- is what keeps every
      * {@code is} test between exception types meaningful: a caller may catch
      * any supertype of a declared type, and that guard needs the chain
-     * linked (JFE's registerHierarchyUpToThrowable).
+     * linked.
      */
     private void registerHierarchyUpToThrowable(String fqn) {
         composites.registerHierarchyUpToThrowable(fqn);
@@ -1041,7 +1040,7 @@ public class BytecodeToLaurelCompiler {
 
     // --- Per-class compilation ---
 
-    // --- @Verify stack (JFE's VerifyAnnotationCompiler modes) ---
+    // --- @Verify stack (per-scope verification modes) ---
 
     private enum ShouldVerifyMode { AlwaysYes, DefaultYes, AlwaysNo, DefaultNo, Inherit }
 
@@ -1071,12 +1070,12 @@ public class BytecodeToLaurelCompiler {
     }
 
     /**
-     * Report a method's translation refusal with JFE's severity asymmetry: a
+     * Report a method's translation refusal with a severity asymmetry: a
      * static method's failure is an error ({@code translatorError={0}}), an
      * instance method's a warning ({@code instanceMethodNotVerified}) --
      * instance support is deliberately partial, so a refusal demotes to an
      * honest Skipped instead of failing the build. Both anchor at the refused
-     * method's own name (JFE's JCMethodDecl preferred position). The
+     * method's own name. The
      * diagnostic is deduped per (method, reason); the demotion never is.
      */
     private void reportRefusal(MethodGraph.MethodInfo info, String reason) {
@@ -1085,7 +1084,7 @@ public class BytecodeToLaurelCompiler {
 
     /**
      * A translation refusal whose diagnostic was already emitted, positioned
-     * at the offending expression (JFE reports some refusals at the tree
+     * at the offending expression (some refusals report at the expression
      * rather than the enclosing method). The catch above must not re-report.
      */
     static final class ReportedViolation extends JavaViolationException {
@@ -1111,13 +1110,13 @@ public class BytecodeToLaurelCompiler {
 
     // --- Statements ---
 
-    // --- Switch desugaring (JFE's SwitchDesugarer: arrow switches -> if cascade) ---
+    // --- Switch desugaring (arrow switches -> if cascade) ---
 
-    // --- Loops (label scheme mirrors JFE's emitLoop) ---
+    // --- Loops ---
 
     // --- Expressions ---
 
-    // --- Casts (JFE's cast-helper scheme) ---
+    // --- Casts ---
 
     // --- Calls ---
 
@@ -1168,7 +1167,7 @@ public class BytecodeToLaurelCompiler {
      * One direct body run: the structured top-level statements + the side
      * tables. A conversion refusal is CAPTURED with the partial body (its
      * spec markers drive the contract refusal pass): contract-clause
-     * refusals beat body-statement refusals, as in JFE.
+     * refusals beat body-statement refusals.
      */
     private record BodyRun(List<AstNode<StmtExpr>> topStmts, BodyTranslator body, boolean structured,
                              JavaViolationException refusal) {
@@ -1184,6 +1183,7 @@ public class BytecodeToLaurelCompiler {
         b.lines = shape.lines();
         b.seqToBci = shape.seqToBci();
         b.slotTypeAnnos = shape.slotAnnos();
+        b.impureLocals = shape.impureLocals();
         b.retDesc = shape.retDesc();
         b.isInstance = !shape.isStatic();
         b.inCtor = shape.isCtor();
@@ -1231,6 +1231,9 @@ public class BytecodeToLaurelCompiler {
                     b.rangeCastAnnotations.computeIfAbsent(bci, k -> new java.util.HashSet<>())
                             .add(java.lang.constant.ClassDesc.ofDescriptor(
                                     ta.annotation().className().stringValue()).displayName());
+                    if (org.strata.java.bytecode.frontend.ClassfileQueries.isImpure(ta.annotation())) {
+                        b.impureCasts.add(bci);
+                    }
                 }
             }
         }
@@ -1268,7 +1271,7 @@ public class BytecodeToLaurelCompiler {
     /**
      * The contract-clause refusal side effects of a method whose BODY
      * translation already refused: contract clauses rank before body
-     * statements (JFE converts the header first), so a header clause's
+     * statements (the header is converted first), so a header clause's
      * refusal must win over the captured body refusal.
      */
     private void contractRefusalPass(BodyTranslator body, TranslationContext ctx) {
@@ -1365,7 +1368,7 @@ public class BytecodeToLaurelCompiler {
         return Declarations.hasAnnotation(el, simpleName);
     }
 
-    /** A spec marker outside the contract header refuses (JFE's message). */
+    /** A spec marker outside the contract header refuses. */
     private void checkNoSpecMarkers(AstNode<StmtExpr> n, BodyTranslator body) {
         if (body.specStmts.containsKey(n)) {
             throw new JavaViolationException(
@@ -1541,8 +1544,8 @@ public class BytecodeToLaurelCompiler {
 
     private boolean heapNode(AstNode<StmtExpr> n, BodyTranslator body) {
         switch (n.val()) {
-            // A spec describes the method, not its runtime effect (JFE's
-            // spec-subtree exclusion): check/assume subtrees don't count.
+            // A spec describes the method, not its runtime effect:
+            // check/assume subtrees don't count.
             case StmtExpr.Assert a -> {
                 return false;
             }
@@ -1960,13 +1963,12 @@ public class BytecodeToLaurelCompiler {
         tree.insert(posRange.start().line(), posRange.end().line(), status);
     }
 
-    /** A case's {@code .postcondition(...)} property (JFE's convertCasePostcondition). */
+    /** A case's {@code .postcondition(...)} property. */
     private Condition convertCasePostcondition(BodyTranslator.SpecLink link, BodyTranslator body,
                                                      FileRange range, TranslationContext ctx) {
         var handle = link.lambdaArg();
         if (handle == null) {
-            // A functional-interface cast may wrap the lambda (JFE unwraps
-            // parens and casts here).
+            // A functional-interface cast may wrap the lambda; unwrap it.
             handle = body.castWrappedLambdas.get(link.arg());
         }
         var binders = handle != null ? body.lambdaBinders(handle) : null;
@@ -2003,8 +2005,8 @@ public class BytecodeToLaurelCompiler {
     }
 
     /**
-     * Report every floating-point remainder in {@code shape} at its own position,
-     * as JFE's UnsupportedConstructValidator does. {@code DREM}/{@code FREM} are
+     * Report every floating-point remainder in {@code shape} at its own position.
+     * {@code DREM}/{@code FREM} are
      * distinct opcodes, so the construct survives erasure intact -- nothing about
      * this check is source-only. Marks the method so the signature refusal that
      * follows demotes it without a second, vaguer diagnostic.
@@ -2215,11 +2217,47 @@ public class BytecodeToLaurelCompiler {
     }
 
     /**
+     * The type parameters in scope of {@code m} -- its own and its class's --
+     * whose bound carries {@code @Impure}, e.g. {@code <T extends @Impure Object>}.
+     * The annotation sits on the bound, as a type-parameter-bound type
+     * annotation on the method (method parameters) or the class (class
+     * parameters). A static method does not see its class's parameters, and a
+     * method parameter shadows a class parameter of the same name.
+     */
+    private static Set<String> impureBoundTypeParams(ClassModel cm, java.lang.classfile.MethodModel m,
+                                                     java.lang.classfile.MethodSignature msig) {
+        var out = new java.util.HashSet<String>();
+        List<String> methodParams = msig == null ? List.of()
+                : msig.typeParameters().stream().map(tp -> tp.identifier()).toList();
+        if (!m.flags().has(AccessFlag.STATIC)) {
+            List<String> classParams = Declarations.typeParamNamesOf(cm);
+            addImpureBounds(org.strata.java.bytecode.frontend.ClassfileQueries.typeAnnotationsOn(cm),
+                    classParams, out);
+            out.removeAll(methodParams);
+        }
+        addImpureBounds(org.strata.java.bytecode.frontend.ClassfileQueries.typeAnnotationsOn(m),
+                methodParams, out);
+        return out;
+    }
+
+    private static void addImpureBounds(List<java.lang.classfile.TypeAnnotation> annotations,
+                                        List<String> paramNames, Set<String> out) {
+        for (var ta : annotations) {
+            if (ta.targetPath().isEmpty()
+                    && ta.targetInfo() instanceof java.lang.classfile.TypeAnnotation.TypeParameterBoundTarget b
+                    && b.typeParameterIndex() < paramNames.size()
+                    && org.strata.java.bytecode.frontend.ClassfileQueries.isImpure(ta.annotation())) {
+                out.add(paramNames.get(b.typeParameterIndex()));
+            }
+        }
+    }
+
+    /**
      * Build a procedure's inputs (the {@code self} receiver of sort
      * {@code selfSort} for an instance method, then the parameters, named
      * from {@code shape}'s locals, or {@code v<slot>} when {@code shape} is
      * null for a method without code) and outputs (the result binding, unless
-     * void), in the source frontend's signature-refusal order. Side effects,
+     * void), in signature-refusal order (params, return, throws). Side effects,
      * in order: each parameter name passes {@code refuseReservedName}, every class-typed
      * sort is registered as a referenced composite, and a class-typed return
      * sets the current method scope's {@code returnSort}.
@@ -2232,7 +2270,7 @@ public class BytecodeToLaurelCompiler {
         var ctx = translationContext();
         var mt = m.methodTypeSymbol();
         java.lang.classfile.MethodSignature msig = methodSignatureOf(m);
-        // --- Inputs (JFE's signature-refusal order: params, return, throws) ---
+        // --- Inputs (signature-refusal order: params, return, throws) ---
         var inputs = new ArrayList<org.strata.jverify.laurel.Parameter>();
         if (!isStatic) {
             composites.referencedCompositeTypes.add(selfSort);
@@ -2280,7 +2318,7 @@ public class BytecodeToLaurelCompiler {
                     : shape != null ? shape.slotName().getOrDefault(slot, "v" + slot) : "v" + slot;
             LaurelFactory.refuseReservedName(pname);
             // ACC_VARARGS: the declaration reads `T...`, so the COMPONENT
-            // type is what translates (JFE sees the source `T`). A primitive
+            // type is what translates (the source `T`). A primitive
             // varargs parameter is an array the array model types exactly.
             boolean va = varargs && i == paramCount - 1 && desc.startsWith("[")
                     && !(arraysEnabled && ArrayModel.kindOfDescriptor(desc) != null);
@@ -2345,8 +2383,7 @@ public class BytecodeToLaurelCompiler {
      * return, throws join), contract header (preconditions, postconditions,
      * modifies, throwsOn cases), body via BodyTranslator/ControlFlowStructurer,
      * body-variant selection (Transparent/Opaque/Abstract), and the
-     * verification-status record. Mirrors the source frontend's
-     * translateMethod pipeline.
+     * verification-status record.
      *
      * @param member the library contract member this procedure translates,
      *        or null for a program method. A member is named by its Laurel
@@ -2426,6 +2463,7 @@ public class BytecodeToLaurelCompiler {
         ctx.currentClassFqn = classFqn;
         ctx.typeParams = typeParams;
         ctx.methodTypeParams = tvarNames;
+        ctx.impureTypeParams = impureBoundTypeParams(cm, m, msig);
         ctx.beginMethod(info);
         ctx.method.arrayModelMember = arrayModelMember;
         ctx.method.pure = member == null && hasAnnotation(m, "Pure");
@@ -2448,14 +2486,12 @@ public class BytecodeToLaurelCompiler {
             // Floating-point modulo, reported BEFORE the signature is translated.
             // Laurel has no float/double at all, so a method mentioning one is refused
             // on its parameter or return type first, and the more specific `%`
-            // diagnostic the fixtures pin would never be reached. JFE has the same
-            // ordering problem and solves it the same way: UnsupportedConstructValidator
-            // runs as its own pass ahead of translation.
+            // diagnostic the fixtures pin would never be reached.
             reportFloatingPointModulo(shape, methodAnchor, info);
             if (new ContractPlacementChecker(reporter, src).checkIsAbstractPlacement(m, info.quiet)) {
                 info.constructErrorReported = true;
             }
-            // JFE's PureMethodValidator applies only to a verified @Pure method: an
+            // The @Pure shape rules apply only to a verified @Pure method: an
             // opted-out one is a stub, typically a bare throw.
             if (verify && !translatingRelocatedContract && hasAnnotation(m, "Pure")
                     && new PureShapeChecker(reporter, src, info.quiet).check(m)) {
@@ -2473,21 +2509,6 @@ public class BytecodeToLaurelCompiler {
                 info.constructErrorReported = true;
             }
         }
-        // Both attribute homes: a parameter or return annotation sits on the METHOD,
-        // while a local-variable or cast annotation sits on its CODE attribute.
-        var impureHosts = new ArrayList<java.lang.classfile.TypeAnnotation>(
-                org.strata.java.bytecode.frontend.ClassfileQueries.typeAnnotationsOn(m));
-        m.code().ifPresent(code -> impureHosts.addAll(
-                org.strata.java.bytecode.frontend.ClassfileQueries.typeAnnotationsOn(code)));
-        for (var ta : impureHosts) {
-            if (java.lang.constant.ClassDesc
-                    .ofDescriptor(ta.annotation().className().stringValue())
-                    .displayName().equals("Impure")) {
-                ctx.method.mentionsImpure = true;
-                break;
-            }
-        }
-
         // --- Inputs and outputs ---
         var signature = buildSignature(classFqn, cm, m, shape, isStatic, typeParams, tvarNames);
         var inputs = signature.inputs();
@@ -2557,15 +2578,15 @@ public class BytecodeToLaurelCompiler {
                             + run.body().todos.get(0).strip() + ")");
         }
         if (run.refusal() != null) {
-            // Old ordering: contract-header conversion refusals fire before
-            // body-statement refusals.
+            // Contract-header conversion refusals fire before body-statement
+            // refusals (an ordering pinned by the corpus).
             contractRefusalPass(run.body(), ctx);
             throw run.refusal();
         }
         var topStmts = run.topStmts();
         var body = run.body();
 
-        // --- Contract header scan (JFE's getContract, over the spec markers) ---
+        // --- Contract header scan (over the spec markers) ---
         var pres = new ArrayList<AstNode<StmtExpr>>();
         var posts = new ArrayList<AstNode<StmtExpr>>();
         var invs = new ArrayList<AstNode<StmtExpr>>();
@@ -2588,7 +2609,7 @@ public class BytecodeToLaurelCompiler {
                 case "invariant" -> invs.add(topStmts.get(hdr));
                 case "decreases", "reads" -> {
                     // recognized so they don't break the header scan; dropped
-                    // at Laurel emission (JFE parity)
+                    // at Laurel emission
                 }
                 case "modifies" -> mods.add(topStmts.get(hdr));
                 case "throwsOn" -> throwsOns.add(topStmts.get(hdr));
@@ -2716,8 +2737,8 @@ public class BytecodeToLaurelCompiler {
         }
 
         var explicitModifies = new ArrayList<AstNode<StmtExpr>>();
-        // A user-written `modifies` on a @Pure method is an error, as in JFE's
-        // PureMethodValidator. Not inert otherwise: a @Pure method is meant to be a
+        // A user-written `modifies` on a @Pure method is an error. Not inert
+        // otherwise: a @Pure method is meant to be a
         // transparent body, which cannot carry a frame, so the clause would silently
         // demote it to an opaque procedure -- a different translation instead of a
         // diagnostic. The JVerify.modifies call survives into bytecode, so this needs
@@ -2814,7 +2835,7 @@ public class BytecodeToLaurelCompiler {
         }
         StmtExpr methodBody = new StmtExpr.Block(implementation, Optional.empty());
 
-        // --- Body-variant selection (mirrors JFE's removeImplementation rules) ---
+        // --- Body-variant selection ---
         boolean isPure = hasAnnotation(m, "Pure");
         List<AstNode<StmtExpr>> modifies = !explicitModifies.isEmpty()
                 ? explicitModifies
@@ -2859,7 +2880,7 @@ public class BytecodeToLaurelCompiler {
             refuseUnfixedTypeParams(methodTypeParams, inputs);
         } else if (ctx.method.relocatedContract) {
             // A relocated contract method is a contract with no implementation:
-            // `opaque` with its clauses as ensures, exactly as JFE emits it. Not the
+            // `opaque` with its clauses as ensures. Not the
             // skipped-method arms below -- a contract's postconditions are the point,
             // so they are kept even for a @Pure one, and callers are not refused.
             boolean returns = implementation.stream().anyMatch(st -> st.val() instanceof StmtExpr.Return);
@@ -2887,10 +2908,10 @@ public class BytecodeToLaurelCompiler {
             // the heap, and then carries a synthesized `modifies *` (or a user's
             // clause). So a pure method keeps the declaration only when its frame is
             // already empty and it has no throwsOn block (whose exceptional
-            // postconditions a declaration would pass through unchecked) -- JFE's
-            // keepsOpaqueDeclaration. Otherwise it is dropped and its callers
-            // cascade-demote, as for a non-pure callee; without this a caller PROVED
-            // `b.f == 0` across a call that may write `b.f`
+            // postconditions a declaration would pass through unchecked). Otherwise
+            // it is dropped and its callers cascade-demote, as for a non-pure callee;
+            // without this a caller would PROVE `b.f == 0` across a call that may
+            // write `b.f`
             // (PureSkippedWithFrameIsDropped, PureMethodWithModifies).
             if (isPure && !(modifies.isEmpty() && throwsOnBlocks.isEmpty())) {
                 info.refused = true;
@@ -3041,8 +3062,7 @@ public class BytecodeToLaurelCompiler {
             return;
         }
         // Anchor at this class's declaration line (the earliest member line,
-        // per MethodBodyFactory.classDeclLine), where the source frontend
-        // reports it.
+        // per MethodBodyFactory.classDeclLine); the corpus pins this anchor.
         reporter.reportWarning(src.uri,
                 src.linePoint(org.strata.java.bytecode.frontend.MethodBodyFactory.classDeclLine(node.cm())),
                 "missing contract for method '<init>' in class '" + superFqn + "'");
@@ -3059,9 +3079,9 @@ public class BytecodeToLaurelCompiler {
             for (var m : methods) {
                 compileMethod(node, m, Declarations.ordinalOf(methods, m));
             }
-            // Constructors are not translated, but where their contract calls sit is
-            // still checked, as JFE's UnsupportedConstructValidator does: a misplaced
-            // clause is otherwise silently ignored.
+            // Where a constructor's contract calls sit is checked even when the
+            // constructor is not translated: a misplaced clause would otherwise be
+            // silently ignored.
             var placement = new ContractPlacementChecker(reporter, src);
             // Initializer blocks are class members, so the CLASS's opt-out governs
             // them (ClassLevelOptOutSuppressesConstructs).
@@ -3203,9 +3223,8 @@ public class BytecodeToLaurelCompiler {
     /**
      * Replace every {@code preconditionOf} placeholder with its callee's preconditions,
      * the callee's parameters substituted by the call's arguments (and its receiver for
-     * {@code self}), conjoined -- {@code true} when there are none. JFE's
-     * PreconditionOfCompiler does this on the source tree; here it has to wait until
-     * the callee is translated.
+     * {@code self}), conjoined -- {@code true} when there are none. It has to wait
+     * until the callee is translated.
      *
      * <p>A callee with no procedure (it was refused) has no preconditions to inline.
      * {@code true} would be sound only in a precondition, so the enclosing method is
@@ -3306,7 +3325,7 @@ public class BytecodeToLaurelCompiler {
     /**
      * Each library @Contract's instance methods as procedures of the library type's
      * sort, translated like a relocated source contract (`opaque` with the contract's
-     * clauses as ensures) -- what JFE emits for e.g. {@code IntPredicate.test} from an
+     * clauses as ensures), e.g. {@code IntPredicate.test} from an
      * {@code IntPredicateContract}. Calls bind to them through
      * InvokeTranslator.libraryContractInvoke. Library methods keep their bare names: a
      * library contract declares one canonical entry per name.
@@ -3350,9 +3369,9 @@ public class BytecodeToLaurelCompiler {
     private boolean translatingRelocatedContract;
 
     /**
-     * Translate a bodyless contractee method from its relocated source contract, as
-     * JFE's ExternalContractCompiler moves the contract method's body onto it and marks
-     * it {@code @Verify(false)}. The contract method is matched by name AND erased
+     * Translate a bodyless contractee method from its relocated source contract: the
+     * contract method's body moves onto it, and it is treated as
+     * {@code @Verify(false)}. The contract method is matched by name AND erased
      * descriptor, which is the signature a contract must repeat. Its own class model is
      * the one handed to the translator, because the lambda bodies of its clauses
      * (synthetic {@code lambda$} methods) live there; `this` and its fields are
@@ -3409,7 +3428,7 @@ public class BytecodeToLaurelCompiler {
         recordStatus(range, status);
     }
 
-    /** JFE-parity refusal detection for a body-less method (the direct probeBodylessMethod). */
+    /** Refusal detection for a body-less method (signature and overload checks only). */
     private void probeBodylessMethod(Declarations.TypeNode node, java.lang.classfile.MethodModel m,
                                            boolean verify) {
         String name = m.methodName().stringValue();

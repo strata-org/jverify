@@ -3,11 +3,10 @@
 // assignment, loops with invariants over elements, array parameters, results
 // and fields. Every method verifies.
 package org.strata.jverify.verifier.tests.javasupport.arrays;
-import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 import org.strata.jverify.*;
 import static org.strata.jverify.JVerify.*;
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_ARRAYS}, exitCode = 0, methodsInvalid = 0, errorCount = 0, methodsVerified = 17, methodsSkipped = 0)
+@JVerifyTest(exitCode = 0, methodsInvalid = 0, errorCount = 0, methodsVerified = 17, methodsSkipped = 0)
 class PrimitiveArrays {
     int[] data;
     int count;

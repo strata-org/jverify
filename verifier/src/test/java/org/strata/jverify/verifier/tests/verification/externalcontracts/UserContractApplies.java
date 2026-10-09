@@ -2,12 +2,11 @@
 // specification: callers prove what it states, and only that.
 package org.strata.jverify.verifier.tests.verification.externalcontracts;
 
-import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, contractSourcePath = {"usercontracts/applies"}, exitCode = 4, methodsVerified = 2, methodsInvalid = 2, errorCount = 2)
+@JVerifyTest(contractSourcePath = {"usercontracts/applies"}, exitCode = 4, methodsVerified = 2, methodsInvalid = 2, errorCount = 2)
 class UserContractApplies {
     static int nonNegative(int x) {
         precondition(x > Integer.MIN_VALUE);

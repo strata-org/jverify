@@ -2,7 +2,7 @@ package org.strata.jverify.langref;
 
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.TestFactory;
-import org.strata.jverify.verifier.Main;
+import org.strata.java.bytecode.verifier.Main;
 
 import java.io.IOException;
 import java.io.PrintWriter;

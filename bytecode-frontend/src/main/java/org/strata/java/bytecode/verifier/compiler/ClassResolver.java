@@ -65,7 +65,7 @@ final class ClassResolver {
         }
     }
 
-    /** Fully qualify a source-form type name against this compilation's classes (JFE prints fqns). */
+    /** Fully qualify a source-form type name against this compilation's classes (program classes print as fqns). */
     String qualifyTypeName(String name, String descriptorFqn) {
         String qualified = qualifyTypeName(name);
         if (descriptorFqn != null && !descriptorFqn.equals(qualified)
@@ -434,11 +434,11 @@ final class ClassResolver {
     }
 
     /**
-     * JFE's resolved (stacked) opt-out status for a classfile method: the
+     * The resolved (stacked) opt-out status for a classfile method: the
      * method's own {@code @Verify} wins unless the class's says
      * {@code overrideChildren}; with neither, the class-level value, then
      * verify-by-default, decides. Readable from the classfile because the
-     * spec library compiled against is the CLASS-retention variant.
+     * spec annotations have CLASS retention.
      */
     boolean isOptedOut(java.lang.classfile.ClassModel cm, java.lang.classfile.MethodModel m) {
         var classAnno = verifyAnnotation(cm);
@@ -459,8 +459,8 @@ final class ClassResolver {
      * Relocated source @Contract class fqn -> its contractee fqn. A contract method's
      * bytecode names its OWN class -- `this` is typed by it and its field reads say
      * `getfield ContractClass.value` -- while the translation is of the contractee's
-     * method, whose composite now carries those fields. Mirrors JFE's
-     * ReferenceUpdater, which rewrites every reference to the contract class.
+     * method, whose composite carries those fields. Every reference to the
+     * contract class is redirected to the contractee.
      */
     final Map<String, String> contracteeOf = new java.util.HashMap<>();
     /** Library type fqn -> its @Contract declaration (see Declarations.libraryContracts). */
@@ -609,12 +609,12 @@ final class ClassResolver {
     /**
      * Separator before each erased parameter type in an overloaded method's
      * emitted name. {@code '?'} cannot appear in a Java identifier (JLS 3.8),
-     * so the mangling is injective; JFE uses the same character.
+     * so the mangling is injective.
      */
     static final String MANGLE_SEPARATOR = "?";
 
     /**
-     * JFE's overloadSuffix: the suffix that distinguishes an overloaded method
+     * The suffix that distinguishes an overloaded method
      * from its same-named siblings, appended to the emitted Laurel procedure
      * name so a by-name call ({@code Class_m} for a static, {@code obj#m} for
      * an instance) still selects the right one. Empty unless the name is
@@ -638,7 +638,7 @@ final class ClassResolver {
         return sb.toString();
     }
 
-    /** JFE's rendering of an erased parameter type: a dotted fqn, {@code int}, {@code X[]}. */
+    /** The rendering of an erased parameter type in a mangled name: a dotted fqn, {@code int}, {@code X[]}. */
     static String erasedTypeName(java.lang.constant.ClassDesc cd) {
         if (cd.isPrimitive()) {
             return cd.displayName();
@@ -696,8 +696,8 @@ final class ClassResolver {
 
     /**
      * {@code fqn} and every supertype, superclasses AND interfaces, each once.
-     * This is the closure javac's {@code Types.closure} gives the source frontend;
-     * walking the superclass chain alone misses a same-named method declared on an
+     * This is the closure javac's {@code Types.closure} computes; walking the
+     * superclass chain alone misses a same-named method declared on an
      * implemented interface.
      */
     private java.util.LinkedHashSet<String> typeClosure(String fqn) {
@@ -725,13 +725,13 @@ final class ClassResolver {
      * javac bridge in the declaring class that forwards to {@code m} (an override
      * whose erasure differs from the overridden method's, as in {@code Sub extends
      * Base<Integer>} overriding {@code Base<T>.m(T)}) -- or the declaring class
-     * itself when {@code m} overrides nothing. A port of JFE's overloadScope.
+     * itself when {@code m} overrides nothing.
      *
      * <p>Not the declaring class, because "overloaded" measured there is not stable
      * along an override chain. With {@code Base.m(int)} and {@code Sub extends Base}
      * declaring both {@code m(int)} (an override) and {@code m(String)} (a new
-     * overload), closure(Base) sees one signature so {@code Base.m(int)} stayed bare
-     * while closure(Sub) sees two so {@code Sub.m(int)} became {@code m?int}.
+     * overload), closure(Base) sees one signature so {@code Base.m(int)} would stay
+     * bare while closure(Sub) sees two so {@code Sub.m(int)} would become {@code m?int}.
      * Distinct names mean Strata never pairs them, so CheckOverrideRefinement never
      * generates the Liskov obligation, and the call site resolves to the base's
      * contract while the override runs: a false {@code check} PROVED
@@ -739,7 +739,7 @@ final class ClassResolver {
      * share a scope, hence a name; the subclass-added overload is its own root and
      * still gets a distinct one.
      *
-     * <p>Shares JFE's known gap: a name with two INDEPENDENT roots (two interfaces
+     * <p>Known gap: a name with two INDEPENDENT roots (two interfaces
      * each declaring a different {@code m}, both overridden by one class) cannot be
      * agreed with by any symbol-local scheme.
      */
@@ -834,15 +834,12 @@ final class ClassResolver {
         return sep < 0 ? laurelName : laurelName.substring(0, sep);
     }
 
-    // There is deliberately no enforceDispatchGate here any more, mirroring the
-    // source frontend's RefusalGates. It refused any instance call that was not
-    // provably monomorphic, on the grounds that an `obj#method` call resolved
-    // against the receiver's DECLARED type -- so a call reaching an override at
-    // runtime would verify against the wrong contract. Laurel now dispatches an
-    // overridden composite method on the receiver's runtime tag
-    // (LiftInstanceProcedures), and CheckOverrideRefinement discharges the Liskov
-    // obligation that makes reasoning against the declared type's contract sound,
-    // so the premise no longer holds. PolyDispatchSoundness pins both halves.
+    // Instance calls that may reach an override are deliberately NOT refused.
+    // An `obj#method` call resolves against the receiver's DECLARED type, but
+    // Laurel dispatches an overridden composite method on the receiver's runtime
+    // tag (LiftInstanceProcedures), and CheckOverrideRefinement discharges the
+    // Liskov obligation that makes reasoning against the declared type's contract
+    // sound. PolyDispatchSoundness pins both halves.
 
     /** Canonical erased-parameter signature of a classfile method (JVM descriptors). */
     private static String paramDescriptors(java.lang.classfile.MethodModel m) {
@@ -858,11 +855,10 @@ final class ClassResolver {
                 .toList().toString();
     }
 
-    // There is deliberately no enforceAncestryOverloadGate here any more. It
-    // refused a call whose name resolved to more than one erased signature over
-    // the receiver's supertype closure, because by-name Laurel resolution could
-    // not tell them apart. An overloaded name now carries its erased parameter
-    // types (see overloadSuffix), so the names are distinct and the premise is
-    // gone. The signature counting that gate did survives inside isOverloaded.
+    // A call whose name resolves to more than one erased signature over the
+    // receiver's supertype closure is deliberately NOT refused: an overloaded name
+    // carries its erased parameter types (see overloadSuffix), so by-name Laurel
+    // resolution tells the overloads apart. The signature counting lives in
+    // isOverloaded.
 
 }

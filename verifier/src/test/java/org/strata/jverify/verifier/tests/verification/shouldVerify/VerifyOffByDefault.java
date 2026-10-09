@@ -42,3 +42,10 @@ class CantTranslate {
         return 3;
     }
 }
+// An unsound reference '==' in code without @Verify refuses the method
+// silently, like any other refusal there.
+class NoAttributeReferenceEquality {
+    static boolean strings(String a, String b) {
+        return a == b;
+    }
+}

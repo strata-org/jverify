@@ -22,16 +22,16 @@ import java.util.Map;
  */
 final class CompositeModel {
 
-    /** The Laurel sort name of {@code java.lang.Object} (JFE's OBJECT_SORT). */
+    /** The Laurel sort name of {@code java.lang.Object}. */
     static final String OBJECT_SORT = "Object";
 
-    /** Composite sorts referenced anywhere (JFE's referencedCompositeTypes). */
+    /** Composite sorts referenced anywhere. */
     final java.util.LinkedHashSet<String> referencedCompositeTypes = new java.util.LinkedHashSet<>();
-    /** Accessed fields per composite (JFE's compositeFields): only accessed fields are declared. */
+    /** Accessed fields per composite: only accessed fields are declared. */
     final Map<String, LinkedHashMap<String, org.strata.jverify.laurel.Field>> compositeFields = new LinkedHashMap<>();
-    /** Composite sort -> its extended (parent) sort (JFE's compositeExtends). */
+    /** Composite sort -> its extended (parent) sort. */
     final Map<String, String> compositeExtends = new LinkedHashMap<>();
-    /** Instance procedures per composite sort (JFE's instanceProcsBySort). */
+    /** Instance procedures per composite sort. */
     final Map<String, List<Procedure>> instanceProcsBySort = new LinkedHashMap<>();
     /** Type-parameter names per generic composite sort; a sort without an entry has none. */
     final Map<String, List<String>> compositeTypeParams = new LinkedHashMap<>();
@@ -66,7 +66,7 @@ final class CompositeModel {
      * both sorts. Membership in referencedCompositeTypes and the edge in
      * compositeExtends always move together, so a linked child cannot
      * silently miss its declaration; a conflicting parent edge is refused
-     * loudly (JFE's linkExtends).
+     * loudly.
      */
     void linkExtends(String childSort, String parentSort) {
         referencedCompositeTypes.add(childSort);
@@ -86,7 +86,7 @@ final class CompositeModel {
      * all the way up -- not just to a declared join -- is what keeps every
      * {@code is} test between exception types meaningful: a caller may catch
      * any supertype of a declared type, and that guard needs the chain
-     * linked (JFE's registerHierarchyUpToThrowable).
+     * linked.
      */
     void registerHierarchyUpToThrowable(String fqn) {
         String stop = fqn;
@@ -109,8 +109,8 @@ final class CompositeModel {
     /**
      * Emit composite {@code sortName} and its full supertype closure, ANCESTORS
      * FIRST (parents before children, as Laurel requires for scope copying).
-     * Mirror of JFE's {@code emitComposite}: each sort {@code extends} its
-     * direct supertypes (superclass + interfaces); a sort with no supertype
+     * Each sort {@code extends} its direct supertypes (superclass +
+     * interfaces); a sort with no supertype
      * other than itself gets an explicit {@code Object} parent (an interface
      * has no superclass edge -- JLS 4.10.2 -- and a synthetic lambda class
      * carries no supertype). Strata walks these edges transitively, so a value
@@ -170,7 +170,7 @@ final class CompositeModel {
         // An interface has no superclass edge: bytecode records Object as its
         // super_class, but JLS 4.10.2 makes Object a DIRECT supertype only of a
         // superinterface-less interface (handled by the Object fallback in
-        // emitCompositeClosure), matching JFE's getSuperclass()==noType.
+        // emitCompositeClosure).
         String sup = resolver.isInterface(sortName) ? null : resolver.superclassOf(sortName);
         if (sup != null) {
             out.add(sortNameForFqn(sup));

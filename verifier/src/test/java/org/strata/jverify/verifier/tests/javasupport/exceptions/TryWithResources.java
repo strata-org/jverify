@@ -1,5 +1,6 @@
 package org.strata.jverify.verifier.tests.javasupport.exceptions;
 
+import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 /**
@@ -12,7 +13,11 @@ import org.strata.jverify.testengine.JVerifyTest;
  * {@code Throwable} is therefore refused with the declared-throws diagnostic
  * below. A friendlier per-construct message is future work.
  */
+// The desugared re-throw is not refused, so 'useResource' is refused later, at
+// the desugared addSuppressed call.
 @JVerifyTest(
+        expectedToFail = true,
+        blockedBy = Blocker.FRONTEND_EXCEPTIONS,
         continueOnErrors = true,
         exitCode = 0,
         methodsVerified = 4, // fine(), Res.close(), and 2 implicit constructors

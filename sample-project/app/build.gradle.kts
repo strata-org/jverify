@@ -25,7 +25,7 @@ dependencies {
     implementation("org.strata.jverify:library:1.0-SNAPSHOT")
     // Depend on the verifier as a build tool
     // TODO: Figure out correct dependency type, and declare the verifier's correctly
-    implementation("org.strata.jverify:verifier:1.0-SNAPSHOT")
+    implementation("org.strata.jverify:bytecode-frontend:1.0-SNAPSHOT")
     // Depend on the annotation processor to erase specification code when building
     annotationProcessor("org.strata.jverify:javac-plugin:1.0-SNAPSHOT")
 
@@ -35,32 +35,10 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
-fun createJavacExports(targets: List<String>): List<String> {
-    val javacPackages = listOf(
-        "jdk.compiler/com.sun.tools.javac.api",
-        "jdk.compiler/com.sun.tools.javac.file",
-        "jdk.compiler/com.sun.tools.javac.util",
-        "jdk.compiler/com.sun.tools.javac.tree",
-        "jdk.compiler/com.sun.tools.javac.code",
-        "jdk.compiler/com.sun.tools.javac.parser",
-        "jdk.compiler/com.sun.tools.javac.jvm",
-        "jdk.compiler/com.sun.tools.javac.comp",
-        "jdk.compiler/com.sun.tools.javac.model",
-        "jdk.compiler/com.sun.tools.javac.processing",
-        "jdk.compiler/com.sun.tools.javac.main"
-    )
-
-    return javacPackages.flatMap { pkg ->
-        targets.map { target ->
-            "--add-exports=$pkg=$target"
-        }
-    }
-}
-
 // Apply a specific Java toolchain to ease working on different environments.
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(23)
+        languageVersion = JavaLanguageVersion.of(25)
     }
 }
 
@@ -79,9 +57,7 @@ tasks.register<JavaExec>("verify") {
     classpath(
         configurations.runtimeClasspath
     )
-    mainClass = "org.strata.jverify.verifier.Main"
-
-    jvmArgs = createJavacExports(listOf("ALL-UNNAMED"))
+    mainClass = "org.strata.java.bytecode.verifier.Main"
     args(
         "src/main/java/org/example/App.java",
         "--classpath",

@@ -31,11 +31,9 @@ import java.util.regex.Pattern;
 
 /**
  * Serializes a Laurel {@link Program} to binary Ion, runs the Strata CLI on
- * it, and parses the resulting diagnostics. Port of StrataJavaFrontEnd's
- * {@code LaurelDriver} with the javac {@code Context} plumbing removed: the
- * caller supplies the Laurel program, the offset-to-position {@link PositionResolver},
- * and the per-URI method status trees (which JFE obtained from its
- * VerifyAnnotationCompiler) explicitly.
+ * it, and parses the resulting diagnostics. The caller supplies the Laurel
+ * program, the offset-to-position {@link PositionResolver}, and the per-URI
+ * method status trees.
  */
 public class StrataBackend {
 
@@ -390,9 +388,9 @@ public class StrataBackend {
 
         try {
             // Offsets are the frontend's synthetic (line, column) packings,
-            // which exceed Integer.MAX_VALUE from source line 2148 on: parse
-            // as long, INSIDE the try, so a genuinely malformed number
-            // degrades like any other unresolvable location.
+            // which may exceed Integer.MAX_VALUE: parse as long, INSIDE the
+            // try, so a genuinely malformed number degrades like any other
+            // unresolvable location.
             long startOffset = Long.parseLong(matcher.group(2));
             long endOffset = Long.parseLong(matcher.group(3));
 

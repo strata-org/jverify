@@ -13,17 +13,15 @@ import java.util.Map;
 /**
  * Per-method accounting for the refusal-propagation fixpoint: every
  * translated or refused method, its callee edges, and the demotion/drop
- * passes plus the refusal diagnostics (with JFE's severity asymmetry and
- * per-(method, reason) dedup).
- *
- * <p>Extracted verbatim from {@code BytecodeToLaurelCompiler}.
+ * passes plus the refusal diagnostics (static/instance severity asymmetry
+ * and per-(method, reason) dedup).
  */
 final class MethodGraph {
 
     /**
      * Everything the refusal-propagation fixpoint needs about a translated or
-     * refused method (JFE keys this on MethodSymbols; here the key is
-     * "classFqn#name", unique because overloads are refused).
+     * refused method, keyed by "classFqn#name" (unique because overloads are
+     * refused).
      */
     static final class MethodInfo {
         final String classFqn;
@@ -37,7 +35,7 @@ final class MethodGraph {
         final boolean isStatic;
         final URI uri;
         final Range namePoint;
-        /** Distinguishes same-name overload declarations (JFE keys on MethodSymbol identity). */
+        /** Distinguishes same-name overload declarations. */
         final int ordinal;
         /** Opted out of verification: refusals demote silently, never diagnose. */
         final boolean quiet;
@@ -65,7 +63,7 @@ final class MethodGraph {
         /**
          * A hard ERROR was already reported at a construct inside this method, so
          * the method-level refusal diagnostic must not also fire -- it would repeat
-         * the same defect less precisely. Mirrors JFE's hasReportedErrorInside. The
+         * the same defect less precisely. The
          * method is still demoted, so it cannot count Verified.
          */
         boolean constructErrorReported;
@@ -107,7 +105,7 @@ final class MethodGraph {
 
         /**
          * By-name identity: what a call edge can actually reference. Keyed on
-         * the EMITTED name, so an overload's refusal no longer poisons calls to
+         * the EMITTED name, so an overload's refusal does not poison calls to
          * its same-named sibling -- the two are distinct Laurel procedures.
          */
         String nameKey() {
@@ -118,16 +116,16 @@ final class MethodGraph {
     final Map<String, MethodInfo> methodInfos = new LinkedHashMap<>();
     /**
      * The reasons a later caller's cascade message may quote: methodKey -> reasons.
-     * Mirrors exactly what JFE writes to {@code reportedInstanceRefusals}: an
-     * INSTANCE method's own refusal, and ANY method's cascade demotion -- but not a
-     * static method's own refusal, which JFE reports without recording. So
+     * Recorded: an INSTANCE method's own refusal, and ANY method's cascade
+     * demotion -- but not a static method's own refusal, which is reported without
+     * being recorded. So
      * {@code call to 'accumulate', which could not be translated: call to 'helper',
      * which could not be translated} chains through a demoted static, while a caller
      * of a directly-refused static gets the bare form (PureSkippedWithFrameIsDropped,
      * CascadeDepth3, TransitiveSkip).
      */
     private final Map<String, java.util.Set<String>> recordedReasons = new HashMap<>();
-    /** Diagnostic dedup (JFE's reportedInstanceRefusals): methodKey -> reasons reported. */
+    /** Diagnostic dedup: methodKey -> reasons reported. */
     private final Map<String, java.util.Set<String>> reportedRefusals = new HashMap<>();
 
     private final Reporter reporter;
@@ -137,8 +135,8 @@ final class MethodGraph {
     }
 
     /**
-     * Port of JFE's demoteCallersOfRefusedMethods: one round marks every
-     * method that calls an already-refused one, reporting {@code call to
+     * Caller demotion: each round marks every method that calls an
+     * already-refused one, reporting {@code call to
      * 'X', which could not be translated} (severity by the CALLER's own
      * staticness, anchored at the caller's declaration name, deduped per
      * (caller, reason) -- the demotion itself is never deduped). Iterated to
@@ -161,7 +159,7 @@ final class MethodGraph {
             // (opted-out) refusals are excluded: calls to opted-out methods
             // are refused at the call site by the arity-aware check, and an
             // opted-out overload must not poison calls to its emitted
-            // sibling (JFE keys demotion on symbols, not names).
+            // sibling.
             var refusedNames = new java.util.HashSet<String>();
             // Refused library members by name key, so their reason can be
             // chained into the callers' diagnostics.
@@ -285,7 +283,7 @@ final class MethodGraph {
     }
 
     /**
-     * Drop the emitted procedures of demoted methods (JFE's post-fixpoint
+     * Drop the emitted procedures of demoted methods (the post-fixpoint
      * drop pass): their bodies reference unemitted callees, and Strata would
      * fail resolution on them.
      */
@@ -307,12 +305,12 @@ final class MethodGraph {
     }
 
     /**
-     * Report a method's translation refusal with JFE's severity asymmetry: a
+     * Report a method's translation refusal with a severity asymmetry: a
      * static method's failure is an error ({@code translatorError={0}}), an
      * instance method's a warning ({@code instanceMethodNotVerified}) --
      * instance support is deliberately partial, so a refusal demotes to an
      * honest Skipped instead of failing the build. Both anchor at the refused
-     * method's own name (JFE's JCMethodDecl preferred position). The
+     * method's own name. The
      * diagnostic is deduped per (method, reason); the demotion never is.
      */
     void reportRefusal(MethodInfo info, String reason) {
@@ -326,7 +324,7 @@ final class MethodGraph {
      */
     void reportRefusal(MethodInfo info, String reason, boolean cascade) {
         if (info.quiet) {
-            return; // opted-out methods demote silently (JFE never translates them loudly)
+            return; // opted-out methods demote silently, never diagnose
         }
         if (info.library) {
             return; // library members are never diagnosed; their callers carry the reason

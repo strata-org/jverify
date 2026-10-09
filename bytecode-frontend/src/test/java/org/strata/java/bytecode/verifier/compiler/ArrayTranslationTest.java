@@ -36,9 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ArrayTranslationTest {
 
     private static Path libraryJar() {
-        return Path.of(java.util.Objects.requireNonNull(
-                System.getProperty("bytecode.library.jar"),
-                "bytecode.library.jar system property not set"));
+        return org.strata.java.bytecode.verifier.VerifierDriver.specLibraryLocation();
     }
 
     private record Translation(Program program, List<String> messages) {

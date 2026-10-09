@@ -220,8 +220,8 @@ public final class LibraryContracts {
                     } catch (IOException e) {
                         throw unreadable(p, e);
                     }
-                    // "string://" + relative path, '\' normalized, as the
-                    // source frontend names directory contract sources.
+                    // Directory contract sources are named "string://" +
+                    // their relative path, with '\' normalized to '/'.
                     String relativePath = resolved.relativize(p).toString().replace('\\', '/');
                     batch.add(new SourceFile(relativePath, content));
                 }

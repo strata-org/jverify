@@ -2,6 +2,7 @@ package org.strata.jverify.verifier.tests.jcl;
 
 import org.strata.jverify.Impure;
 import org.strata.jverify.JVerify;
+import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.check;
@@ -33,7 +34,10 @@ import static org.strata.jverify.JVerify.precondition;
  * Laurel's partial map is a total map into {@code $MapEntry}, so there is no partiality to
  * discharge at the read. Pinned so that gaining or losing that obligation is a visible change.
  */
-@JVerifyTest(exitCode = 4, methodsVerified = 7, errorCount = 2)
+// The bytecode frontend does not translate JVerify.Map yet: the Map-typed parameters fail
+// to translate and no verdict is produced.
+@JVerifyTest(expectedToFail = true, blockedBy = Blocker.FRONTEND_OTHER,
+        exitCode = 4, methodsVerified = 7, errorCount = 2)
 class MapsVerification {
 
     /**

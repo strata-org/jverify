@@ -11,53 +11,38 @@ import picocli.CommandLine.Spec;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.function.Function;
 
 /**
- * Command-line entry point: compiles the given Java files with javac, then
- * verifies (or, with {@code --interpret}, runs) their classfiles. It takes the
- * options of JFE's {@code verifier} that this frontend implements, under the
- * same names, so either verifier can be pointed at the same input. JFE's
- * {@code --filter-position} and {@code --include-filter-dependencies} are not
- * implemented here and are rejected as unknown. {@code --no-constant-folding}
- * is this frontend's own: JFE reads the source, which javac has not folded.
+ * The {@code bytecode-verifier} command line: compiles the given Java files
+ * with javac, then verifies (or, with {@code --interpret}, runs) their
+ * classfiles. With {@code --no-constant-folding}, javac does not fold the
+ * input's constant expressions where it can avoid it.
+ *
+ * <p>Exit codes: 0 when every verified method verified (or the run
+ * completed), 4 when an assertion failed, 2 on a usage error or when there is
+ * no verdict (a front-end error), and Strata's own exit code when the backend
+ * crashed.
  */
 public final class Main {
-    private static @Nullable Path specLibrary;
-
     private Main() {
-    }
-
-    /**
-     * The CLASS-retention build of the JVerify library, which this command's
-     * jar carries as a resource (see build.gradle.kts), extracted once, and
-     * again if the file is gone, as a temp-directory cleaner can make it.
-     */
-    static synchronized Path specLibrary() throws IOException {
-        if (specLibrary == null || !Files.exists(specLibrary)) {
-            Path jar = Files.createTempFile("bytecode-frontend-lib", ".jar");
-            jar.toFile().deleteOnExit();
-            try (InputStream in = Main.class.getResourceAsStream("bytecode-frontend-lib.jar");
-                 var out = Files.newOutputStream(jar)) {
-                Objects.requireNonNull(in, "bytecode-frontend-lib.jar resource missing").transferTo(out);
-            }
-            specLibrary = jar;
-        }
-        return specLibrary;
     }
 
     public static void main(String[] args) {
         System.exit(run(args, new PrintWriter(System.out, true), new PrintWriter(System.err, true),
                 System::getenv));
+    }
+
+    /** The command line, reading environment variables from the process environment. */
+    public static CommandLine commandLine() {
+        return new CommandLine(new VerifyCommand(System::getenv));
     }
 
     /**
@@ -154,7 +139,7 @@ public final class Main {
                 throw new CommandLine.ParameterException(spec.commandLine(),
                         "Option '--no-constant-folding' needs the JVM options " + String.join(" ", missingExports));
             }
-            // As in JFE: fuel 0 would report "out of fuel" before executing anything.
+            // Fuel 0 would report "out of fuel" before executing anything.
             if (fuel != null && fuel <= 0) {
                 throw new CommandLine.ParameterException(spec.commandLine(),
                         "Invalid value for option '--fuel': " + fuel + " (must be > 0)");
@@ -180,10 +165,11 @@ public final class Main {
             var out = new PrintWriter(spec.commandLine().getOut());
             var workingDirectory = Path.of(System.getProperty("user.dir"));
 
-            // The spec library goes first: compiled against :library, whose spec annotations are
-            // SOURCE-retention, the input's classfiles would not carry them.
+            // The spec library goes first, so a JVerify library on --classpath cannot shadow it:
+            // compiled against :library, whose spec annotations are SOURCE-retention, the input's
+            // classfiles would not carry them.
             var classPath = new ArrayList<Path>();
-            classPath.add(specLibrary());
+            classPath.add(VerifierDriver.specLibraryLocation());
             classPath.addAll(splitPaths(classPaths));
 
             var options = new VerifierOptions(out, workingDirectory, classPath,

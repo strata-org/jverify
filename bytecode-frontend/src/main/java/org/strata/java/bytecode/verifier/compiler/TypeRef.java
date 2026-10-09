@@ -15,7 +15,7 @@ import java.util.List;
  * and composite sort names for library classes are SHORTENED simple names
  * ("String", not "java.lang.String") — program classes qualify to fqns via
  * {@link ClassResolver#qualifyTypeName}. Both are reproduced from
- * descriptors/signatures here, matching JFE's corpus-pinned output.
+ * descriptors/signatures here, matching the corpus-pinned output.
  *
  * @param kind          the shape this reference takes
  * @param display       rendering used in refusal messages (generics included)
@@ -113,9 +113,9 @@ record TypeRef(Kind kind, String display, String nameWithScope, String simpleNam
         return new TypeRef(Kind.PRIMITIVE, display, null, name, false, isNat, isUnbounded, null);
     }
 
-    // --- Laurel translation (mirror of the driver's translateType) ---
+    // --- Laurel translation ---
 
-    /** JFE's integerType: @Unbounded -> unbounded int (or nat), else the fixed-width sorts. */
+    /** Integer sort: @Unbounded -> unbounded int (or nat), else the fixed-width sorts. */
     private HighType integerType(String bounded, String boundedNat) {
         if (isUnbounded) {
             return isNat ? new HighType.UserDefined(LaurelFactory.ident("nat")) : new HighType.TInt();
@@ -124,10 +124,10 @@ record TypeRef(Kind kind, String display, String nameWithScope, String simpleNam
     }
 
     /**
-     * The Laurel type of this reference, with JFE's exact decisions and
+     * The Laurel type of this reference, with corpus-pinned decisions and
      * refusal messages: primitives map to the constrained
      * integer sorts / TBool / char; a type variable in scope refuses as
-     * JFE's "Unsupported type: T"; any class reference becomes an opaque
+     * "Unsupported type: T"; any class reference becomes an opaque
      * composite sort — program classes qualified to their fqn, library
      * classes keeping the shortened simple name; a one-dimensional primitive
      * array becomes {@code JArray<E>} while the array model is enabled
@@ -238,7 +238,7 @@ record TypeRef(Kind kind, String display, String nameWithScope, String simpleNam
     }
 
     /**
-     * A wildcard approximated by its READ type, as JFE does: {@code ? extends X}
+     * A wildcard approximated by its READ type: {@code ? extends X}
      * reads as an X, and {@code ? super X} / a bare {@code ?} read only as an
      * {@code Object}. Sound for reads, which is all a type position is used for
      * here.

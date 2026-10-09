@@ -115,7 +115,7 @@ final class SourceMap {
     /**
      * The method's CRT envelope, from its Code attribute. Its START is the
      * method's declaration line (the outermost CRT block opens at the method's
-     * {@code {}) -- where the source frontend anchors method-level diagnostics.
+     * {@code {}) -- where method-level diagnostics anchor (pinned by the corpus).
      */
     FileRange methodCrtRange(java.lang.classfile.MethodModel m) {
         var code = m.findAttribute(java.lang.classfile.Attributes.code()).orElse(null);

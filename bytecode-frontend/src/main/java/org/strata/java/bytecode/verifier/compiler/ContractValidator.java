@@ -30,9 +30,9 @@ final class ContractValidator {
 
     void validate() {
         // Deterministic order without source text: by file URI, then by the
-        // contract class's fully-qualified name. (JFE used source order; the
-        // frontend has no source, and only which of two duplicate contracts is
-        // flagged depends on order -- the diagnostic count is the same.)
+        // contract class's fully-qualified name. (Only which of two duplicate
+        // contracts is flagged depends on order -- the diagnostic count is
+        // the same.)
         decls.contractDecls.sort(java.util.Comparator
                 .comparing((Declarations.ContractDecl e) -> String.valueOf(e.uri()))
                 .thenComparing(Declarations.ContractDecl::fqn));

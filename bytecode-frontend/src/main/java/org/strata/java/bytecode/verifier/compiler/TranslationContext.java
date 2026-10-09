@@ -59,7 +59,7 @@ final class TranslationContext {
 
     /** Fqn of the class whose method is being translated: the type of `this`. */
     String currentClassFqn;
-    /** Type-parameter names in scope (method + enclosing class): refuse as JFE's Unsupported type: T. */
+    /** Type-parameter names in scope (method + enclosing class): refuse as "Unsupported type: T". */
     Set<String> typeParams = Set.of();
     /**
      * The subset of {@link #typeParams} that become Laurel {@code TVar}s: the
@@ -67,10 +67,15 @@ final class TranslationContext {
      * {@code typeArgs}, plus, in a JArray member, the JArray class's type
      * parameter, which the {@code JArray} composite declares. Any other CLASS
      * type parameter stays refused: its composite is emitted with no
-     * {@code typeArgs}, so a {@code TVar} naming it would not resolve. Mirrors
-     * JFE's {@code currentMethodTypeParams}.
+     * {@code typeArgs}, so a {@code TVar} naming it would not resolve.
      */
     Set<String> methodTypeParams = Set.of();
+    /**
+     * The subset of {@link #typeParams} whose bound carries {@code @Impure}
+     * ({@code <T extends @Impure Object>}): a value of such a type is a heap
+     * object, so {@code ==} on it stays a reference comparison.
+     */
+    Set<String> impureTypeParams = Set.of();
 
     // --- Per-method state ---
 
@@ -101,27 +106,13 @@ final class TranslationContext {
         final Deque<List<String>> enclosingCatchTypes = new ArrayDeque<>();
         /** The current method's class-typed return sort, or null. */
         String returnSort;
-        /**
-         * This method carries an {@code @Impure} type annotation somewhere, which
-         * exempts its reference comparisons from the restricted-{@code ==} check.
-         *
-         * <p>Method-scoped on purpose, and weaker than JFE's per-operand rule: an
-         * annotated cast between types with the SAME erasure
-         * ({@code (@Impure Object) b} where {@code b} is already {@code Object})
-         * emits no instruction at all, so there is no node to attach the
-         * annotation to and no way to tell which operand it qualified. Erring
-         * towards silence keeps the check from falsely accusing code JFE accepts
-         * (PolymorphismResolutionErrors2); the cost is a missed error in a method
-         * that mixes an impure comparison with a value-typed one.
-         */
-        boolean mentionsImpure;
         boolean pureBody;
         boolean shapeErrorReported;
         /**
          * Translating a relocated source-contract method as its contractee's (see
          * Declarations.sourceContracts). Its body is the contract header followed by
-         * {@code throw new ContractException()}, which JFE discards as "contract only"
-         * (isContractThrow); no implementation is emitted for it, so that throw is
+         * {@code throw new ContractException()}, which marks it "contract only"; no
+         * implementation is emitted for it, so that throw is
          * dropped rather than coverage-checked.
          */
         boolean relocatedContract;
@@ -157,7 +148,7 @@ final class TranslationContext {
         method = new MethodScope(info);
     }
 
-    // --- Laurel loop-label scheme (JFE's emitLoop labels) ---
+    // --- Laurel loop-label scheme ---
 
     record LabelEntry(String javaLabel, String breakLabel, String continueLabel) {
     }

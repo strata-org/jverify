@@ -77,7 +77,7 @@ class StrataBackendSmokeTest {
                 List.of());                                    // writesGlobals
     }
 
-    /** Resolver over a pretend 10-column-per-line file, matching JFE's offset->line:col logic. */
+    /** Resolver over a pretend 10-column-per-line file. */
     private static final PositionResolver TEN_COL_LINES = (uri, offset) ->
             new Position((int) (offset / 10) + 1, (int) (offset % 10) + 1);
 

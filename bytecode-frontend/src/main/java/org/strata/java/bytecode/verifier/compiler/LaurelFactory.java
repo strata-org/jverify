@@ -36,21 +36,21 @@ final class LaurelFactory {
     static final String LAUREL_RESULT_BINDING = "$result";
 
     /**
-     * Synthesized receiver parameter on instance procedures (JFE's
-     * LAUREL_SELF_BINDING). '?' is outside Java's identifier grammar but
-     * inside Strata's, so no user local can collide; Strata's
-     * LiftInstanceProcedures prepends the receiver argument, so the lifted
-     * procedure must declare it first.
+     * Synthesized receiver parameter on instance procedures. '?' is outside
+     * Java's identifier grammar but inside Strata's, so no user local can
+     * collide; Strata's LiftInstanceProcedures prepends the receiver
+     * argument, so the lifted procedure must declare it first.
      */
     static final String LAUREL_SELF_BINDING = "self?";
 
     /**
-     * Synthesized name binding the thrown value in a `throws (e: T)` clause (JFE's
-     * THROWN_BINDING). Uses '?' for the same reason {@link #LAUREL_SELF_BINDING} does:
-     * '?' is outside Java's identifier grammar but inside Strata's, so no user name can
-     * spell this one. A `java$`-style prefix would not have that property -- `$` is legal
-     * in a Java identifier (JLS 3.8) and only a *leading* `$` is escaped, so a user
-     * writing `int java$thrown` could collide with the generated binder.
+     * Synthesized name binding the thrown value in a `throws (e: T)` clause.
+     * Uses '?' for the same reason {@link #LAUREL_SELF_BINDING} does: '?' is
+     * outside Java's identifier grammar but inside Strata's, so no user name
+     * can spell this one. A `java$`-style prefix would not have that property
+     * -- `$` is legal in a Java identifier (JLS 3.8) and only a *leading* `$`
+     * is escaped, so a user writing `int java$thrown` could collide with the
+     * generated binder.
      */
     static final String THROWN_BINDING = "java?thrown";
 
@@ -63,14 +63,14 @@ final class LaurelFactory {
         this.src = src;
     }
 
-    // --- Node helpers (mirror JFE's) ---
+    // --- Node helpers ---
 
     /**
      * Wrap modifies {@code targets} into the degenerate group form every
      * frontend emits: one unguarded {@link ModifiesGroup} that is always
      * present, even when the target list is empty (an empty group is the
      * opaque default "nothing changes" frame -- dropping it would leave the
-     * procedure unframed). Mirrors JFE's JavaToLaurelCompiler.unguardedModifies.
+     * procedure unframed).
      */
     static List<ModifiesGroup> unguardedModifies(List<AstNode<StmtExpr>> targets) {
         return List.of(new ModifiesGroup(targets, Optional.empty(), Optional.empty()));
@@ -116,28 +116,27 @@ final class LaurelFactory {
     }
 
     /**
-     * Refuse a user binder literally spelled {@code $result}, matching JFE's
-     * {@code refuseReservedName}. Strata's short {@code : T} return form generates an
-     * output parameter named {@code $result} (emitted unescaped via
-     * {@link #reservedIdent}) for every returning procedure, so a user binder of that
-     * name would collide inside Strata. {@code laurelSafeName} would escape it to
-     * {@code @result} and translate cleanly, but JFE deliberately refuses at the source
-     * level with an attributable diagnostic; we mirror that so the shared corpus outcome
-     * (skip with this reason) matches. Only the exact spelling {@code $result} is
-     * reserved -- a leading {@code $} on any other name is escaped, not refused.
+     * Refuse a user binder literally spelled {@code $result}. Strata's short
+     * {@code : T} return form generates an output parameter named {@code $result}
+     * (emitted unescaped via {@link #reservedIdent}) for every returning procedure,
+     * so a user binder of that name would collide inside Strata.
+     * {@code laurelSafeName} would escape it to {@code @result} and translate
+     * cleanly, but the frontend deliberately refuses with an attributable
+     * diagnostic, and the corpus pins that outcome (skip with this reason). Only
+     * the exact spelling {@code $result} is reserved -- a leading {@code $} on any
+     * other name is escaped, not refused.
      *
      * <p>Call at binder sites only (params, locals, lambda/quantifier binders), never
      * inside {@link #ident}, which also escapes non-binder names (method/class/type).
      *
-     * <p>Mirroring JFE is not the end state: the collision exists only because the
-     * generated output binding is spelled {@code $result}, a name a Java user can
-     * legally take. Renaming it into the {@code ?} namespace ({@code java?result},
-     * as {@link #LAUREL_SELF_BINDING} and {@link #THROWN_BINDING} already are, and
-     * Strata accepts any sole-output name) would delete this gate and JFE's alike,
-     * and close the one gap neither can reach: a bodyless method's parameters carry
-     * no name in bytecode (no Code, no LVT), so this gate can never fire for them.
-     * That rename touches JFE and flips Skipped methods to verified, so it is a
-     * separate CR, not this one.
+     * <p>The collision exists only because the generated output binding is spelled
+     * {@code $result}, a name a Java user can legally take. Renaming it into the
+     * {@code ?} namespace ({@code java?result}, as {@link #LAUREL_SELF_BINDING} and
+     * {@link #THROWN_BINDING} already are, and Strata accepts any sole-output name)
+     * would make this gate unnecessary and close the one gap it cannot reach: a
+     * bodyless method's parameters carry no name in bytecode (no Code, no LVT), so
+     * this gate can never fire for them. That rename would flip the affected
+     * Skipped methods to verified.
      */
     static void refuseReservedName(String name) {
         if (LAUREL_RESULT_BINDING.equals(name)) {
@@ -192,7 +191,11 @@ final class LaurelFactory {
         return new StmtExpr.Var(new Variable.Local(ident(name)));
     }
 
-    /** Java mirror of Strata's {@code Operation.procName}; see JFE for the sync warning. */
+    /**
+     * Java copy of Strata's {@code Operation.procName}. Must stay in sync with
+     * Strata: a renamed or added operator there breaks resolution of the
+     * emitted call.
+     */
     static String operationProcName(Operation op) {
         return switch (op) {
             case Operation.Eq _ -> "$eq";
@@ -245,7 +248,7 @@ final class LaurelFactory {
         return primitiveOp(new Operation.Neg(), noRange(new StmtExpr.LiteralInt(-val)));
     }
 
-    // --- Predefined constrained integer types (same BOUNDS as JFE) ---
+    // --- Predefined constrained integer types ---
 
     static final LinkedHashMap<String, Long[]> BOUNDS = new LinkedHashMap<>();
 

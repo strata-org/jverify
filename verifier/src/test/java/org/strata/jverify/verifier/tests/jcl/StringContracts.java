@@ -4,12 +4,11 @@
 // whether the call is guarded, follows a precondition, or is unguarded.
 package org.strata.jverify.verifier.tests.jcl;
 
-import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, continueOnErrors = true, exitCode = 0, methodsInvalid = 0, errorCount = 0, methodsVerified = 3, methodsSkipped = 4)
+@JVerifyTest(continueOnErrors = true, exitCode = 0, methodsInvalid = 0, errorCount = 0, methodsVerified = 3, methodsSkipped = 4)
 class StringContracts {
     static boolean firstCharStable(String s) {
 //                                           ^ error: call to 'charAt', which could not be translated: a contract body that returns 'char' is not yet supported: Strata cannot check the result's range

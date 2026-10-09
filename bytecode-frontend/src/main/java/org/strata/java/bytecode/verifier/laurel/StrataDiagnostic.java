@@ -9,8 +9,7 @@ import java.net.URI;
 import java.util.Locale;
 
 /**
- * A diagnostic parsed from Strata's output. Port of the inner class
- * {@code LaurelDriver.StrataDiagnostic} in StrataJavaFrontEnd.
+ * A diagnostic parsed from Strata's output.
  */
 public class StrataDiagnostic implements Diagnostic<JavaFileObject>, DiagnosticWithRange {
     public static final int SEVERITY_ERROR = 1;

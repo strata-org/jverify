@@ -3,11 +3,10 @@
 // the element type's range, and an unguarded read through an array field.
 // Each method fails exactly once.
 package org.strata.jverify.verifier.tests.javasupport.arrays;
-import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 import org.strata.jverify.*;
 import static org.strata.jverify.JVerify.*;
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_ARRAYS}, exitCode = 4, methodsInvalid = 7, errorCount = 7, methodsVerified = 1, methodsSkipped = 0)
+@JVerifyTest(exitCode = 4, methodsInvalid = 7, errorCount = 7, methodsVerified = 1, methodsSkipped = 0)
 class ArrayBoundsFailures {
     int[] data;
 

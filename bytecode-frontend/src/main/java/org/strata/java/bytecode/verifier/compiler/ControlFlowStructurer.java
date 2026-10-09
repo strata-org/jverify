@@ -110,8 +110,8 @@ final class ControlFlowStructurer {
 
     /**
      * Record every {@code INSTANCEOF} that tests a pattern-bind shape, so
-     * {@link BodyTranslator#typeCheck} refuses it as JFE refuses an
-     * {@code instanceof} carrying a {@code JCBindingPattern}: Laurel's {@code is}
+     * {@link BodyTranslator#typeCheck} refuses an {@code instanceof} with a
+     * pattern: Laurel's {@code is}
      * has nowhere to put the binding. {@link #foldChainPatternBind} then skips the
      * LOAD/CHECKCAST/STORE that would have introduced it, so without this the
      * binding is simply absent and the arm fails with
@@ -337,7 +337,7 @@ final class ControlFlowStructurer {
         return c.continueLabel;
     }
 
-    /** Both labels are minted together, as a pair (JFE's withLoopLabels discipline). */
+    /** Both labels are minted together, as a pair. */
     void ensureLabels(Ctx c) {
         if (c.breakLabel == null) {
             c.breakLabel = ctx.freshLabel("loop_break");
@@ -394,8 +394,8 @@ final class ControlFlowStructurer {
         visited[throwBlk] = true;
         AstNode<StmtExpr> msg = assertMessage(t);
         // Laurel's Assert has no detail-message slot; the message-bearing
-        // form still asserts the condition (parity with the driver, which
-        // dropped the message via new StmtExpr.Assert(cond, empty)).
+        // form asserts the condition and drops the message
+        // (StmtExpr.Assert(cond, empty)).
         out.add(place(body.e(new StmtExpr.Assert(cond, Optional.empty())), condBlk));
         return after;
     }
@@ -428,7 +428,7 @@ final class ControlFlowStructurer {
         AstNode<StmtExpr> cond = conditionOf(c, out);
         // Refuse the CONDITION eagerly, before either branch is emitted (an
         // instanceof-on-opaque in the test beats a cast refusal inside the
-        // then-branch) — JFE's refusal order, pinned by the corpus.
+        // then-branch) — a refusal order pinned by the corpus.
         body.checkPlaceable(cond);
         // The condition is evaluated once, before the branch: its implicit
         // runtime exceptions can be made explicit just ahead of the `if`.
@@ -648,8 +648,8 @@ final class ControlFlowStructurer {
         BasicBlock c = cfg.blocks.get(condBlk);
         AstNode<StmtExpr> cond = conditionOf(c, out);
         // A pattern-bind instanceof (foldChainPatternBind) cannot carry a
-        // binding in Laurel; the IsType/deferred marker refuses at placement
-        // exactly as the driver refused an instanceof with a pattern.
+        // binding in Laurel; the IsType/deferred marker refuses at placement,
+        // so an instanceof with a pattern refuses the method.
         AstNode<StmtExpr> thenVal = armValue(c.fall, merge);
         AstNode<StmtExpr> elseVal = armValue(c.branch, merge);
         body.stack.push(buildTernary(cond, thenVal, elseVal));

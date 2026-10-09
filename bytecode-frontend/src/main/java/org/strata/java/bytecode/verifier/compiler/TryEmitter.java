@@ -403,7 +403,7 @@ final class TryEmitter {
     }
 
     /**
-     * A catch arm as a Laurel CatchClause (JFE's convertCatcher emission):
+     * A catch arm as a Laurel CatchClause:
      * the binding keeps its name, type dispatch becomes the guard {@code
      * binding is E} (a multi-catch is the disjunction), the hierarchy up to
      * Throwable is registered per caught fqn, and bindingType is Unknown.
@@ -632,7 +632,7 @@ final class TryEmitter {
         }
         s.region(bodyStart, bodyStop);   // structure the body first: a structural failure outranks the refusal
         // Laurel has no synchronized statement: refuse after the body
-        // structures, with JFE's corpus-pinned message.
+        // structures, with the corpus-pinned message.
         throw new JavaViolationException("Unsupported statement: SynchronizedStmt");
     }
 }

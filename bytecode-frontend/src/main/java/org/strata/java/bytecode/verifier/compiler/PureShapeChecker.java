@@ -25,15 +25,14 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * The {@code @Pure} body SHAPE rules of JFE's PureMethodValidator, checked over a
- * classfile.
+ * The {@code @Pure} body SHAPE rules, checked over a classfile.
  *
  * <p>They are statements about source structure -- which statement is last, whether
  * an {@code if} has an {@code else} -- which the instructions do not record, but the
  * CharacterRangeTable does: every statement is a STATEMENT entry spanning its source,
  * a block is a BLOCK entry, an {@code if} carries a FLOW_CONTROLLER entry for its
  * condition and one FLOW_TARGET entry per branch. So the source statement tree is
- * rebuilt from span containment and the rules are applied to it as JFE applies them.
+ * rebuilt from span containment and the rules are applied to it.
  * Measured with javac 25 -Xjcov. Without a CRT nothing is reported.
  *
  * <p>Mutation is detected only through {@code iinc}: {@code x *= 2} compiles exactly
@@ -125,7 +124,7 @@ final class PureShapeChecker {
         });
     }
 
-    // --- JFE's checkPureBlock / checkPureBranch ---
+    // --- Pure blocks and branches ---
 
     private void checkBlock(Span block) {
         var statements = new ArrayList<CrtEntry>();
@@ -167,8 +166,7 @@ final class PureShapeChecker {
                         ? "a pure block must end in a return or if-else statement"
                         : "except for the last statement, a pure block may only contain variable declarations");
                 default -> {
-                    // A loop, a bare block, try, switch, throw or return: left alone,
-                    // exactly as JFE leaves them.
+                    // A loop, a bare block, try, switch, throw or return: left alone.
                 }
             }
         }
@@ -313,8 +311,8 @@ final class PureShapeChecker {
     }
 
     /**
-     * The statement IS a JVerify call -- JFE's isContractHeaderCall, which skips any
-     * expression statement whose call is a JVerify method: the clauses, but also
+     * The statement IS a JVerify call -- an expression statement whose call is a
+     * JVerify method, which the shape rules skip: the clauses, but also
      * {@code check}, {@code assume} and a {@code throwsOn(...)} chain. The statement's
      * outermost call is its last instruction, so that is the one inspected.
      */
@@ -326,7 +324,7 @@ final class PureShapeChecker {
                         || inv.owner().asInternalName().equals("org/strata/jverify/Verify"));
     }
 
-    // --- Mutation (JFE's MutationScanner, through iinc) ---
+    // --- Mutation (through iinc) ---
 
     private void checkMutation() {
         for (int i = 0; i < ins.size(); i++) {

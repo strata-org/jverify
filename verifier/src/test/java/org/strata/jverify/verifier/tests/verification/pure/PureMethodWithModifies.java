@@ -10,14 +10,14 @@ import static org.strata.jverify.JVerify.modifies;
 /**
  * A user-written {@code modifies(...)} clause on a {@code @Pure} method is an error.
  *
- * <p>Not inert before this check existed: {@code @Pure} means a TRANSPARENT Laurel
- * body, which cannot carry a frame, so a non-empty {@code modifies} made
- * {@code canStayTransparent} false and the user's clause silently DEMOTED the method
- * to an opaque procedure -- a different translation instead of a diagnostic.
+ * <p>{@code @Pure} means a TRANSPARENT Laurel body, which cannot carry a frame, so
+ * without the error a non-empty {@code modifies} would make the body opaque: the
+ * user's clause would silently DEMOTE the method to an opaque procedure -- a
+ * different translation instead of a diagnostic.
  *
  * <p>Distinct from a frame the FRONT END synthesizes: a {@code @Pure} method is
- * allowed to write the heap, and {@code JavaToLaurelCompiler}'s
- * {@code bodyPotentiallyWritesHeap} fallback gives such a body a wildcard
+ * allowed to write the heap, and the front end's heap-write
+ * fallback gives such a body a wildcard
  * {@code modifies *} regardless of purity. Only the clause the USER wrote is rejected.
  */
 @JVerifyTest(exitCode = 2)

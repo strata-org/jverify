@@ -4,9 +4,8 @@ import org.strata.jverify.common.Range;
 
 /**
  * Per-method verification outcome, attributed from Strata diagnostics by
- * source position. Port of JFE's {@code JavaMethodVerificationStatus} with the
- * javac tree handle replaced by the method's name and source range (recovered
- * from the classfile's line numbers / CharacterRangeTable).
+ * source position: the method's name and source range (recovered from the
+ * classfile's line numbers / CharacterRangeTable).
  */
 public class MethodVerificationStatus {
     private final String methodName;

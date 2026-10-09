@@ -7,9 +7,9 @@ import static org.strata.jverify.JVerify.throwsOn;
 
 /**
  * Wishlist: exceptions carrying data
- * through their constructor. {@code new E(args)} discards constructor
- * arguments today (JavaToLaurelCompiler's JCNewClass case), so a case
- * postcondition about a field the constructor set is unprovable.
+ * through their constructor. {@code new E(args)} does not run the constructor
+ * (constructors are not translated), so a case postcondition about a
+ * field the constructor set is unprovable.
  * Blocked on constructor-argument translation; until then the workaround is
  * field writes after {@code new} -- which this test deliberately does NOT
  * use, so it starts passing exactly when the constructor path works.

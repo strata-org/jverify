@@ -30,8 +30,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Compile-with--g--Xjcov then classify: the pooled classfiles must carry the
  * direct translation's ingredients — a structurable CFG, the JVerify spec
- * calls (which survive as invokestatic), the CLASS-retention annotations from
- * our library fork, and CharacterRangeTable spans on statements.
+ * calls (which survive as invokestatic), the CLASS-retention spec
+ * annotations, and CharacterRangeTable spans on statements.
  */
 class BytecodeFrontendTest {
 
@@ -71,12 +71,7 @@ class BytecodeFrontendTest {
             """;
 
     private static Path jverifyLibraryClasses() {
-        // The CLASS-retention spec library (bytecode-frontend-lib.jar), passed by the
-        // test task. The JVerify class LOADED here is JFE's SOURCE-retention
-        // :library, whose annotations would not survive into classfiles.
-        return java.nio.file.Path.of(java.util.Objects.requireNonNull(
-                System.getProperty("bytecode.library.jar"),
-                "bytecode.library.jar system property not set"));
+        return org.strata.java.bytecode.verifier.VerifierDriver.specLibraryLocation();
     }
 
     @Test
@@ -117,7 +112,7 @@ class BytecodeFrontendTest {
         assertTrue(clampCalls.contains("precondition"), () -> "calls: " + clampCalls);
         assertTrue(clampCalls.contains("check"), () -> "calls: " + clampCalls);
 
-        // CLASS-retention @Pure from our library fork is visible in bytecode.
+        // CLASS-retention @Pure from the spec library is visible in bytecode.
         boolean pure = sumTo.findAttribute(java.lang.classfile.Attributes.runtimeInvisibleAnnotations())
                 .map(a -> a.annotations().stream().anyMatch(x ->
                         java.lang.constant.ClassDesc.ofDescriptor(x.className().stringValue())

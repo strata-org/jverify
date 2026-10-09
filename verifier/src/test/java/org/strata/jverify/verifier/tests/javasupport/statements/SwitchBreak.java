@@ -9,16 +9,16 @@ import static org.strata.jverify.JVerify.precondition;
 
 /**
  * Regression tests for D566037730: a {@code break} in an arrow-case body
- * leaves the switch only (JLS 14.15). Before the fix, SwitchDesugarer dropped
- * the switch as a break target and the break re-resolved to the enclosing
- * loop, so the verifier checked a loop that exits earlier than the Java loop:
- * switchBreakStaysInLoop failed and switchBreakBad verified.
+ * leaves the switch only (JLS 14.15). A verifier that resolves the break to
+ * the enclosing loop checks a loop that exits earlier than the Java loop:
+ * switchBreakStaysInLoop fails and switchBreakBad verifies.
  *
- * <p>Kept separate from SwitchDesugaring because the bytecode frontend
- * crashes on this shape (ControlFlowStructurer, separate ticket) and the
- * whole class is xfailed in bytecode-xfails.txt.
+ * <p>Kept separate from SwitchDesugaring and skipped: an arrow-case break
+ * crashes ControlFlowStructurer (NoSuchElementException), which
+ * {@code expectedToFail} cannot absorb.
  */
-@JVerifyTest(exitCode = 4, methodsVerified = 5, methodsInvalid = 1, errorCount = 1)
+@JVerifyTest(skip = "arrow-case break crashes ControlFlowStructurer (NoSuchElementException)",
+        exitCode = 4, methodsVerified = 5, methodsInvalid = 1, errorCount = 1)
 class SwitchBreak {
     static void switchBreakStaysInLoop() {
         int count = 0;

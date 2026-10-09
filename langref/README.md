@@ -20,8 +20,11 @@ expected outcome of every program:
 | `error`         | the front end reported some other error                         |
 | `timeout`       | no result within `langref.timeoutSeconds` (default 30)          |
 
-The suite fails when any outcome differs from the baseline, in either direction.
-After an intended change, rewrite the baseline:
+The outcomes are those of the bytecode frontend on the Laurel interpreter, so
+the suite needs a `strataLaurel` whose `laurelInterpretBinary` takes `--interpreter`.
+It runs as part of the default build (`brazil-build`, or
+`brazil-build :langref:test` alone) and fails when any outcome differs from the
+baseline, in either direction. After an intended change, rewrite the baseline:
 
 ```
 brazil-build :langref:test -Plangref.update=true

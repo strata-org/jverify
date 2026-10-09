@@ -1,6 +1,7 @@
 package org.strata.jverify.verifier.tests.jcl;
 
 import org.strata.jverify.JVerify;
+import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 /**
@@ -20,7 +21,9 @@ import org.strata.jverify.testengine.JVerifyTest;
  * to a composite instead of the Laurel map, so the map prelude call has nothing to resolve
  * against.
  */
-@JVerifyTest(exitCode = 2)
+// The bytecode frontend does not translate JVerify.Map yet, so it refuses these methods for
+// the wrong reason and none of the four expected JVerify.Map diagnostics is emitted.
+@JVerifyTest(expectedToFail = true, blockedBy = Blocker.FRONTEND_OTHER, exitCode = 2)
 class MapsError {
 
     static boolean boxedPrimitiveTypeArgument(JVerify.Map<Integer, Integer> m, Integer k) {

@@ -81,8 +81,7 @@ public final class BytecodeFrontend {
      * The caller owns {@code outputDir} (typically a temp dir it cleans up).
      *
      * <p>Never throws on a Java compile error: errors are returned as
-     * diagnostics so the caller can report them the way JFE reports javac
-     * errors from its embedded compiler.
+     * diagnostics so the caller can report them as javac errors.
      */
     public static CompileResult compile(List<? extends JavaFileObject> sources,
                                         List<Path> classPath,
@@ -263,7 +262,7 @@ public final class BytecodeFrontend {
             String internalName = cm.thisClass().asInternalName();
             // Nested classfiles of this top-level class (Outer$Inner...):
             // needed by the Laurel generator to register their methods for
-            // verified/skipped counting parity with JFE. The isNestedClass
+            // verified/skipped counting. The isNestedClass
             // gate keeps a top-level class with '$' in its NAME from also
             // riding along as a nested member.
             List<ClassModel> nested = pool.values().stream()

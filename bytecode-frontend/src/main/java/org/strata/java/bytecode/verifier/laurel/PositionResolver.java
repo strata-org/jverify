@@ -9,11 +9,9 @@ import java.net.URI;
  * {@link Position}.
  *
  * <p>The bytecode frontend's offsets are synthetic (line, column) packings
- * produced by {@code PositionCodec} -- {@code line * 1_000_000 + column} --
- * which exceed {@link Integer#MAX_VALUE} from source line 2148 on. The shared
- * {@code FilesMap} interface is {@code int}-typed (JFE's real byte offsets),
- * so this frontend threads {@code long} end to end instead; Laurel's
- * {@code Raw} carries a {@code long} already.
+ * produced by {@code PositionCodec} -- {@code line << 10 | column} -- so
+ * they are {@code long} end to end; Laurel's {@code Raw} carries a
+ * {@code long} already.
  *
  * <p>Implementations MUST throw a {@link RuntimeException} for a URI that was
  * never a frontend input, so the diagnostic parser degrades it to a counted

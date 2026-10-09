@@ -33,18 +33,18 @@ final class Declarations {
     /** fqns of @Contract-annotated classes: consumed as contract definitions, not user code. */
     final Set<String> contractClasses = new HashSet<>();
     /**
-     * SOURCE contracts to relocate, contractee fqn -> its @Contract class: JFE's
-     * ExternalContractCompiler.handleSourceContract. Each bodyless method of the
+     * SOURCE contracts to relocate, contractee fqn -> its @Contract class. Each
+     * bodyless method of the
      * contractee is translated from the same-signature method of the contract class,
      * and the contract class's fields become the contractee's. Only well-formed
-     * contracts are entered (see ContractValidator), mirroring JFE skipping a
-     * contract class whose declaration it already rejected.
+     * contracts are entered (see ContractValidator): a contract class whose
+     * declaration was rejected is skipped.
      */
     final Map<String, TypeNode> sourceContracts = new HashMap<>();
     /**
-     * LIBRARY contracts, contractee fqn -> its @Contract class: JFE's
-     * handleLibraryContract, which makes the contract class stand for the library
-     * type, so a call on a receiver of that type binds to the contract's method.
+     * LIBRARY contracts, contractee fqn -> its @Contract class. The contract class
+     * stands for the library type, so a call on a receiver of that type binds to the
+     * contract's method.
      */
     final Map<String, ContractDecl> libraryContracts = new LinkedHashMap<>();
     /** @Contract declarations in compilation order. */

@@ -53,11 +53,10 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 /**
- * JUnit Platform engine that runs JVerify-style verification tests through
- * the bytecode frontend. Port of StrataJavaFrontEnd's {@code JVerifyTestEngine}
- * with the javac driver swapped for {@code VerifierDriver} (javac -g -Xjcov ->
- * classfiles -> Laurel -> Strata); discovery, markup matching, xfail
- * inversion, and expectation checking are unchanged.
+ * JUnit Platform engine that runs {@code @JVerifyTest} verification tests
+ * through the bytecode frontend ({@code VerifierDriver}: javac -g -Xjcov ->
+ * classfiles -> Laurel -> Strata), matching each test's diagnostics against
+ * its inline markup and its expected exit code and counts.
  */
 @AutoService(TestEngine.class)
 public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionContext> {
@@ -81,11 +80,10 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
         var descriptor = new EngineDescriptor(uniqueId, "JVerify Tests (bytecode frontend)");
         // Self-gating: Brazil flattens every module's output onto a shared
         // runtime classpath, so this auto-registered engine is visible to
-        // JFE's own `:verifier:test` too. It stays inert unless activated by
-        // `bytecode.corpus.root` (set only by the corpusTest task), so JFE need
-        // not know it exists -- discovering nothing here means JUnit never
-        // executes it, and the @JVerifyTest fixtures run only under JFE's
-        // own jverify-test-engine.
+        // other modules' test tasks too. It stays inert unless activated by
+        // `bytecode.corpus.root` (set only by the tasks that run @JVerifyTest
+        // fixtures: :bytecode-frontend:corpusTest and :bytecode-frontend:examplesTest) -- discovering nothing
+        // here means JUnit never executes it.
         if (System.getProperty("bytecode.corpus.root") == null) {
             return descriptor;
         }
@@ -138,10 +136,9 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
                 throws IOException {
             LOGGER.fine(() -> "Executing test for class: " + testClass);
 
-            // The verification corpus is owned by StrataJavaFrontEnd and
-            // shared verbatim; its source root is supplied by the build via
-            // the bytecode.corpus.root property (falls back to this project's
-            // own src/test/java, e.g. when a fixture lives locally).
+            // The fixtures' source root is supplied by the build via the
+            // bytecode.corpus.root property (falls back to this project's own
+            // src/test/java).
             var sourceRoot = corpusSourceRoot();
             if (!Files.exists(sourceRoot) || !Files.isDirectory(sourceRoot)) {
                 Assertions.fail(() ->
@@ -156,7 +153,7 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
             }
             LOGGER.fine(() -> "Found source file: " + sourcePath);
 
-            testMarkedSource(sourcePath, testClass.getAnnotation(JVerifyTest.class), testClass.getName());
+            testMarkedSource(sourcePath, testClass.getAnnotation(JVerifyTest.class));
             return context;
         }
     }
@@ -167,9 +164,10 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
     }
 
     /**
-     * Root of the shared verification corpus. Supplied by the build via the
-     * {@code bytecode.corpus.root} system property (the StrataJavaFrontEnd test
-     * source tree); falls back to this project's own {@code src/test/java}.
+     * Root of the fixtures' sources. Supplied by the build via the
+     * {@code bytecode.corpus.root} system property (the verification corpus
+     * is {@code verifier/src/test/java}); falls back to this project's own
+     * {@code src/test/java}.
      */
     static Path corpusSourceRoot() {
         var prop = System.getProperty("bytecode.corpus.root");
@@ -181,40 +179,25 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
         return Path.of(System.getProperty("user.dir"), "src", "test", "java");
     }
 
-    /** Bytecode-frontend xfail overrides for the shared corpus (loaded once). */
-    private static volatile BytecodeXfailManifest xfailManifest;
-
-    static BytecodeXfailManifest xfailManifest() {
-        var m = xfailManifest;
-        if (m == null) {
-            m = BytecodeXfailManifest.load();
-            xfailManifest = m;
-        }
-        return m;
-    }
-
     /**
-     * @see #testMarkedSource(SourceFile, JVerifyTest, String)
+     * @see #testMarkedSource(SourceFile, JVerifyTest)
      */
-    public static void testMarkedSource(Path markedSourcePath, JVerifyTest annotation, String className)
-            throws IOException {
+    public static void testMarkedSource(Path markedSourcePath, JVerifyTest annotation) throws IOException {
         var markedSource = Files.readString(markedSourcePath);
-        testMarkedSource(new SourceFile(markedSourcePath, markedSource), annotation, className);
+        testMarkedSource(new SourceFile(markedSourcePath, markedSource), annotation);
     }
 
     /**
      * Verifies the given source code and asserts that the exit code, emitted
      * diagnostics, and verified/error counts match the values in the source
-     * code's test metadata. {@code className} is the fully-qualified name of
-     * the test class, used to consult the bytecode-frontend xfail manifest.
+     * code's test metadata.
      */
-    public static void testMarkedSource(SourceFile markedSourceFile, JVerifyTest annotation, String className)
-            throws IOException {
+    public static void testMarkedSource(SourceFile markedSourceFile, JVerifyTest annotation) throws IOException {
         var parsedMarkup = TestMarkup.getPositionsAndAnnotatedRanges(markedSourceFile.getCharContent(false));
         List<AnnotatedRange> ranges = new ArrayList<>(parsedMarkup.ranges());
         ranges.addAll(additionalFileRanges(markedSourceFile, annotation));
         ranges.addAll(JVerifyTestEngine.contractFileRanges(markedSourceFile, annotation));
-        verifyFile(markedSourceFile, annotation, ranges, className);
+        verifyFile(markedSourceFile, annotation, ranges);
     }
 
     /**
@@ -243,52 +226,30 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
         return ranges;
     }
 
-    public static void verifyFile(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges,
-                                  String className)
+    public static void verifyFile(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges)
             throws IOException {
         verifyFile(sourceFile, annotation, ranges,
-                getVerifierOptions(annotation, JVerifyTestEngine.contractSources(sourceFile, annotation)), className);
+                getVerifierOptions(annotation, JVerifyTestEngine.contractSources(sourceFile, annotation)));
     }
 
     public static void verifyFile(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges,
-                                  VerifierOptions options, String className) throws IOException {
-        var manifest = xfailManifest();
-        // A SKIP entry marks a fixture that crashes this frontend (an infra
-        // error applyXfailInversion deliberately propagates), so it must not
-        // run at all.
-        String skipReason = manifest.skipReason(className);
-        Assumptions.assumeTrue(skipReason == null, () -> "bytecode-xfails SKIP: " + skipReason);
-        var forcedXfail = manifest.forcedXfail(className);
-        boolean forcedRun = manifest.isForcedRun(className);
-
-        // The shared corpus is owned by StrataJavaFrontEnd; its annotation
-        // records the SOURCE frontend's outcome. For the bytecode frontend the
-        // manifest overrides that decision per class:
-        //   - a forced-xfail entry makes a normally-passing test an xfail
-        //     (known bytecode gap the shared annotation does not flag);
-        //   - a forced-run entry runs an annotation-level expectedToFail test
-        //     normally (the source-frontend gap it records does not apply).
-        boolean expectedToFail = forcedXfail != null || (annotation.expectedToFail() && !forcedRun);
-
+                                  VerifierOptions options) throws IOException {
         // skip= and expectedToFail are mutually exclusive: skip is evaluated
         // first, so a test with both would abort as skipped and never reach
         // the XPASS tripwire.
-        if (expectedToFail && annotation.skip() != null && !annotation.skip().isEmpty()) {
+        if (annotation.expectedToFail() && annotation.skip() != null && !annotation.skip().isEmpty()) {
             throw new IllegalStateException("@JVerifyTest sets both skip and expectedToFail; "
                     + "these are mutually exclusive -- clear skip so the xfail/XPASS check runs.");
         }
         // Legacy hard skip: still supported, but discouraged. Prefer expectedToFail.
         Assumptions.assumeTrue(annotation.skip() == null || annotation.skip().isEmpty(), annotation.skip());
 
-        if (!expectedToFail) {
+        if (!annotation.expectedToFail()) {
             runAndCheck(sourceFile, annotation, ranges, options);
             return;
         }
         // xfail: run it, but invert the outcome.
-        String why = forcedXfail != null
-                ? forcedXfail.blocker() + ": " + forcedXfail.reason()
-                : describeBlockers(annotation);
-        applyXfailInversion(why,
+        applyXfailInversion(describeBlockers(annotation),
                 () -> runAndCheck(sourceFile, annotation, ranges, options));
     }
 
@@ -304,7 +265,7 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
      * caught here and propagates, so an xfail test that stops *running* fails
      * loudly instead of masquerading as still-broken. Completing with no
      * failure means the blocker(s) cleared -> fail loudly (XPASS) to demand the
-     * manifest entry be removed.
+     * {@code expectedToFail} be removed.
      */
     public static void applyXfailInversion(String why, VerificationCheck check) throws IOException {
         try {
@@ -426,12 +387,11 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
     /**
      * Collapse a diagnostic (or expected markup) range to LINE precision. The
      * bytecode frontend derives positions from the CharacterRangeTable /
-     * LineNumberTable, so a diagnostic's start LINE matches the source frontend
-     * but its columns and end do not: the CRT span includes the trailing
-     * {@code ';'}, sub-expression anchors fall back to the enclosing statement,
-     * and class-level (@Contract) diagnostics have no bytecode position at all.
-     * Verdicts, counts, messages, and the start line stay exact; only column
-     * and end precision is relaxed. Applied identically to the expected and
+     * LineNumberTable, so only a diagnostic's start LINE is reliable: the CRT
+     * span includes the trailing {@code ';'}, sub-expression anchors fall back
+     * to the enclosing statement, and class-level (@Contract) diagnostics have
+     * no bytecode position at all. Verdicts, counts, messages, and the start
+     * line stay exact; only column and end precision is relaxed. Applied identically to the expected and
      * actual sides -- including the range embedded in a cross-file annotation's
      * {@code path(range) message} text -- so a wrong line still fails.
      */
@@ -486,16 +446,10 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
 
     /** Verifier options for {@code annotation}, with {@code contractSources} as the contractSourcePath. */
     public static VerifierOptions getVerifierOptions(JVerifyTest annotation, List<Path> contractSources) {
-        // Classpath for the -g -Xjcov compile of the test sources. The spec
-        // library must be the CLASS-retention variant (bytecode-frontend-lib.jar, passed
-        // by the corpusTest task) -- the JVerify class LOADED in this JVM is
-        // JFE's SOURCE-retention :library, whose annotations would not
-        // survive into the classfiles the frontend reads. The test-engine
-        // and library-for-testing entries are position-independent and come
-        // from the loaded classes' code sources.
-        var libraryClassPath = Path.of(java.util.Objects.requireNonNull(
-                System.getProperty("bytecode.library.jar"),
-                "bytecode.library.jar system property not set; run via the corpusTest task"));
+        // Classpath for the -g -Xjcov compile of the test sources: the spec
+        // library, the test engine (@JVerifyTest) and library-for-testing,
+        // all from the loaded classes' code sources.
+        var libraryClassPath = VerifierDriver.specLibraryLocation();
         var testEngineClassPath = codeSourceOf(JVerifyTest.class);
         var libraryForTestingClassPath = codeSourceOf(org.strata.jverify.testing.LibraryClassA.class);
         var workingDirectory = Path.of(System.getProperty("user.dir"));

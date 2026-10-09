@@ -104,9 +104,8 @@ final class InvokeTranslator {
                 b.push(new StmtExpr.LiteralString(BodyTranslator.CONTRACT_EXCEPTION_MARKER));
                 return;
             }
-            // Inner-class enclosing-instance argument becomes the scope in
-            // source; the conversion ignored the scope, so it is dropped
-            // from the constructor arguments.
+            // Inner-class enclosing-instance argument: dropped from the
+            // constructor arguments.
             AstNode<StmtExpr> outer = innerCtorOuter(g, d, args);
             List<AstNode<StmtExpr>> ctorArgs = args;
             if (outer != null) {
@@ -557,7 +556,7 @@ final class InvokeTranslator {
                 };
     }
 
-    /** Static user call (fused convertCall's static arm). */
+    /** Static user call. */
     private void staticInvoke(java.lang.classfile.instruction.InvokeInstruction inv,
                               String ownerInternal, String bareName,
                               List<AstNode<StmtExpr>> args,
@@ -638,7 +637,7 @@ final class InvokeTranslator {
     /**
      * A call on a receiver whose type is a LIBRARY type with a @Contract in this
      * program: bound to the contract's method, which BytecodeToLaurelCompiler emits as
-     * a procedure of the library type's sort (JFE's handleLibraryContract). The method
+     * a procedure of the library type's sort. The method
      * is matched by name and erased descriptor. Returns whether the call was handled.
      */
     private boolean libraryContractInvoke(AstNode<StmtExpr> recv, String receiverFqn, String bareName,
@@ -700,7 +699,7 @@ final class InvokeTranslator {
         return true;
     }
 
-    /** Instance user call (fused convertCall's value-receiver arm). */
+    /** Instance user call (value receiver). */
     private void instanceInvoke(AstNode<StmtExpr> recv, String ownerInternal, String bareName,
                                 List<AstNode<StmtExpr>> args,
                                 java.lang.constant.MethodTypeDesc d) {
@@ -731,8 +730,8 @@ final class InvokeTranslator {
         // String literal receiver: a literal is a Laurel string, not the
         // String composite, so the call always refuses. Warn when no contract
         // member matches, then check the args (an array-initializer argument
-        // reports its own refusal first — the source frontend converts
-        // arguments before the receiver refuses), then refuse.
+        // reports its own refusal first: argument refusals precede the
+        // receiver refusal, pinned by the corpus), then refuse.
         if (recv.val() instanceof StmtExpr.LiteralString s && b.descOf.get(recv) != null
                 && b.descOf.get(recv).equals("Ljava/lang/String;")) {
             ctx.src.defaultRange = b.stmtRange(b.pos, false);
@@ -987,7 +986,7 @@ final class InvokeTranslator {
                 + indy.name().stringValue().replaceAll("[^A-Za-z0-9_]", "_")));
     }
 
-    /** The recipe's `+` chain (old stringConcat -> convertBinary PLUS -> $add). */
+    /** The recipe's `+` chain, lowered to {@code $add}. */
     private AstNode<StmtExpr> stringConcat(String recipe, List<AstNode<StmtExpr>> args) {
         var parts = new ArrayList<AstNode<StmtExpr>>();
         if (recipe == null) {

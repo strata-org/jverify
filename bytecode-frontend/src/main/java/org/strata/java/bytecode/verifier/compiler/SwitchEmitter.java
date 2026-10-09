@@ -196,7 +196,7 @@ final class SwitchEmitter {
     }
 
     /**
-     * Mirror of normalizeSwitchEntries: merge label-only (empty-body) arms
+     * Normalize the switch arms: merge label-only (empty-body) arms
      * into the next via {@code pending}, strip each arm's trailing sentinel
      * break, and refuse real fall-through.
      */
