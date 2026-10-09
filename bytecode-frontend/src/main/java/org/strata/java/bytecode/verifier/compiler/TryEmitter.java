@@ -347,10 +347,10 @@ final class TryEmitter {
         if (tail.size() != 1 || tryBody.isEmpty()) {
             return null;
         }
-        if (!(tail.get(0).val() instanceof StmtExpr.Return ret) || ret.value().isEmpty()) {
+        if (!(tail.get(0).val() instanceof StmtExpr.Return ret) || ret.values().size() != 1) {
             return null;
         }
-        if (!(ret.value().get().val() instanceof StmtExpr.Var rv)
+        if (!(ret.values().get(0).val() instanceof StmtExpr.Var rv)
                 || !(rv.var_() instanceof Variable.Local rloc)) {
             return null;
         }
@@ -362,7 +362,7 @@ final class TryEmitter {
                 || !decl.parameter().name().text().equals(rloc.name().text())) {
             return null;
         }
-        return ctx.placeStatement(body.e(new StmtExpr.Return(Optional.of(asg.value()))), lastDecl.source());
+        return ctx.placeStatement(body.e(new StmtExpr.Return(List.of(asg.value()))), lastDecl.source());
     }
 
     /** Rebuild a nested try with the finally-tail stripped from each of its catch arms, or null if unchanged. */

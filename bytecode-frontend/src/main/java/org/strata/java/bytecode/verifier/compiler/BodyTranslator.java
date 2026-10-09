@@ -506,7 +506,7 @@ final class BodyTranslator {
                 n.decreases().ifPresent(out::add);
                 out.add(n.body());
             }
-            case StmtExpr.Return n -> n.value().ifPresent(out::add);
+            case StmtExpr.Return n -> n.values().forEach(out::add);
             case StmtExpr.Var n -> {
                 if (n.var_() instanceof Variable.Field f) {
                     out.add(f.target());
@@ -1175,7 +1175,7 @@ final class BodyTranslator {
                 l.add(a.value());
                 yield l;
             }
-            case StmtExpr.Return r -> r.value().map(List::of).orElse(List.of());
+            case StmtExpr.Return r -> r.values();
             case StmtExpr.Throw t -> List.of(t.value());
             default -> List.of();
         };
@@ -1768,7 +1768,7 @@ final class BodyTranslator {
                     // return sort directly.
                     if (lambdas.containsKey(v) && ctx.method.returnSort != null) {
                         ctx.composites.referencedCompositeTypes.add(ctx.method.returnSort);
-                        addStmt(new StmtExpr.Return(Optional.of(e(new StmtExpr.New(
+                        addStmt(new StmtExpr.Return(List.of(e(new StmtExpr.New(
                                 LaurelFactory.ident(ctx.method.returnSort), List.of())))));
                     } else {
                         // coerceTo, not coerce: the boolean/int erasure runs BOTH
@@ -1776,7 +1776,7 @@ final class BodyTranslator {
                         // compiles to the same iconst_1/iconst_0 diamond as a
                         // boolean expression, so the structurer folds it to a bool
                         // and the return needs it back as an int32.
-                        addStmt(new StmtExpr.Return(Optional.of(coerceTo(v, retDesc))));
+                        addStmt(new StmtExpr.Return(List.of(coerceTo(v, retDesc))));
                     }
                 }
                 // A bare `return` in the middle of a method becomes the Laurel

@@ -6,7 +6,7 @@ import org.strata.jverify.laurel.AstNode;
 import org.strata.jverify.laurel.Body;
 import org.strata.jverify.laurel.HighType;
 import org.strata.jverify.laurel.Procedure;
-import org.strata.jverify.laurel.Program;
+import org.strata.jverify.laurel.LaurelProgram;
 import org.strata.jverify.laurel.StmtExpr;
 import org.strata.jverify.laurel.TypeDefinition;
 import org.strata.jverify.laurel.Variable;
@@ -401,13 +401,13 @@ class ArraysEndToEndTest {
 
     // --- 3. Program shape ---
 
-    private static Program translate(Compiled program, LibraryContracts contracts) throws Exception {
+    private static LaurelProgram translate(Compiled program, LibraryContracts contracts) throws Exception {
         return new BytecodeToLaurelCompiler(new Reporter(), true, List.of(libraryJar()), false, false, contracts)
                 .analyze(List.of(program.uri()), BytecodeFrontend.readClasses(program.classes())).program();
     }
 
     /** Every procedure: static ones and every composite's instance procedures. */
-    private static List<Procedure> allProcedures(Program p) {
+    private static List<Procedure> allProcedures(LaurelProgram p) {
         var out = new ArrayList<>(p.staticProcedures());
         for (var t : p.types()) {
             if (t instanceof TypeDefinition.Composite c) {
@@ -457,7 +457,7 @@ class ArraysEndToEndTest {
                 out.addAll(n.invariants());
                 out.add(n.body());
             }
-            case StmtExpr.Return n -> n.value().ifPresent(out::add);
+            case StmtExpr.Return n -> n.values().forEach(out::add);
             case StmtExpr.Var n -> {
                 if (n.var_() instanceof Variable.Field f) {
                     out.add(f.target());
@@ -479,7 +479,7 @@ class ArraysEndToEndTest {
         return out;
     }
 
-    private static Procedure procedureNamed(Program p, String name) {
+    private static Procedure procedureNamed(LaurelProgram p, String name) {
         return allProcedures(p).stream().filter(q -> q.name().text().equals(name)).findFirst()
                 .orElseThrow(() -> new AssertionError("no procedure " + name + " in "
                         + allProcedures(p).stream().map(q -> q.name().text()).toList()));
@@ -518,7 +518,7 @@ class ArraysEndToEndTest {
                     }
                 }
                 """;
-        Program p = translate(compile(tmp, "Shape", source), objectContracts());
+        LaurelProgram p = translate(compile(tmp, "Shape", source), objectContracts());
         var news = new ArrayList<StmtExpr.New>();
         var wrapperCalls = new ArrayList<StmtExpr.StaticCall>();
         var names = new ArrayList<String>();
@@ -566,7 +566,7 @@ class ArraysEndToEndTest {
                     static int add(int a, int b) { return a + b; }
                 }
                 """;
-        Program p = translate(compile(tmp, "NoArrays", source), objectContracts());
+        LaurelProgram p = translate(compile(tmp, "NoArrays", source), objectContracts());
         for (var proc : allProcedures(p)) {
             assertFalse(proc.name().text().startsWith("java?array_"), proc.name().text());
         }

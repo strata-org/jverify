@@ -419,7 +419,7 @@ final class LaurelFactory {
                     noRange(primitiveOp(new Operation.Leq(), x, noRange(longLiteral(k.hi()))))));
             castHelpers.put(name, helperProcedure(name, List.of(), List.of(param("x", new HighType.TInt())),
                     new HighType.UserDefined(ident(k.rangeType())), List.of(),
-                    new Body.Transparent(noRange(new StmtExpr.IfThenElse(inRange, x,
+                    returnBody(noRange(new StmtExpr.IfThenElse(inRange, x,
                             Optional.of(noRange(new StmtExpr.LiteralInt(0))))))));
         }
         return name;
@@ -442,7 +442,7 @@ final class LaurelFactory {
         if (!castHelpers.containsKey(ArrayModel.LENGTH_WRAPPER)) {
             castHelpers.put(ArrayModel.LENGTH_WRAPPER, helperProcedure(ArrayModel.LENGTH_WRAPPER,
                     List.of(ident("E")), List.of(param("a", jarrayE)), new HighType.TInt(), List.of(),
-                    new Body.Transparent(noRange(new StmtExpr.InstanceCall(a, ident("length"), List.of())))));
+                    returnBody(noRange(new StmtExpr.InstanceCall(a, ident("length"), List.of())))));
         }
         if (!castHelpers.containsKey(ArrayModel.GET_WRAPPER)) {
             var index = noRange(var_("index"));
@@ -453,8 +453,12 @@ final class LaurelFactory {
                     List.of(ident("E")),
                     List.of(param("a", jarrayE), param("index", new HighType.UserDefined(ident("nat31")))),
                     e, List.of(inBounds),
-                    new Body.Transparent(noRange(new StmtExpr.InstanceCall(a, ident("get"), List.of(index))))));
+                    returnBody(noRange(new StmtExpr.InstanceCall(a, ident("get"), List.of(index))))));
         }
+    }
+
+    private static Body returnBody(AstNode<StmtExpr> value) {
+        return new Body.Transparent(noRange(new StmtExpr.Return(List.of(value))));
     }
 
     private static org.strata.jverify.laurel.Parameter param(String name, HighType type) {

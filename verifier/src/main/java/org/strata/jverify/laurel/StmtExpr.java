@@ -54,12 +54,14 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record Return(java.util.Optional<AstNode<StmtExpr>> value) implements StmtExpr {
+    public record Return(java.util.List<AstNode<StmtExpr>> values) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
         sexp.add(ion.newSymbol("Return"));
-        sexp.add((value().isPresent() ? value().get().toIon(ion) : ion.newNull()));
+        var _l0 = ion.newEmptyList();
+        for (var e : values()) _l0.add(e.toIon(ion));
+        sexp.add(_l0);
         return sexp;
         }
     }

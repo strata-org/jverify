@@ -91,7 +91,7 @@ final class LaurelTrees {
                     rerangeAll(n.invariants(), range, stop), rerange(n.decreases(), range, stop),
                     rerange(n.body(), range, stop), n.postTest());
             case StmtExpr.Exit n -> n;
-            case StmtExpr.Return n -> new StmtExpr.Return(rerange(n.value(), range, stop));
+            case StmtExpr.Return n -> new StmtExpr.Return(rerangeAll(n.values(), range, stop));
             case StmtExpr.LiteralInt n -> n;
             case StmtExpr.LiteralBool n -> n;
             case StmtExpr.LiteralString n -> n;
@@ -193,7 +193,7 @@ final class LaurelTrees {
             case StmtExpr.Block n -> new StmtExpr.Block(mapAll(n.statements(), f), n.label());
             case StmtExpr.While n -> new StmtExpr.While(map(n.cond(), f), mapAll(n.invariants(), f),
                     map(n.decreases(), f), map(n.body(), f), n.postTest());
-            case StmtExpr.Return n -> new StmtExpr.Return(map(n.value(), f));
+            case StmtExpr.Return n -> new StmtExpr.Return(mapAll(n.values(), f));
             case StmtExpr.Var n -> n.var_() instanceof Variable.Field fld
                     ? new StmtExpr.Var(new Variable.Field(map(fld.target(), f), fld.fieldName()))
                     : n;

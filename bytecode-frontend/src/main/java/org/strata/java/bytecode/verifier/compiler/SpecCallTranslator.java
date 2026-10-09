@@ -466,8 +466,8 @@ final class SpecCallTranslator {
             // Expression body: exactly one Return with a value.
             if (top.size() == 1
                     && top.get(0).val() instanceof StmtExpr.Return ret
-                    && ret.value().isPresent()) {
-                AstNode<StmtExpr> v = ret.value().get();
+                    && ret.values().size() == 1) {
+                AstNode<StmtExpr> v = ret.values().get(0);
                 b.checkContractArg(v);
                 return v;
             }

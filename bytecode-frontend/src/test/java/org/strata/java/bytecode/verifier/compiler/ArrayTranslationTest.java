@@ -5,7 +5,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.strata.jverify.laurel.AstNode;
 import org.strata.jverify.laurel.Body;
 import org.strata.jverify.laurel.Procedure;
-import org.strata.jverify.laurel.Program;
+import org.strata.jverify.laurel.LaurelProgram;
 import org.strata.jverify.laurel.StmtExpr;
 import org.strata.jverify.laurel.TypeDefinition;
 import org.strata.jverify.verifier.SourceFile;
@@ -39,7 +39,7 @@ class ArrayTranslationTest {
         return org.strata.java.bytecode.verifier.VerifierDriver.specLibraryLocation();
     }
 
-    private record Translation(Program program, List<String> messages) {
+    private record Translation(LaurelProgram program, List<String> messages) {
     }
 
     private static LibraryContracts objectContracts() {
@@ -85,7 +85,7 @@ class ArrayTranslationTest {
         return analyze(file, classes, contracts);
     }
 
-    private static boolean hasProcedure(Program p, String name) {
+    private static boolean hasProcedure(LaurelProgram p, String name) {
         try {
             procedure(p, name);
             return true;
@@ -122,7 +122,7 @@ class ArrayTranslationTest {
         assertRefusedBesideOk(tmp, className, methods, className + "_m", "error: " + reason);
     }
 
-    private static Procedure procedure(Program p, String name) {
+    private static Procedure procedure(LaurelProgram p, String name) {
         var all = new ArrayList<>(p.staticProcedures());
         for (var t : p.types()) {
             if (t instanceof TypeDefinition.Composite c) {
@@ -195,7 +195,8 @@ class ArrayTranslationTest {
         var stmts = implementation(procedure(t.program(), "r"));
         assertEquals(1, stmts.size(), stmts::toString);
         var ret = assertInstanceOf(StmtExpr.Return.class, stmts.get(0).val());
-        assertTrue(callsIn(ret.value().orElseThrow(), ArrayModel.GET_WRAPPER));
+        assertEquals(1, ret.values().size(), ret::toString);
+        assertTrue(callsIn(ret.values().get(0), ArrayModel.GET_WRAPPER));
     }
 
     @Test

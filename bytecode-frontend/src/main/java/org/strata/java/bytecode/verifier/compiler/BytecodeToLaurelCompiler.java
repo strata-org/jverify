@@ -16,7 +16,7 @@ import org.strata.jverify.laurel.ModifiesGroup;
 import org.strata.jverify.laurel.Operation;
 import org.strata.jverify.laurel.ParameterOpt;
 import org.strata.jverify.laurel.Procedure;
-import org.strata.jverify.laurel.Program;
+import org.strata.jverify.laurel.LaurelProgram;
 import org.strata.jverify.laurel.Raw;
 import org.strata.jverify.laurel.SourceRange;
 import org.strata.jverify.laurel.StmtExpr;
@@ -171,7 +171,7 @@ public class BytecodeToLaurelCompiler {
         return this;
     }
 
-    public record AnalysisResult(Program program,
+    public record AnalysisResult(LaurelProgram program,
                                  PositionResolver positions,
                                  Map<URI, IntervalTree<Integer, MethodVerificationStatus>> methodStatuses) {
     }
@@ -333,7 +333,7 @@ public class BytecodeToLaurelCompiler {
         List<Procedure> allProcedures = new ArrayList<>(emittedHelpers());
         allProcedures.addAll(translationContext().missingContractProcs.values());
         allProcedures.addAll(procedures);
-        var program = new Program(allProcedures, List.of(), types, List.of());
+        var program = new LaurelProgram(allProcedures, List.of(), List.of(), types, List.of());
 
         var knownUris = new java.util.HashSet<URI>(sourceUris);
         knownUris.addAll(contracts.loadedUris());
@@ -2683,7 +2683,7 @@ public class BytecodeToLaurelCompiler {
                             : noRange(primitiveOp(new Operation.AndThen(), conj, c.condition()));
                 }
                 fnBody = new Body.Transparent(noRange(new StmtExpr.Block(List.of(noRange(new StmtExpr.Return(
-                        Optional.of(conj == null ? noRange(new StmtExpr.LiteralBool(true)) : conj)))),
+                        List.of(conj == null ? noRange(new StmtExpr.LiteralBool(true)) : conj)))),
                         Optional.empty())));
             }
             var fn = new Procedure(ident(fnName), List.of(), inputs,

@@ -554,8 +554,8 @@ final class ArrayAccessTranslator {
                 yield stmts == blk.statements() ? v : new StmtExpr.Block(stmts, blk.label());
             }
             case StmtExpr.Return r -> {
-                var value = r.value().map(e -> rewriteLoads(e, onLoad));
-                yield r.value().isEmpty() || value.get() == r.value().get() ? v : new StmtExpr.Return(value);
+                var values = rewriteAll(r.values(), onLoad);
+                yield values == r.values() ? v : new StmtExpr.Return(values);
             }
             case StmtExpr.Assign a -> {
                 var value = rewriteLoads(a.value(), onLoad);

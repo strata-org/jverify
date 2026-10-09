@@ -6,7 +6,7 @@ import com.amazon.ion.system.IonSystemBuilder;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.strata.jverify.common.Position;
 import org.strata.jverify.common.Range;
-import org.strata.jverify.laurel.Program;
+import org.strata.jverify.laurel.LaurelProgram;
 import org.strata.jverify.verifier.IntervalTree;
 import org.strata.jverify.verifier.JVerifyResults;
 import org.strata.java.bytecode.verifier.MethodVerificationStatus;
@@ -58,7 +58,7 @@ public class StrataBackend {
      *        before generating verification conditions the remaining
      *        Verified methods are marked Skipped.
      */
-    public JVerifyResults verifyProgram(Program program,
+    public JVerifyResults verifyProgram(LaurelProgram program,
                                         PositionResolver positions,
                                         Map<URI, IntervalTree<Integer, MethodVerificationStatus>> methodStatuses) {
         if (verifierOptions.interpret() && verifierOptions.entry() != null
