@@ -144,7 +144,7 @@ org/strata/jverify/langref/jls11/s11_3/Finally_OnException.java,unsupported
 org/strata/jverify/langref/jls11/s11_3/Finally_OverridesReturn.java,passed
 org/strata/jverify/langref/jls11/s11_3/HandlerSelection.java,passed
 org/strata/jverify/langref/jls11/s11_3/HandlerSelection_SuperCatchesSub.java,passed
-org/strata/jverify/langref/jls11/s11_3/MultiCatch_1.java,interp_error
+org/strata/jverify/langref/jls11/s11_3/MultiCatch_1.java,passed
 org/strata/jverify/langref/jls11/s11_3/Propagation.java,error
 org/strata/jverify/langref/jls11/s11_3/ThrowAndCatch.java,passed
 org/strata/jverify/langref/jls11/s11_3/TryWithResources_ReverseClose.java,unsupported
@@ -228,7 +228,7 @@ org/strata/jverify/langref/jls14/s14_20/TryCatchSupertype_1.java,passed
 org/strata/jverify/langref/jls14/s14_20/TryCatch_1.java,passed
 org/strata/jverify/langref/jls14/s14_20/TryCatch_2.java,passed
 org/strata/jverify/langref/jls14/s14_20/TryCatch_3.java,passed
-org/strata/jverify/langref/jls14/s14_20/TryCatch_4.java,interp_error
+org/strata/jverify/langref/jls14/s14_20/TryCatch_4.java,passed
 org/strata/jverify/langref/jls14/s14_20/TryFinallyOverridesReturn_1.java,passed
 org/strata/jverify/langref/jls14/s14_20/TryFinally_1.java,unsupported
 org/strata/jverify/langref/jls14/s14_20/TryFinally_2.java,unsupported

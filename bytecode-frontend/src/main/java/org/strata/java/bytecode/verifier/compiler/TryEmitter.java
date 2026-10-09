@@ -260,6 +260,7 @@ final class TryEmitter {
             String varName = "e";
             int skip = 0;
             int mintedSlot = -1;
+            int bindingSlot = -1;
             if (first instanceof StoreInstruction si) {
                 body.pos = h.instrs.get(0);
                 boolean unnamed = body.locals != null && body.locals.at(si.slot(), body.pos) == null;
@@ -268,6 +269,7 @@ final class TryEmitter {
                     mintedSlot = si.slot();
                 }
                 body.declared.add(body.varKey(si.slot()));
+                bindingSlot = si.slot();
                 skip = 1;
             } else if (first instanceof StackInstruction sk && sk.opcode() == Opcode.POP) {
                 skip = 1;
@@ -283,7 +285,17 @@ final class TryEmitter {
                 catchStop.remove(follow);
                 catchStop.add(crtEnd);
             }
-            List<AstNode<StmtExpr>> catchBody = new ArrayList<>(s.region(hb, catchStop));
+            String armType = bindingSlot >= 0 ? armTypeOf(caught) : null;
+            if (armType != null) {
+                body.catchCasts.put(bindingSlot, new BodyTranslator.CatchCast(varName,
+                        LaurelFactory.node(new HighType.UserDefined(LaurelFactory.ident(armType)))));
+            }
+            List<AstNode<StmtExpr>> catchBody;
+            try {
+                catchBody = new ArrayList<>(s.region(hb, catchStop));
+            } finally {
+                body.catchCasts.remove(bindingSlot);
+            }
             if (mintedSlot >= 0) {
                 body.slotAlias.remove(mintedSlot);
             }
@@ -412,6 +424,19 @@ final class TryEmitter {
                 Optional.of(body.e(predicate)),
                 s.blockOf(catchBody),
                 LaurelFactory.node(new HighType.Unknown()));
+    }
+
+    /**
+     * The arm's type as Java types its binding, or null when an alternative's
+     * superclasses are unknown (a class off the verifier's class path): the binding
+     * is then read uncast.
+     */
+    private String armTypeOf(List<String> caught) {
+        String arm = caught.getFirst();
+        for (String fqn : caught) {
+            arm = arm == null ? null : ctx.resolver.commonSuperclass(fqn, arm);
+        }
+        return arm;
     }
 
     /** Remove {@code f}'s statements from the tail of {@code stmts} when they match 1:1 (mod ranges). */

@@ -289,12 +289,22 @@ final class ClassResolver {
         return isSubclassOf(fqn, "java.lang.Throwable");
     }
 
+    /** {@link #commonSuperclass}, refusing when there is none. */
+    String leastCommonAncestor(String a, String b) {
+        String c = commonSuperclass(a, b);
+        if (c == null) {
+            throw new JavaViolationException("thrown types share no common ancestor");
+        }
+        return c;
+    }
+
     /**
      * Least common ancestor of two classes along their superclass chains.
      * Interfaces are irrelevant: thrown types are classes with single
-     * inheritance. Terminates at worst at {@code java.lang.Object}.
+     * inheritance. The chains meet at worst at {@code java.lang.Object}, unless a
+     * superclass cannot be resolved: then null.
      */
-    String leastCommonAncestor(String a, String b) {
+    String commonSuperclass(String a, String b) {
         var bChain = new java.util.LinkedHashSet<String>();
         for (String c = b; c != null; c = superclassOf(c)) {
             bChain.add(c);
@@ -304,7 +314,7 @@ final class ClassResolver {
                 return c;
             }
         }
-        throw new JavaViolationException("thrown types share no common ancestor");
+        return null;
     }
 
     // --- Callee lookup + classfile-driven policy gates ---

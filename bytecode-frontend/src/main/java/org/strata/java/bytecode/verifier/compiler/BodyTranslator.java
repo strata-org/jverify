@@ -82,6 +82,18 @@ final class BodyTranslator {
     boolean dropSuper;
     String retDesc;
     final Map<Integer, String> slotAlias = new HashMap<>();  // slot -> minted name for an unnamed local
+    /**
+     * While a catch handler is translated: its binding's slot -> the binding and the
+     * arm's type. Loads of the binding read it at the arm's type ({@code e as E}):
+     * Laurel types it at the join of what the {@code try} body throws, which an
+     * implicit throw made explicit can widen past the arm. The guard discharges the
+     * cast. It is made at the load, not by rewriting the handler afterwards, because
+     * the side tables are keyed on node identity.
+     */
+    final Map<Integer, CatchCast> catchCasts = new HashMap<>();
+
+    record CatchCast(String binding, AstNode<HighType> armType) {
+    }
     final Map<Integer, String> slotType = new HashMap<>();   // slot -> descriptor it currently holds
     int synthCounter;
     Set<Integer> loadedSlots = Set.of();
@@ -794,6 +806,10 @@ final class BodyTranslator {
         }
         String name = localName(li.slot());
         AstNode<StmtExpr> n = localVar(name);
+        CatchCast cast = catchCasts.get(li.slot());
+        if (cast != null && cast.binding().equals(name)) {
+            n = new AstNode<>(new StmtExpr.AsType(n, cast.armType()), n.source());
+        }
         stack.push(n);
         noteDesc(n, localDesc(li.slot()));
         if (locals != null && locals.at(li.slot(), pos) == null && !name.equals("this")) {
@@ -1043,8 +1059,7 @@ final class BodyTranslator {
      *       Java performs before the throw;</li>
      *   <li>when the exception would leave a method whose {@code throws}
      *       clause does not cover it, and no enclosing {@code catch} does
-     *       (Laurel rejects that escape statically), or when an enclosing
-     *       {@code catch} arm is unrelated to it (see {@link #mayThrowHere}).</li>
+     *       (Laurel rejects that escape statically).</li>
      * </ul>
      * Once one implicit throw stays implicit, every later one in the statement
      * does too, so the explicit throws never run ahead of an earlier check.
@@ -1150,22 +1165,17 @@ final class BodyTranslator {
      * {@code throws} (the escape is then asserted not to happen) or a covering
      * one; otherwise an enclosing {@code catch} must cover it.
      *
-     * <p>Every {@code catch} arm the exception reaches, out to the innermost
-     * {@code try} that catches it, must also be related to it (a sub- or
-     * supertype). Laurel types a {@code catch} binding at the join of the types
-     * its {@code try} body throws, and rejects a guard testing an unrelated type
-     * -- so an explicit throw would turn a handler that is merely irrelevant to it
-     * (an {@code IllegalStateException} arm around a division) into a hard error.
+     * <p>An enclosing {@code catch} arm unrelated to the exception (an
+     * {@code IllegalStateException} arm around a division) is no obstacle: Laurel
+     * accepts a guard testing the caught exception against an unrelated type
+     * and lowers that test to {@code false}, and the handler reads its binding
+     * at the arm's type (see {@link #catchCasts}), so the wider join
+     * Laurel then types the binding at does not change what the handler sees.
      */
     private boolean mayThrowHere(String exceptionFqn) {
-        for (List<String> arms : ctx.method.enclosingCatchTypes) {   // innermost first
-            if (!arms.stream().allMatch(c -> ctx.resolver.isSubclassOf(exceptionFqn, c)
-                    || ctx.resolver.isSubclassOf(c, exceptionFqn))) {
-                return false;
-            }
-            if (arms.stream().anyMatch(c -> ctx.resolver.isSubclassOf(exceptionFqn, c))) {
-                return true;
-            }
+        if (ctx.method.enclosingCatchTypes.stream().anyMatch(arms ->
+                arms.stream().anyMatch(c -> ctx.resolver.isSubclassOf(exceptionFqn, c)))) {
+            return true;
         }
         String join = ctx.method.throwsJoin;
         return join == null || ctx.resolver.isSubclassOf(exceptionFqn, join);

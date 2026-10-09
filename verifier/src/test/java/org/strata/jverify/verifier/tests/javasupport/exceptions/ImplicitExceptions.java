@@ -30,13 +30,19 @@ import static org.strata.jverify.JVerify.throwsOn;
  */
 @JVerifyTest(continueOnErrors = true,
         exitCode = 4,
-        methodsVerified = 22, // 18 methods below + 4 implicit constructors
-        methodsInvalid = 8,
-        errorCount = 8)
+        methodsVerified = 30, // 24 methods below + 6 implicit constructors
+        methodsInvalid = 10,
+        errorCount = 10)
 class ImplicitExceptions {
     static class AppException extends RuntimeException {}
 //         ^ warning: missing contract for method '<init>' in class 'java.lang.RuntimeException'
     static class ParseError extends AppException {}
+    static class CodedException extends AppException { int code; }
+    static class Counter {
+        int n;
+        void set() { n = 1; }
+        void record(CodedException x) { n = x.code; }
+    }
     static class MyArithmetic extends ArithmeticException {}
 //         ^ warning: missing contract for method '<init>' in class 'java.lang.ArithmeticException'
 
@@ -114,7 +120,7 @@ class ImplicitExceptions {
         int r;
         try {
             r = a / b;
-//          ^ Error: no exception escapes this `try` uncaught could not be proved
+//          ^ Error: uncaught exception 'java.lang.ArithmeticException' is not thrown could not be proved
         } catch (MyArithmetic e) {
             r = 0;
         }
@@ -138,6 +144,97 @@ class ImplicitExceptions {
             }
         } catch (AppException e) {
             r = -2;
+        }
+        return r;
+    }
+
+    /** A multi-catch arm for an exception the body never throws is harmless. */
+    static int divMultiCatch(int a, int b) {
+        precondition(a >= 0);
+        int r;
+        try {
+            r = a / b;
+        } catch (IllegalStateException | ArithmeticException e) {
+            r = 0;
+        }
+        return r;
+    }
+
+    /** An unrelated handler does not catch the ArithmeticException. */
+    static int divUnrelatedHandler(int a, int b) {
+        precondition(a >= 0);
+        int r;
+        try {
+            r = a / b;
+//          ^ Error: uncaught exception 'java.lang.ArithmeticException' is not thrown could not be proved
+        } catch (IllegalStateException e) {
+            r = 0;
+        }
+        return r;
+    }
+
+    /** The handler sees its arm's type, and so its fields, although the `try`
+        also throws an ArithmeticException, which the arm does not catch. */
+    static int divHandlerReadsField(int a, int b) {
+        precondition(a >= 0);
+        int r = 0;
+        try {
+            r = a / b;
+//          ^ Error: uncaught exception 'java.lang.ArithmeticException' is not thrown could not be proved
+            CodedException m = new CodedException();
+            m.code = 5;
+            throw m;
+        } catch (CodedException e) {
+            r = e.code;
+        }
+        return r;
+    }
+
+    /** A handler whose binding shares its name with a local hoisted to method
+        level reads the binding without declaring a second local. */
+    static int divCatchNameReused(int a, int b) {
+        precondition(a >= 0);
+        int r;
+        {
+            int e;
+            if (a > 0) {
+                e = 1;
+            } else {
+                e = 2;
+            }
+            r = e;
+        }
+        try {
+            r = a / b;
+        } catch (ArithmeticException e) {
+            r = 0;
+        }
+        return r;
+    }
+
+    /** The handler's call is the method's only heap write: the frame still covers it. */
+    static int divHandlerCalls(Counter c, int a, int b) {
+        precondition(a >= 0);
+        int r;
+        try {
+            r = a / b;
+        } catch (ArithmeticException e) {
+            c.set();
+            r = 0;
+        }
+        return r;
+    }
+
+    /** The handler passes its binding to a heap-writing call. */
+    static int handlerPassesBinding(Counter c, int a) {
+        int r = a;
+        try {
+            if (a == 0) {
+                throw new CodedException();
+            }
+        } catch (CodedException e) {
+            c.record(e);
+            r = 0;
         }
         return r;
     }
