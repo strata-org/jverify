@@ -89,7 +89,11 @@ final class TranslationContext {
          * is {@code self?#contentsVersion}, and {@code old(e)} translates.
          */
         boolean arrayModelMember;
-        /** Translating a {@code @Pure} program method: array allocations and writes refuse. */
+        /**
+         * Translating a {@code @Pure} program method: array allocations and writes
+         * refuse, and implicit runtime exceptions stay assertions (its body may
+         * become a transparent function, which cannot throw).
+         */
         boolean pure;
         /** Declared exceptional join class (fqn) from the throws clause, or null. */
         String throwsJoin;

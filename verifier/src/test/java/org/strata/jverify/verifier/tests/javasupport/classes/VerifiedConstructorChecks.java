@@ -10,14 +10,14 @@ import org.strata.jverify.testengine.JVerifyTest;
 class VerifiedConstructorChecks {
     static class UndeclaredThrow {
         UndeclaredThrow(int x) {
-//      ^ warning: instance method '<init>' was not verified: throw requires the enclosing method to declare the thrown type in its throws clause
+//      ^ warning: instance method '<init>' was not verified: Unsupported thrown expression type: IllegalArgumentException
             if (x > 0) {
                 throw new IllegalArgumentException();
             }
         }
 
         void m(int x) {
-//           ^ warning: instance method 'm' was not verified: throw requires the enclosing method to declare the thrown type in its throws clause
+//           ^ warning: instance method 'm' was not verified: Unsupported thrown expression type: IllegalArgumentException
             if (x > 0) {
                 throw new IllegalArgumentException();
             }

@@ -549,6 +549,9 @@ final class BodyTranslator {
         // statement anchors within it (via positionRange(defaultRange)).
         ctx.src.defaultRange = range;
         checkPlaceable(raw);
+        for (AstNode<StmtExpr> t : explicitImplicitThrows(raw)) {
+            stmts.add(place(t, range));
+        }
         stmts.add(place(raw, range));
     }
 
@@ -981,6 +984,191 @@ final class BodyTranslator {
     void bin(Operation op) {
         AstNode<StmtExpr> b = stack.pop(), a = stack.pop();
         push(LaurelFactory.primitiveOp(op, a, b));
+    }
+
+    /**
+     * Integer (int/long) division or remainder: throws ArithmeticException on a
+     * zero divisor. Recorded as an implicit throw on the operation's node; see
+     * {@link #explicitImplicitThrows}.
+     */
+    void intDivRem(Operation op) {
+        AstNode<StmtExpr> divisor = stack.peek();
+        bin(op);
+        implicitThrows.put(stack.peek(), new ImplicitThrow(
+                e(LaurelFactory.primitiveOp(new Operation.Eq(), divisor, e(new StmtExpr.LiteralInt(0)))),
+                ARITHMETIC_EXCEPTION));
+    }
+
+    // --- Implicit runtime exceptions ---
+
+    static final String ARITHMETIC_EXCEPTION = "java.lang.ArithmeticException";
+    static final String CLASS_CAST_EXCEPTION = "java.lang.ClassCastException";
+
+    /**
+     * A runtime exception an expression node throws implicitly when
+     * {@code condition} holds: ArithmeticException for an integer division by
+     * zero, ClassCastException for a failing reference cast.
+     */
+    record ImplicitThrow(AstNode<StmtExpr> condition, String exceptionFqn) {
+    }
+
+    /** The implicit throw of each operation node that has one (identity-keyed). */
+    final Map<AstNode<StmtExpr>, ImplicitThrow> implicitThrows = new IdentityHashMap<>();
+
+    /**
+     * The explicit {@code if (condition) { throw new E }} statements to place
+     * immediately before statement {@code root}, one per implicit throw that
+     * Java evaluates before anything else can have an effect, in evaluation
+     * order: first those of the operands still on the stack -- Java evaluated
+     * them before {@code root} even if a later statement consumes them
+     * ({@code a / b + (x = 5)} emits {@code x = 5} first) -- then those of
+     * {@code root}. Each implicit throw is decided once, here. Laurel then
+     * treats each as a real throw: an error only if it is reachable and not
+     * caught.
+     *
+     * <p>An implicit throw stays implicit -- its operation keeps the Laurel
+     * precondition that asserts it does not happen ({@code $divT}'s non-zero
+     * divisor, {@code as}'s type test) -- wherever making it explicit would
+     * change the meaning or the method's shape:
+     * <ul>
+     *   <li>in a contract, a spec lambda, a {@code check}/{@code assume}, or a
+     *       {@code @Pure} method (a transparent function cannot throw);</li>
+     *   <li>under a conditional sub-expression (a ternary arm, the right
+     *       operand of {@code &&}/{@code ||}), which may not be evaluated, and
+     *       in any conditional or repeated context ({@link #inConditional}: a
+     *       value arm, a loop header, a boolean region past its first test),
+     *       where a statement would land in an expression block or run at the
+     *       wrong time;</li>
+     *   <li>after a call or allocation in the same statement, whose effect
+     *       Java performs before the throw;</li>
+     *   <li>when the exception would leave a method whose {@code throws}
+     *       clause does not cover it, and no enclosing {@code catch} does
+     *       (Laurel rejects that escape statically), or when an enclosing
+     *       {@code catch} arm is unrelated to it (see {@link #mayThrowHere}).</li>
+     * </ul>
+     * Once one implicit throw stays implicit, every later one in the statement
+     * does too, so the explicit throws never run ahead of an earlier check.
+     */
+    List<AstNode<StmtExpr>> explicitImplicitThrows(AstNode<StmtExpr> root) {
+        if (ctx.method.inContract || ctx.method.pure || inConditional()
+                || root.val() instanceof StmtExpr.Assert || root.val() instanceof StmtExpr.Assume) {
+            return List.of();
+        }
+        var found = new ArrayList<ImplicitThrow>();
+        boolean[] blocked = {false};
+        for (AstNode<StmtExpr> pending : stack.reversed()) {
+            collectImplicitThrows(pending, found, blocked);
+        }
+        collectImplicitThrows(root, found, blocked);
+        var out = new ArrayList<AstNode<StmtExpr>>();
+        for (ImplicitThrow t : found) {
+            ctx.composites.registerHierarchyUpToThrowable(t.exceptionFqn());
+            AstNode<StmtExpr> thrown = e(new StmtExpr.Throw(
+                    e(new StmtExpr.New(LaurelFactory.ident(t.exceptionFqn()), List.of()))));
+            out.add(e(new StmtExpr.IfThenElse(t.condition(),
+                    e(new StmtExpr.Block(List.of(thrown), Optional.empty())), Optional.empty())));
+        }
+        return out;
+    }
+
+    /** Post-order (evaluation order) walk of the unconditionally evaluated nodes. */
+    private void collectImplicitThrows(AstNode<StmtExpr> n, List<ImplicitThrow> out, boolean[] blocked) {
+        for (AstNode<StmtExpr> c : unconditionalChildren(n.val())) {
+            collectImplicitThrows(c, out, blocked);
+        }
+        ImplicitThrow t = implicitThrows.remove(n);
+        if (t != null) {
+            if (!blocked[0] && mayThrowHere(t.exceptionFqn())) {
+                out.add(t);
+            } else {
+                blocked[0] = true;
+            }
+        }
+        if (!isEffectFree(n.val())) {
+            blocked[0] = true;
+        }
+    }
+
+    /** The children Java always evaluates, in evaluation order. */
+    private static List<AstNode<StmtExpr>> unconditionalChildren(StmtExpr v) {
+        return switch (v) {
+            case StmtExpr.StaticCall sc -> isShortCircuit(sc) && !sc.arguments().isEmpty()
+                    ? List.of(sc.arguments().get(0)) : sc.arguments();
+            case StmtExpr.InstanceCall ic -> {
+                var l = new ArrayList<AstNode<StmtExpr>>();
+                l.add(ic.target());
+                l.addAll(ic.arguments());
+                yield l;
+            }
+            case StmtExpr.Var var when var.var_() instanceof Variable.Field f -> List.of(f.target());
+            case StmtExpr.ReferenceEquals r -> List.of(r.lhs(), r.rhs());
+            case StmtExpr.AsType a -> List.of(a.target());
+            case StmtExpr.IsType i -> List.of(i.target());
+            case StmtExpr.IfThenElse i -> List.of(i.cond());
+            case StmtExpr.Assign a -> {
+                var l = new ArrayList<AstNode<StmtExpr>>();
+                for (var t : a.targets()) {
+                    if (t.val() instanceof Variable.Field f) {
+                        l.add(f.target());
+                    }
+                }
+                l.add(a.value());
+                yield l;
+            }
+            case StmtExpr.Return r -> r.value().map(List::of).orElse(List.of());
+            case StmtExpr.Throw t -> List.of(t.value());
+            default -> List.of();
+        };
+    }
+
+    private static boolean isShortCircuit(StmtExpr.StaticCall sc) {
+        String name = sc.callee().text();
+        return name.equals(LaurelFactory.operationProcName(new Operation.AndThen()))
+                || name.equals(LaurelFactory.operationProcName(new Operation.OrElse()))
+                || name.equals(LaurelFactory.operationProcName(new Operation.Implies()));
+    }
+
+    /**
+     * Evaluating the node itself (not its children) has no effect. Static calls
+     * to Strata's {@code $} operators and the frontend's {@code java?} helpers are
+     * pure; any other call, an allocation, or a statement form is not.
+     */
+    private static boolean isEffectFree(StmtExpr v) {
+        return switch (v) {
+            case StmtExpr.StaticCall sc -> sc.callee().text().startsWith("$")
+                    || sc.callee().text().startsWith("java?");
+            case StmtExpr.LiteralInt _, StmtExpr.LiteralBool _, StmtExpr.LiteralString _,
+                 StmtExpr.LiteralDecimal _, StmtExpr.LiteralBv _, StmtExpr.Var _, StmtExpr.This _,
+                 StmtExpr.ReferenceEquals _, StmtExpr.AsType _, StmtExpr.IsType _,
+                 StmtExpr.IfThenElse _, StmtExpr.Quantifier _, StmtExpr.Old _, StmtExpr.Fresh _ -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * Laurel lets an exception leave this method only if it declares no
+     * {@code throws} (the escape is then asserted not to happen) or a covering
+     * one; otherwise an enclosing {@code catch} must cover it.
+     *
+     * <p>Every {@code catch} arm the exception reaches, out to the innermost
+     * {@code try} that catches it, must also be related to it (a sub- or
+     * supertype). Laurel types a {@code catch} binding at the join of the types
+     * its {@code try} body throws, and rejects a guard testing an unrelated type
+     * -- so an explicit throw would turn a handler that is merely irrelevant to it
+     * (an {@code IllegalStateException} arm around a division) into a hard error.
+     */
+    private boolean mayThrowHere(String exceptionFqn) {
+        for (List<String> arms : ctx.method.enclosingCatchTypes) {   // innermost first
+            if (!arms.stream().allMatch(c -> ctx.resolver.isSubclassOf(exceptionFqn, c)
+                    || ctx.resolver.isSubclassOf(c, exceptionFqn))) {
+                return false;
+            }
+            if (arms.stream().anyMatch(c -> ctx.resolver.isSubclassOf(exceptionFqn, c))) {
+                return true;
+            }
+        }
+        String join = ctx.method.throwsJoin;
+        return join == null || ctx.resolver.isSubclassOf(exceptionFqn, join);
     }
 
     /**
@@ -1493,6 +1681,9 @@ final class BodyTranslator {
                     checkThrowCoverage(thrownFqn, v);
                     ctx.composites.registerHierarchyUpToThrowable(thrownFqn);
                     FileRange range = stmtRange(pos, false);
+                    for (AstNode<StmtExpr> t : explicitImplicitThrows(before)) {
+                        stmts.add(place(t, range));
+                    }
                     AstNode<StmtExpr> placed = place(before, range);
                     stmts.add(placed);
                     throwStmts.put(placed, thrownFqn);
@@ -1513,8 +1704,10 @@ final class BodyTranslator {
             case IADD, LADD, FADD, DADD -> bin(new Operation.Add());
             case ISUB, LSUB, FSUB, DSUB -> bin(new Operation.Sub());
             case IMUL, LMUL, FMUL, DMUL -> bin(new Operation.Mul());
-            case IDIV, LDIV, FDIV, DDIV -> bin(new Operation.DivT());
-            case IREM, LREM, FREM, DREM -> bin(new Operation.ModT());
+            case IDIV, LDIV -> intDivRem(new Operation.DivT());
+            case IREM, LREM -> intDivRem(new Operation.ModT());
+            case FDIV, DDIV -> bin(new Operation.DivT());
+            case FREM, DREM -> bin(new Operation.ModT());
             case IAND -> binRefused("&", false);
             case LAND -> binRefused("&", true);
             case IOR -> binRefused("|", false);
@@ -1753,6 +1946,11 @@ final class BodyTranslator {
                 AstNode<StmtExpr> n = push(new StmtExpr.AsType(v,
                         LaurelFactory.node(new HighType.UserDefined(LaurelFactory.ident(fqn)))));
                 staticTypeOf.put(n, t);
+                // A failing cast throws ClassCastException (see explicitImplicitThrows).
+                implicitThrows.put(n, new ImplicitThrow(
+                        e(LaurelFactory.primitiveOp(new Operation.Not(), e(new StmtExpr.IsType(v,
+                                LaurelFactory.node(new HighType.UserDefined(LaurelFactory.ident(fqn))))))),
+                        CLASS_CAST_EXCEPTION));
                 return;
             }
             // A functional-interface cast over a lambda/method reference: the
@@ -2010,9 +2208,12 @@ final class BodyTranslator {
     }
 
     /**
-     * Throw-coverage check over a Laurel-thrown value: a throw needs an
-     * enclosing catch arm that covers its type or the declared exceptional
-     * exit (JFE's declared-throws discipline).
+     * Throw-coverage check over a Laurel-thrown value: a throw that no enclosing
+     * catch arm covers must fit under the declared exceptional exit, if the
+     * method declares one. With no {@code throws} clause an uncovered throw is
+     * accepted: Laurel asserts that it is never reached (an error only if it
+     * can actually happen), which is how an unchecked Java exception that
+     * escapes a method is checked.
      */
     void checkThrowCoverage(String thrownFqn, AstNode<StmtExpr> thrown) {
         if (ctx.method.info.quiet) {
@@ -2024,13 +2225,8 @@ final class BodyTranslator {
         }
         boolean caughtLocally = ctx.method.enclosingCatchTypes.stream().anyMatch(arms ->
                 arms.stream().anyMatch(c -> ctx.resolver.isSubclassOf(thrownFqn, c)));
-        if (caughtLocally) {
+        if (caughtLocally || ctx.method.throwsJoin == null) {
             return;
-        }
-        if (ctx.method.throwsJoin == null) {
-            throw new JavaViolationException(
-                    "throw requires the enclosing method to declare the thrown type"
-                            + " in its throws clause");
         }
         if (!ctx.resolver.isSubclassOf(thrownFqn, ctx.method.throwsJoin)) {
             throw new JavaViolationException(

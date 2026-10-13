@@ -1618,6 +1618,28 @@ public class BytecodeToLaurelCompiler {
         return false;
     }
 
+    /** The implementation contains a {@code throw} (caught or not). */
+    private static boolean containsThrow(List<AstNode<StmtExpr>> implementation) {
+        for (var stmt : implementation) {
+            if (containsThrowNode(stmt)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsThrowNode(AstNode<StmtExpr> n) {
+        if (n.val() instanceof StmtExpr.Throw) {
+            return true;
+        }
+        for (var c : BodyTranslator.childrenOf(n.val())) {
+            if (containsThrowNode(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * JVM bytecode-verification gate: when enabled ({@code jvmVerifyInput}),
      * every input classfile (top-level and nested) must pass
@@ -2879,13 +2901,14 @@ public class BytecodeToLaurelCompiler {
             procBody = new Body.Opaque(List.of(selfFunctionPostcondition(methodName, inputs, isStatic)),
                     Optional.empty(), unguardedModifies(List.of()));
         } else if (isPure && postconditions.isEmpty() && modifies.isEmpty()
-                && throwsType.isEmpty()) {
-            // A declared `throws` forces Opaque: Strata rejects a transparent procedure
-            // whose body throws, because a transparent body becomes a function and
-            // throwing is not expressible as an expression. Gating on the declaration
-            // rather than on whether the body actually throws is deliberately
-            // conservative -- it costs transparency only for a `@Pure` method that
-            // declares `throws` without ever throwing.
+                && throwsType.isEmpty() && !containsThrow(implementation)) {
+            // A declared `throws`, or a `throw` in the body, forces Opaque: Strata
+            // rejects a transparent procedure whose body throws, because a transparent
+            // body becomes a function and throwing is not expressible as an expression.
+            // The declaration test is deliberately conservative -- it costs
+            // transparency only for a `@Pure` method that declares `throws` without
+            // ever throwing. The body test covers an undeclared unchecked `throw`,
+            // which no longer needs a `throws` clause (Laurel asserts it unreachable).
             // The body becomes a function, where Strata cannot link the opaque
             // array load helper: element reads use the transparent one.
             procBody = new Body.Transparent(ArrayAccessTranslator.pureBodyLoads(noRange(methodBody), lf));

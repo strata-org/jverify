@@ -430,6 +430,11 @@ final class ControlFlowStructurer {
         // instanceof-on-opaque in the test beats a cast refusal inside the
         // then-branch) — JFE's refusal order, pinned by the corpus.
         body.checkPlaceable(cond);
+        // The condition is evaluated once, before the branch: its implicit
+        // runtime exceptions can be made explicit just ahead of the `if`.
+        for (AstNode<StmtExpr> t : body.explicitImplicitThrows(cond)) {
+            out.add(place(t, condBlk));
+        }
         int thenE = c.fall, elseE = c.branch;
         int follow = dom.ipdom[condBlk];
 

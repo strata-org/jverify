@@ -14,7 +14,7 @@ class DummyClass2 implements DummyInterface {
 }
 
 
-@JVerifyTest(exitCode = 4, methodsVerified = 19, errorCount = 13)
+@JVerifyTest(exitCode = 4, methodsVerified = 19, errorCount = 12)
 class Operators {
     static void Plus() {
         int x = 3;
@@ -28,7 +28,7 @@ class Operators {
         int y = 4;
         int z = x + y;
         check(z==6);
-//      ^^^^^^^^^^^ Error: assertion does not hold
+//      ^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void Minus() {
@@ -43,7 +43,7 @@ class Operators {
         int y = 4;
         int z = y - x;
         check(z==0);
-//      ^^^^^^^^^^^ Error: assertion does not hold
+//      ^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void Mult() {
@@ -58,7 +58,7 @@ class Operators {
         int y = 4;
         int z = x * y;
         check(z==11);
-//      ^^^^^^^^^^^^ Error: assertion does not hold
+//      ^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void Mod() {
@@ -73,7 +73,7 @@ class Operators {
         int y = 23;
         int z = y % x;
         check(z==1);
-//      ^^^^^^^^^^^ Error: assertion does not hold
+//      ^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void Gt() {
@@ -86,7 +86,7 @@ class Operators {
         int x = 33;
         int y = 23;
         check(y > x);
-//      ^^^^^^^^^^^^ Error: assertion does not hold
+//      ^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void Lt() {
@@ -99,7 +99,7 @@ class Operators {
         int x = 33;
         int y = 23;
         check(x < y);
-//      ^^^^^^^^^^^^ Error: assertion does not hold
+//      ^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void Leq() {
@@ -112,7 +112,7 @@ class Operators {
         int x = 33;
         int y = 23;
         check(x <= y);
-//      ^^^^^^^^^^^^^ Error: assertion does not hold
+//      ^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void Geq() {
@@ -125,7 +125,7 @@ class Operators {
         int x = 33;
         int y = 23;
         check(y >= x);
-//      ^^^^^^^^^^^^^ Error: assertion does not hold
+//      ^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static void Eq() {
@@ -138,7 +138,7 @@ class Operators {
         int x = 4;
         int y = 3;
         check(x == y);
-//      ^^^^^^^^^^^^^ Error: assertion does not hold
+//      ^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     void InstanceOfTrivial() {
@@ -166,7 +166,7 @@ class Operators {
 
     void castNumInvalid(int i) {
         check(i == (short) i);
-//                 ^^^^^^^^^ Error: cast from int32 to int16 does not hold
+//                 ^^^^^^^^^ Error: cast from int32 to int16 could not be proved
     }
 
     void castRefTrivial() {
@@ -187,8 +187,7 @@ class Operators {
 
         //noinspection RedundantCast,NewObjectEquality,DataFlowIssue
         var casted = (DummyClass) dc2;
-//                   ^^^^^^^^^^^^^^^^ Error: precondition could not be proved
+//                   ^^^^^^^^^^^^^^^^ Error: uncaught exception 'java.lang.ClassCastException' is not thrown could not be proved
         check(dc1 == casted);
-//      ^^^^^^^^^^^^^^^^^^^^ Error: assertion does not hold
     }
 }

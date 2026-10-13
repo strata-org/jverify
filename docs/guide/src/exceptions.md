@@ -120,6 +120,17 @@ they cannot happen. Consequently a
 construction. Explicitly *throwing* an unchecked exception is fine — declare
 it in the `throws` clause like any other.
 
+The bytecode frontend treats integer division by zero (`ArithmeticException`)
+and a failing reference downcast (`ClassCastException`) as real exceptions
+instead: an uncaught one is an error only if it can actually be thrown, and a
+caught one is ordinary control flow, so code that handles it verifies. A
+`throw` of a program-defined unchecked exception there needs no `throws`
+clause either; it is reported only if it is reachable and not caught (throwing
+a library exception such as `IllegalArgumentException` is not supported yet).
+Null dereferences are not modelled, since the bytecode frontend does not
+support `null`, and an array index out of bounds is still a precondition of
+the access rather than a thrown `ArrayIndexOutOfBoundsException`.
+
 ## Deliberate strictness
 
 Two deliberate strictness choices, both consequences of the forcing

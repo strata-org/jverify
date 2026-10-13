@@ -103,13 +103,10 @@ final class ThrowCoveragePrescan {
                     }
                 }
             }
-            if (caught) {
+            if (caught || ctx.method.throwsJoin == null) {
+                // No throws clause: an uncovered throw is asserted unreachable
+                // by Laurel rather than refused (see checkThrowCoverage).
                 continue;
-            }
-            if (ctx.method.throwsJoin == null) {
-                throw new JavaViolationException(
-                        "throw requires the enclosing method to declare the thrown type"
-                                + " in its throws clause");
             }
             if (!ctx.resolver.isSubclassOf(thrownFqn, ctx.method.throwsJoin)) {
                 throw new JavaViolationException(

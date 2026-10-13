@@ -24,6 +24,18 @@
 # ============================================================================
 XFAIL  org.strata.jverify.verifier.tests.javasupport.lambdas.PolymorphicLambdas                   FRONTEND_DISPATCH  type-variable method refusal diagnostic not reproduced
 
+# --- Uncaught exceptions: an error only if they can actually escape ---
+#
+# This frontend no longer refuses an unchecked `throw` that a method neither
+# catches nor declares: Laurel asserts the throw is unreachable instead, so it is
+# reported only when it can happen. It also emits the implicit runtime exceptions
+# (ArithmeticException, ClassCastException) as real throws. The source frontend
+# keeps its declared-throws refusal and its assertion encoding, which these
+# shared fixtures pin. (ImplicitExceptions pins this frontend's output instead,
+# with the source frontend's exception in source-xfails.txt.)
+XFAIL  org.strata.jverify.verifier.tests.javasupport.exceptions.ThrowDiagnostics   FRONTEND_EXCEPTIONS  'undeclared' is translated and fails verification at its reachable throw instead of being refused
+XFAIL  org.strata.jverify.verifier.tests.javasupport.exceptions.TryWithResources   FRONTEND_EXCEPTIONS  the desugared re-throw is no longer refused, so 'useResource' is refused later, at the desugared addSuppressed call
+
 # ============================================================================
 # Force-run: the shared annotation marks these expectedToFail for the source
 # frontend, which does not emit the library contract procedures these
