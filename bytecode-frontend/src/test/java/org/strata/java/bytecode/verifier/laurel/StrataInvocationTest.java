@@ -19,7 +19,7 @@ class StrataInvocationTest {
                                            @Nullable String interpreter, @Nullable Path strataProjectDir) {
         return new VerifierOptions(new PrintWriter(Writer.nullWriter()), Path.of("."), List.of(), null, false,
                 false, List.of(), false, true, false, false, false, interpret, entry, fuel, false, interpreter,
-                strataProjectDir);
+                strataProjectDir, false);
     }
 
     @Test

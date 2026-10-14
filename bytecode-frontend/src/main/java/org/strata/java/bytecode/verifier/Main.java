@@ -1,6 +1,7 @@
 package org.strata.java.bytecode.verifier;
 
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.strata.java.bytecode.unfolding.Exports;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Model.CommandSpec;
@@ -27,7 +28,8 @@ import java.util.function.Function;
  * options of JFE's {@code verifier} that this frontend implements, under the
  * same names, so either verifier can be pointed at the same input. JFE's
  * {@code --filter-position} and {@code --include-filter-dependencies} are not
- * implemented here and are rejected as unknown.
+ * implemented here and are rejected as unknown. {@code --no-constant-folding}
+ * is this frontend's own: JFE reads the source, which javac has not folded.
  */
 public final class Main {
     private static @Nullable Path specLibrary;
@@ -137,8 +139,20 @@ public final class Main {
                         + "without lowering to Core. Its --fuel bounds each entry point, not each call.")
         @Nullable String interpreter;
 
+        @Option(names = "--no-constant-folding",
+                description = "Compile the input without javac's constant folding where possible, so its operations "
+                        + "on constants are verified (7 / 2 as a division, not the constant 3). Constants that decide "
+                        + "a statement's control flow stay folded. Uses javac's internals, which the "
+                        + "bytecode-verifier script exports.")
+        boolean noConstantFolding;
+
         @Override
         public Integer call() throws IOException {
+            var missingExports = noConstantFolding ? Exports.missing() : List.<String>of();
+            if (!missingExports.isEmpty()) {
+                throw new CommandLine.ParameterException(spec.commandLine(),
+                        "Option '--no-constant-folding' needs the JVM options " + String.join(" ", missingExports));
+            }
             // As in JFE: fuel 0 would report "out of fuel" before executing anything.
             if (fuel != null && fuel <= 0) {
                 throw new CommandLine.ParameterException(spec.commandLine(),
@@ -174,7 +188,7 @@ public final class Main {
             var options = new VerifierOptions(out, workingDirectory, classPath,
                     emitLaurel, emitLaurel != null, showRanges, splitPaths(contractPaths),
                     paths, verifyByDefault, false, verbose, trackTime,
-                    interpret, entry, fuel, false, interpreter, strataProjectDir);
+                    interpret, entry, fuel, false, interpreter, strataProjectDir, noConstantFolding);
             return new VerifierDriver(options).verifyJavaPathsExit(inputs);
         }
 

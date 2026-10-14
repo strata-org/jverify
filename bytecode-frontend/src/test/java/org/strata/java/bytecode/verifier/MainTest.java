@@ -58,6 +58,9 @@ class MainTest {
             }
             """;
 
+    /** This frontend's options that JFE does not have. */
+    private static final Set<String> BYTECODE_FRONTEND_ONLY = Set.of("--no-constant-folding");
+
     /** JFE's options this command does not implement, rejected as unknown. */
     private static final Set<String> SOURCE_FRONTEND_ONLY =
             Set.of("--filter-position", "--include-filter-dependencies");
@@ -551,9 +554,214 @@ class MainTest {
     }
 
     /**
-     * Every option is JFE's, with JFE's arity, type and default, and every JFE
-     * option is here but the two this frontend does not implement: a new JFE
-     * option fails this until it is added or listed.
+     * Operations javac folds, {@code 6 & 3} to 2 and {@code "a" + "b" == "ab"} to true (a constant String
+     * is interned). Unfolded, the translation sees the {@code &} and the {@code ==} on Strings, and refuses
+     * both, as JFE does.
+     */
+    private static final String REFUSED = """
+            package p;
+
+            import static org.strata.jverify.JVerify.check;
+
+            class Refused {
+                static void and() {
+                    check((6 & 3) == 2);
+                }
+
+                static void strings() {
+                    check("a" + "b" == "ab");
+                }
+            }
+            """;
+
+    @Test
+    void noConstantFoldingVerifiesTheOperationsTheSourceWrites(@TempDir Path tmp) throws Exception {
+        var file = write(tmp, "Refused.java", REFUSED).toString();
+        var folded = run(file);
+        assertEquals(0, folded.exitCode(), folded::toString);
+        var unfolded = run("--no-constant-folding", file);
+        assertEquals(2, unfolded.exitCode(), unfolded::toString);
+        assertTrue(unfolded.out().contains("operator &(int,int) is not supported"), unfolded::toString);
+        assertTrue(unfolded.out().contains("'==' is only allowed when at least one operand's type is impure"),
+                unfolded::toString);
+    }
+
+    private static final String OVERFLOW = """
+            package p;
+
+            import static org.strata.jverify.JVerify.check;
+
+            class Ovf {
+                static void wraps() {
+                    check(65536 * 65536 == 0);
+                    check(Integer.MAX_VALUE + 1 < 0);
+                    check(Integer.MIN_VALUE - 1 > 0);
+                    check(Integer.MIN_VALUE / -1 < 0);
+                    check(Long.MAX_VALUE + 1 < 0);
+                    check(-Long.MIN_VALUE < 0);
+                }
+            }
+            """;
+
+    /**
+     * An overflowing constant expression stays folded with --no-constant-folding: the frontend
+     * computes int and long arithmetic without wrapping, so unfolded it would refute
+     * these checks, and prove their negations.
+     */
+    @Test
+    void noConstantFoldingKeepsAnOverflowingConstantFolded(@TempDir Path tmp) throws Exception {
+        var holds = run("--no-constant-folding", write(tmp, "Ovf.java", OVERFLOW).toString());
+        assertEquals(0, holds.exitCode(), holds::toString);
+        Path negated = Files.createDirectories(tmp.resolve("negated"));
+        var fails = run("--no-constant-folding", write(negated, "Ovf.java",
+                OVERFLOW.replaceAll("check\\((.*)\\);", "check(!($1));")).toString());
+        assertEquals(4, fails.exitCode(), fails::toString);
+    }
+
+    /**
+     * Constant operations where the frontend reads code specially: at the joins of an if, a ?:, a
+     * switch expression and an &&, and in contract clauses, a finally block and a quantifier's body.
+     */
+    private static final String PLACES = """
+            package p;
+
+            import static org.strata.jverify.JVerify.check;
+            import static org.strata.jverify.JVerify.forall;
+            import static org.strata.jverify.JVerify.implies;
+            import static org.strata.jverify.JVerify.precondition;
+            import static org.strata.jverify.JVerify.throwsOn;
+
+            class Places {
+                static class Failure extends Exception {}
+
+                static void branch() {
+                    int x = 0;
+                    if (2 * 3 == 6) {
+                        x = 1;
+                    }
+                    check(x == 1);
+                }
+
+                static void ternary() {
+                    int x = (5 > 3) ? 10 : 20;
+                    check(x == 10);
+                }
+
+                static void switchArm() {
+                    int k = 1;
+                    int v = switch (k) { case 1 -> 2 * 3; default -> 7 / 2; };
+                    check(v == 6);
+                }
+
+                static void underAnAnd() {
+                    final int c = 20;
+                    int v = 0;
+                    v += ((false && (10 > (-6))) ? ((short) 5) : (((-11) - c) - ((short) 1)));
+                    check(v == -32);
+                }
+
+                static void pre(int n) {
+                    precondition(n == 1 + 1);
+                    check(n == 2);
+                }
+
+                static void callsPre() {
+                    pre(2);
+                }
+
+                static int throwing(int b) throws Failure {
+                    throwsOn(b == 1 - 1);
+                    if (b == 0) {
+                        throw new Failure();
+                    }
+                    return b;
+                }
+
+                static void finallyBlock() {
+                    int r = 0;
+                    try {
+                        r = 1;
+                    } finally {
+                        r = r + 2 * 3;
+                    }
+                    check(r == 7);
+                }
+
+                static void quantifier() {
+                    check(forall((int i) -> implies(i > 2 * 3, i > 6)));
+                }
+            }
+            """;
+
+    @Test
+    void noConstantFoldingVerifiesWhatFoldingVerifies(@TempDir Path tmp) throws Exception {
+        var places = write(tmp, "Places.java", PLACES).toString();
+        for (var args : List.of(List.of(places), List.of("--no-constant-folding", places))) {
+            var r = run(args.toArray(String[]::new));
+            assertEquals(0, r.exitCode(), () -> args + ": " + r);
+            // The nine methods and the two implicit constructors.
+            assertTrue(r.out().contains("Verified methods: 11"), () -> args + ": " + r);
+        }
+    }
+
+    /**
+     * Loops whose exits constant conditions decide. Unfolded, the frontend translates returnOut's
+     * while (true) to return 1, and the if (DEBUG) gives breaksOut's while (true) a second exit,
+     * which makes it return 1 too.
+     */
+    private static final String LOOPS = """
+            package p;
+
+            import static org.strata.jverify.JVerify.check;
+
+            class Loops {
+                static final boolean DEBUG = false;
+
+                static int returnOut() {
+                    int i = 0;
+                    while (true) {
+                        i = i + 1;
+                        if (i == 2 * 3) return i;
+                    }
+                }
+
+                static void callsReturnOut() {
+                    check(returnOut() == 6);
+                }
+
+                static int breaksOut() {
+                    int i = 0;
+                    while (true) {
+                        i = i + 1;
+                        if (DEBUG) {
+                            i = -1;
+                            break;
+                        }
+                        if (i == 6) break;
+                    }
+                    return i;
+                }
+
+                static void callsBreaksOut() {
+                    check(breaksOut() == 6);
+                }
+            }
+            """;
+
+    @Test
+    void noConstantFoldingAddsNoLoopExit(@TempDir Path tmp) throws Exception {
+        var loops = write(tmp, "Loops.java", LOOPS).toString();
+        for (var entry : List.of("p.Loops#callsReturnOut", "p.Loops#callsBreaksOut")) {
+            var r = run("--no-constant-folding", "--interpret", "--entry", entry, loops);
+            assertEquals(0, r.exitCode(), () -> entry + ": " + r);
+        }
+    }
+
+    /**
+     * Every option is JFE's, with JFE's arity, type and default, but
+     * --no-constant-folding, and every JFE option is here but the two this
+     * frontend does not implement: a new JFE option fails this until it is
+     * added or listed.
      */
     @Test
     void optionsMatchTheSourceFrontend() throws Exception {
@@ -561,6 +769,7 @@ class MainTest {
         jfeCommand.setAccessible(true);
         var jfe = options(new CommandLine(jfeCommand.newInstance()).getCommandSpec());
         var ours = options(new CommandLine(new Main.VerifyCommand(name -> null)).getCommandSpec());
+        ours.keySet().removeAll(BYTECODE_FRONTEND_ONLY);
 
         var expected = new TreeSet<>(jfe.keySet());
         expected.removeAll(SOURCE_FRONTEND_ONLY);

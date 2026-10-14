@@ -31,6 +31,10 @@ import java.util.function.Supplier;
  * @param strataProjectDir a Strata project directory to run Strata from, with
  *        {@code lake exe strata} in its {@code StrataCLI} subdirectory, as
  *        JFE's {@code --strata} does; null runs {@code strata} from PATH.
+ * @param noConstantFolding compile the input sources without javac's
+ *        constant folding where possible (:bytecode-unfolding), so their
+ *        operations on constants reach the translation. Library contracts
+ *        are compiled as usual.
  */
 public record VerifierOptions(PrintWriter outWriter,
                               Path workingDirectory,
@@ -49,7 +53,8 @@ public record VerifierOptions(PrintWriter outWriter,
                               @Nullable Integer fuel,
                               boolean jvmVerifyClassfiles,
                               @Nullable String interpreter,
-                              @Nullable Path strataProjectDir) {
+                              @Nullable Path strataProjectDir,
+                              boolean noConstantFolding) {
     public VerifierOptions(PrintWriter outWriter,
                            Path workingDirectory,
                            Collection<Path> classPathEntries,
@@ -68,7 +73,7 @@ public record VerifierOptions(PrintWriter outWriter,
                            boolean jvmVerifyClassfiles) {
         this(outWriter, workingDirectory, classPathEntries, printSerializedOutputProgram, emitLaurelOnly,
                 showRanges, contractSourcePath, showFilepaths, verifyByDefault, continueOnErrors, verbose,
-                shouldTrackTime, interpret, entry, fuel, jvmVerifyClassfiles, null, null);
+                shouldTrackTime, interpret, entry, fuel, jvmVerifyClassfiles, null, null, false);
     }
 
     public <T> T time(String name, Supplier<T> supply) {

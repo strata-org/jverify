@@ -1,6 +1,7 @@
 package org.strata.java.bytecode.frontend;
 
 import com.sun.source.util.JavacTask;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.tools.Diagnostic;
 import javax.tools.DiagnosticCollector;
@@ -22,6 +23,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 /**
@@ -83,9 +85,22 @@ public final class BytecodeFrontend {
                                         List<Path> classPath,
                                         Path outputDir,
                                         Writer diagnosticOutput) throws IOException {
+        return compile(sources, classPath, outputDir, diagnosticOutput, null);
+    }
+
+    /**
+     * As {@link #compile(List, List, Path, Writer)}, handing each javac task to
+     * {@code beforeCall} before it runs: a listener added there, such as
+     * constant unfolding's, sees the task's whole compilation.
+     */
+    public static CompileResult compile(List<? extends JavaFileObject> sources,
+                                        List<Path> classPath,
+                                        Path outputDir,
+                                        Writer diagnosticOutput,
+                                        @Nullable Consumer<JavacTask> beforeCall) throws IOException {
         Files.createDirectories(outputDir);
         var full = compileWith(List.of("-g", "-Xjcov", "-proc:none"),
-                sources, classPath, outputDir, diagnosticOutput);
+                sources, classPath, outputDir, diagnosticOutput, beforeCall);
         if (!full.internalFailure()) {
             return full.result();
         }
@@ -107,7 +122,7 @@ public final class BytecodeFrontend {
                         + "); retrying with -g only, so diagnostics carry line precision");
         deleteContents(outputDir);
         var degraded = compileWith(List.of("-g", "-proc:none"),
-                sources, classPath, outputDir, diagnosticOutput);
+                sources, classPath, outputDir, diagnosticOutput, beforeCall);
         var r = degraded.result();
         return new CompileResult(r.classesDir(), r.success(), r.diagnostics(), true, r.types());
     }
@@ -162,7 +177,8 @@ public final class BytecodeFrontend {
                                        List<? extends JavaFileObject> sources,
                                        List<Path> classPath,
                                        Path outputDir,
-                                       Writer diagnosticOutput) throws IOException {
+                                       Writer diagnosticOutput,
+                                       @Nullable Consumer<JavacTask> beforeCall) throws IOException {
         var compiler = ToolProvider.getSystemJavaCompiler();
         var diagnostics = new DiagnosticCollector<JavaFileObject>();
         try (var fileManager = compiler.getStandardFileManager(diagnostics, null, null)) {
@@ -177,6 +193,9 @@ public final class BytecodeFrontend {
                     diagnostics, options, null, sources);
             var recorder = new TypeRecorder(task, outputDir);
             task.addTaskListener(recorder);
+            if (beforeCall != null) {
+                beforeCall.accept(task);
+            }
             try {
                 boolean success = task.call();
                 return new Attempt(

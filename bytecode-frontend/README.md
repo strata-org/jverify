@@ -68,7 +68,7 @@ this); only position precision degrades:
 
 ```
 bytecode-verifier [--interpret [--entry C#m] [--fuel N] [--interpreter core|laurel]]
-                  [--emit-laurel FILE] [--show-ranges]
+                  [--emit-laurel FILE] [--show-ranges] [--no-constant-folding]
                   [--paths] [--verify-by-default=B] [--verbose] [--track-time]
                   [--strata DIR]
                   FILE.java... [--classpath P...] [--contract-path P...]
@@ -87,6 +87,12 @@ checked out there), or, with `--strata DIR` or `JVERIFY_STRATA=DIR`, as
 `lake exe strata` in `DIR/StrataCLI` (`DIR` being the jverify repository's
 `Strata` submodule, or a Brazil workspace's `src` once StrataCLI is built there).
 
+`--no-constant-folding`, this frontend's own option, compiles the input
+without javac's constant folding where possible (`:bytecode-unfolding`), so
+`check(7 / 2 == 3)` reaches the translation as a division rather than as
+`check(true)`. Constants that decide a statement's control flow, such as the
+condition of `if ((6 & 3) == 2)`, stay folded.
+
 ## Modules
 
 - **`bytecode-frontend`** -- classfile analysis (CFG/dominators/CRT/locals,
@@ -98,6 +104,8 @@ checked out there), or, with `--strata DIR` or `JVERIFY_STRATA=DIR`, as
   `compileBytecodeLib` -> `bytecodeLibJar`), not as a separate Gradle module.
   It has no hand-written sources: they are *generated* from `:library`. It is
   deliberately **not** a module -- see the retention note below.
+- **`bytecode-unfolding`** -- javac without constant folding, for
+  `--no-constant-folding` (`org.strata.java.bytecode.unfolding`).
 
 ## Relationship to JFE (one-way, JFE is unaware)
 

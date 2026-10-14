@@ -5,6 +5,7 @@ import org.strata.jverify.common.Range;
 import org.strata.jverify.verifier.DiagnosticWithRange;
 import org.strata.jverify.verifier.JVerifyResults;
 import org.strata.java.bytecode.frontend.BytecodeFrontend;
+import org.strata.java.bytecode.unfolding.ConstantUnfolding;
 import org.strata.java.bytecode.verifier.compiler.BytecodeToLaurelCompiler;
 import org.strata.java.bytecode.verifier.compiler.LibraryContracts;
 import org.strata.java.bytecode.verifier.compiler.Reporter;
@@ -70,8 +71,8 @@ public class VerifierDriver {
                     () -> {
                         try {
                             return BytecodeFrontend.compile(readFiles,
-                                    List.copyOf(options.classPathEntries()), classesDir,
-                                    options.outWriter());
+                                    List.copyOf(options.classPathEntries()), classesDir, options.outWriter(),
+                                    options.noConstantFolding() ? ConstantUnfolding::install : null);
                         } catch (IOException e) {
                             throw new RuntimeException(e);
                         }
