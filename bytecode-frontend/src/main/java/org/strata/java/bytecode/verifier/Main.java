@@ -92,7 +92,7 @@ public final class Main {
         @Option(names = "--contract-path", description = "Includes contracts from source code in these paths", arity = "0..*")
         @Nullable List<String> contractPaths;
 
-        @Option(names = "--show-ranges", description = "Show source location ranges in diagnostics")
+        @Option(names = "--show-ranges", description = "Has no effect: diagnostics always show their ranges")
         boolean showRanges;
 
         @Option(names = "--paths", description = "Show file paths instead of names")
@@ -125,7 +125,8 @@ public final class Main {
 
         @Option(names = "--entry", paramLabel = "PROC",
                 description = "Override the --interpret entry point by name, e.g. `com.example.Foo#run`, "
-                        + "instead of using methods annotated @InterpretEntry.")
+                        + "instead of using methods annotated @InterpretEntry. The method must be static "
+                        + "and take no arguments.")
         @Nullable String entry;
 
         @Option(names = "--fuel", paramLabel = "N",
@@ -175,7 +176,7 @@ public final class Main {
                 throw new CommandLine.ParameterException(spec.commandLine(),
                         "Cannot write --emit-laurel file " + emitLaurel + ": it is a directory");
             }
-            var strataProjectDir = strataProjectDir();
+            var strataProjectDir = emitLaurel == null ? strataProjectDir() : null;
             var out = new PrintWriter(spec.commandLine().getOut());
             var workingDirectory = Path.of(System.getProperty("user.dir"));
 

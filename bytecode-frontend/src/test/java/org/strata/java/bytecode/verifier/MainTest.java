@@ -448,6 +448,21 @@ class MainTest {
         assertFalse(r.out().contains("assertion does not hold"), r::toString);
     }
 
+    /** {@code tmp} has no StrataCLI, which only running Strata would need. */
+    @Test
+    void emitLaurelIgnoresStrataAndJverifyStrata(@TempDir Path tmp) throws Exception {
+        var input = write(tmp, "NatParam.java", NAT_PARAM).toString();
+        var fromEnv = tmp.resolve("env.ion");
+        var r = run(Map.of("JVERIFY_STRATA", tmp.toString()), "--emit-laurel", fromEnv.toString(), input);
+        assertEquals(0, r.exitCode(), r::toString);
+        assertTrue(Files.size(fromEnv) > 0, r::toString);
+
+        var fromOption = tmp.resolve("option.ion");
+        r = run("--strata", tmp.toString(), "--emit-laurel", fromOption.toString(), input);
+        assertEquals(0, r.exitCode(), r::toString);
+        assertTrue(Files.size(fromOption) > 0, r::toString);
+    }
+
     @Test
     void missingContractPathIsRefused(@TempDir Path tmp) throws Exception {
         var missing = tmp.resolve("no-such-contracts");

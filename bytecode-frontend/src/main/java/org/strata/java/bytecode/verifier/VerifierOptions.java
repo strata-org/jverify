@@ -10,9 +10,7 @@ import java.util.Collection;
 import java.util.function.Supplier;
 
 /**
- * Options for a verification run. Port of StrataJavaFrontEnd's
- * {@code org.strata.jverify.verifier.VerifierOptions} minus the
- * javac-frontend-only PositionFilter and plus the bytecode-frontend inputs:
+ * Options for a verification run.
  *
  * @param classPathEntries entries put on javac's classpath when compiling the
  *        input sources with {@code -g -Xjcov} (must include the bytecode-frontend spec library

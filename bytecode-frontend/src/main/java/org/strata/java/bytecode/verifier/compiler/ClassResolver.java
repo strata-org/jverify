@@ -6,7 +6,8 @@ import java.util.Map;
 
 /**
  * The type universe: every class this compilation knows about (program
- * classfiles, javac-classpath classfiles, and JCL/library classes reached
+ * classfiles, javac-classpath classfiles, what javac knew of the non-JDK
+ * classes the program mentions, and JCL/library classes reached
  * reflectively), with name resolution, superclass/interface walks, and the
  * classfile-driven policy gates (opt-out, overload, dispatch).
  *
