@@ -31,6 +31,8 @@ final class ClassResolver {
     /** javac classpath entries, for inventorying library contractees' methods. */
     private final List<java.nio.file.Path> classPath;
     private final boolean verifyByDefault;
+    /** javac's account of the classes the compiled classfiles mention, which the hierarchy walks take first. */
+    private Map<String, org.strata.java.bytecode.frontend.TypeFacts> javacTypes = Map.of();
 
     ClassResolver(List<java.nio.file.Path> classPath, boolean verifyByDefault) {
         this.classPath = classPath;
@@ -174,8 +176,25 @@ final class ClassResolver {
 
     // --- Hierarchy walks ---
 
-    /** Direct interface fqns of {@code fqn} (classfile if a program type, else reflection). */
+    void useJavacTypes(Map<String, org.strata.java.bytecode.frontend.TypeFacts> types) {
+        this.javacTypes = types;
+    }
+
+    /**
+     * What javac knew of a class outside both the program and the JDK, or null;
+     * then reflection answers, which sees only the classes of this frontend's own JVM,
+     * and may find another class of the same name there.
+     */
+    private org.strata.java.bytecode.frontend.TypeFacts javacFacts(String fqn) {
+        return programClassModels.containsKey(fqn) ? null : javacTypes.get(fqn);
+    }
+
+    /** Direct interface fqns of {@code fqn} (classfile if a program type, else {@link #javacFacts}, else reflection). */
     List<String> directInterfacesOf(String fqn) {
+        var facts = javacFacts(fqn);
+        if (facts != null) {
+            return new java.util.ArrayList<>(facts.interfaces());
+        }
         var out = new java.util.ArrayList<String>();
         var model = programClassModels.get(fqn);
         if (model != null) {
@@ -193,8 +212,12 @@ final class ClassResolver {
         return out;
     }
 
-    /** True iff {@code fqn} is an interface (classfile flags if a program type, else reflection). */
+    /** True iff {@code fqn} is an interface (classfile flags if a program type, else {@link #javacFacts}, else reflection). */
     boolean isInterface(String fqn) {
+        var facts = javacFacts(fqn);
+        if (facts != null) {
+            return facts.isInterface();
+        }
         var model = programClassModels.get(fqn);
         if (model != null) {
             return (model.flags().flagsMask() & java.lang.classfile.ClassFile.ACC_INTERFACE) != 0;
@@ -206,13 +229,17 @@ final class ClassResolver {
     /**
      * The direct superclass fqn of {@code fqn}, or null at the top of the
      * chain (or for an unresolvable class). Program classes resolve from
-     * their classfiles; everything else (JCL, libraries on the verifier's own
-     * classpath) via reflection without initialization.
+     * their classfiles; everything else from {@link #javacFacts}, else via
+     * reflection without initialization.
      */
     String superclassOf(String fqn) {
         String prog = programSuper.get(fqn);
         if (prog != null) {
             return prog;
+        }
+        var facts = javacFacts(fqn);
+        if (facts != null) {
+            return facts.superclass();
         }
         Class<?> c = loadClassReflectively(fqn);
         if (c == null) {
@@ -619,9 +646,14 @@ final class ClassResolver {
     /**
      * The methods named {@code name} that {@code fqn} DECLARES (not inherits),
      * synthetic and bridge methods excluded. Program types read their classfile,
-     * everything else reflection, matching the rest of this class.
+     * everything else {@link #javacFacts} or reflection, matching the rest of this class.
      */
     private List<Member> declaredMembers(String fqn, String name) {
+        var facts = javacFacts(fqn);
+        if (facts != null) {
+            return facts.methods().stream().filter(m -> m.name().equals(name))
+                    .map(m -> new Member(m.params(), m.inheritable())).toList();
+        }
         var out = new java.util.ArrayList<Member>();
         var cm = programClassModels.get(fqn);
         if (cm != null) {

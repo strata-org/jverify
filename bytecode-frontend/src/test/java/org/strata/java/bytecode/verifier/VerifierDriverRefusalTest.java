@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -65,7 +66,7 @@ class VerifierDriverRefusalTest {
 
         var reporter = new Reporter();
         var results = new VerifierDriver(options(true)).analyzeClassesDir(
-                tmp, List.of(URI.create("file:///Broken.java")), reporter, false, LibraryContracts.none());
+                tmp, List.of(URI.create("file:///Broken.java")), reporter, false, LibraryContracts.none(), Map.of());
 
         var noVerdict = assertInstanceOf(JVerifyResults.NoVerdict.class, results);
         assertEquals(2, noVerdict.exitCode());
@@ -85,7 +86,7 @@ class VerifierDriverRefusalTest {
 
         var reporter = new Reporter();
         var results = new VerifierDriver(options(false)).analyzeClassesDir(
-                tmp, List.of(URI.create("file:///Broken.java")), reporter, false, LibraryContracts.none());
+                tmp, List.of(URI.create("file:///Broken.java")), reporter, false, LibraryContracts.none(), Map.of());
 
         assertTrue(results.diagnostics().stream()
                         .noneMatch(d -> d.getMessage(null).contains("JVM bytecode verification")),
@@ -105,7 +106,7 @@ class VerifierDriverRefusalTest {
 
         var reporter = new Reporter();
         var results = new VerifierDriver(options(false)).analyzeClassesDir(
-                tmp, List.of(URI.create("file:///Truncated.java")), reporter, false, LibraryContracts.none());
+                tmp, List.of(URI.create("file:///Truncated.java")), reporter, false, LibraryContracts.none(), Map.of());
 
         var noVerdict = assertInstanceOf(JVerifyResults.NoVerdict.class, results);
         assertEquals(2, noVerdict.exitCode());

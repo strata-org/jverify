@@ -167,6 +167,12 @@ public class BytecodeToLaurelCompiler {
         shouldVerifies.push(verifyByDefault ? ShouldVerifyMode.DefaultYes : ShouldVerifyMode.DefaultNo);
     }
 
+    /** javac's account of the classes the input's classfiles mention, which the hierarchy walks take first. */
+    public BytecodeToLaurelCompiler withJavacTypes(Map<String, org.strata.java.bytecode.frontend.TypeFacts> types) {
+        resolver.useJavacTypes(types);
+        return this;
+    }
+
     public record AnalysisResult(Program program,
                                  PositionResolver positions,
                                  Map<URI, IntervalTree<Integer, MethodVerificationStatus>> methodStatuses) {

@@ -1,17 +1,26 @@
 package org.strata.java.bytecode.frontend;
 
+import com.sun.source.util.JavacTask;
+import com.sun.source.util.TaskEvent;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.strata.jverify.verifier.SourceFile;
 
+import javax.tools.ToolProvider;
+import java.io.IOException;
 import java.io.PrintWriter;
+import java.lang.classfile.ClassFile;
 import java.lang.classfile.MethodModel;
+import java.lang.constant.ClassDesc;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -133,5 +142,28 @@ class BytecodeFrontendTest {
                 new PrintWriter(System.err));
         assertFalse(result.success());
         assertFalse(result.diagnostics().isEmpty(), "javac diagnostics should be captured");
+    }
+
+    /** A classfile directory the recorder cannot read fails the compile's caller, not javac. */
+    @Test
+    void aRecordingFailureIsThrownAfterTheCompilation(@TempDir Path tmp) {
+        var task = (JavacTask) ToolProvider.getSystemJavaCompiler().getTask(null, null, null, null, null, null);
+        var recorder = new TypeRecorder(task, tmp.resolve("missing"));
+        recorder.finished(new TaskEvent(TaskEvent.Kind.COMPILATION));
+        assertThrows(NoSuchFileException.class, recorder::types);
+    }
+
+    /** {@code dep.A} and {@code dep.B} extend each other, which javac accepts of classfiles a program only mentions. */
+    @Test
+    void aSuperclassCycleOnTheClasspathFailsTheCompile(@TempDir Path tmp) throws Exception {
+        Path dep = Files.createDirectories(tmp.resolve("classpath/dep"));
+        ClassDesc a = ClassDesc.of("dep.A");
+        ClassDesc b = ClassDesc.of("dep.B");
+        Files.write(dep.resolve("A.class"), ClassFile.of().build(a, c -> c.withFlags(ClassFile.ACC_PUBLIC).withSuperclass(b)));
+        Files.write(dep.resolve("B.class"), ClassFile.of().build(b, c -> c.withFlags(ClassFile.ACC_PUBLIC).withSuperclass(a)));
+        var e = assertThrows(IOException.class, () -> BytecodeFrontend.compile(
+                List.of(new SourceFile(tmp.resolve("U.java"), "class U { static void m(dep.A a) { } }")),
+                List.of(tmp.resolve("classpath")), tmp.resolve("classes"), new PrintWriter(System.err)));
+        assertTrue(e.getMessage().startsWith("cyclic inheritance involving dep."), e::getMessage);
     }
 }

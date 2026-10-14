@@ -4,7 +4,6 @@ import org.strata.jverify.common.Position;
 import org.strata.jverify.common.Range;
 import org.strata.jverify.verifier.DiagnosticWithRange;
 import org.strata.jverify.verifier.JVerifyResults;
-import org.strata.jverify.verifier.SourceFile;
 import org.strata.java.bytecode.frontend.BytecodeFrontend;
 import org.strata.java.bytecode.verifier.compiler.BytecodeToLaurelCompiler;
 import org.strata.java.bytecode.verifier.compiler.LibraryContracts;
@@ -14,15 +13,18 @@ import org.strata.java.bytecode.verifier.laurel.StrataDiagnostic;
 
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
+import javax.tools.SimpleJavaFileObject;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.UncheckedIOException;
 import java.io.Writer;
 import java.net.URI;
+import java.nio.charset.CharacterCodingException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -42,7 +44,17 @@ public class VerifierDriver {
         List<JavaFileObject> readFiles = new ArrayList<>();
         for (Path p : files) {
             Path normalized = options.workingDirectory().resolve(p).normalize();
-            readFiles.add(new SourceFile(normalized, Files.readString(normalized)));
+            // Read when javac asks, so that a file it cannot decode is a Java error, not an exception.
+            readFiles.add(new SimpleJavaFileObject(normalized.toUri(), JavaFileObject.Kind.SOURCE) {
+                @Override
+                public CharSequence getCharContent(boolean ignoreEncodingErrors) throws IOException {
+                    try {
+                        return Files.readString(normalized);
+                    } catch (CharacterCodingException e) {
+                        throw new IOException("not valid UTF-8", e);
+                    }
+                }
+            });
         }
         return verifyJavaFiles(readFiles);
     }
@@ -101,7 +113,7 @@ public class VerifierDriver {
             var contracts = LibraryContracts.of(LibraryContracts.objectContractSource(), userSources,
                     List.copyOf(options.classPathEntries()));
             return analyzeClassesDir(classesDir, sourceUris, reporter,
-                    compileResult.degradedToLineNumbers(), contracts);
+                    compileResult.degradedToLineNumbers(), contracts, compileResult.types());
         } finally {
             deleteRecursively(classesDir);
         }
@@ -119,9 +131,12 @@ public class VerifierDriver {
      * @param tierIsSelfInflicted true when this run's own javac step degraded
      *        to plain {@code -g} (see {@link BytecodeFrontend.CompileResult#degradedToLineNumbers})
      * @param contracts the library contracts the translation binds and applies
+     * @param javacTypes what javac knew of the classes the classfiles mention
+     *        ({@link BytecodeFrontend.CompileResult#types})
      */
     JVerifyResults analyzeClassesDir(Path classesDir, List<URI> sourceUris, Reporter reporter,
-                                     boolean tierIsSelfInflicted, LibraryContracts contracts)
+                                     boolean tierIsSelfInflicted, LibraryContracts contracts,
+                                     Map<String, org.strata.java.bytecode.frontend.TypeFacts> javacTypes)
             throws IOException {
         List<BytecodeFrontend.ClassSource> classes;
         try {
@@ -147,6 +162,7 @@ public class VerifierDriver {
                     () -> new BytecodeToLaurelCompiler(reporter, options.verifyByDefault(),
                             List.copyOf(options.classPathEntries()), tierIsSelfInflicted,
                             options.jvmVerifyClassfiles(), contracts)
+                            .withJavacTypes(javacTypes)
                             .analyze(sourceUris, classes));
         } catch (org.strata.java.bytecode.verifier.compiler.RefusedInputException e) {
             // The input was refused before translation -- either it carries
@@ -174,7 +190,15 @@ public class VerifierDriver {
     }
 
     public int verifyJavaFilesExit(List<JavaFileObject> readFiles) throws IOException {
-        var results = verifyJavaFiles(readFiles);
+        return report(verifyJavaFiles(readFiles));
+    }
+
+    /** {@link #verifyJavaPaths}, reporting the results as JFE's CLI does; returns the exit code. */
+    public int verifyJavaPathsExit(List<Path> files) throws IOException {
+        return report(verifyJavaPaths(files));
+    }
+
+    private int report(JVerifyResults results) {
         outputVerificationResults(results, options.outWriter());
         options.outWriter().flush();
         return results.exitCode();

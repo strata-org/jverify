@@ -3,6 +3,7 @@ package org.strata.java.bytecode.verifier.laurel;
 import com.amazon.ion.IonValue;
 import com.amazon.ion.system.IonBinaryWriterBuilder;
 import com.amazon.ion.system.IonSystemBuilder;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.strata.jverify.common.Position;
 import org.strata.jverify.common.Range;
 import org.strata.jverify.laurel.Program;
@@ -20,6 +21,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
@@ -87,34 +89,78 @@ public class StrataBackend {
         return runVerifier(positions, methodStatuses, serializedProgram);
     }
 
+    /**
+     * How Strata runs on a serialized program: the launcher that starts it, its
+     * arguments, and the directory it runs in (null: the current one).
+     */
+    record Invocation(List<String> launcher, List<String> arguments, @Nullable Path directory) {
+        /**
+         * Without a Strata project directory, {@code strata} from PATH. Under
+         * Brazil, StrataCLI is a build-tool: its {@code runtime/bin/} is prepended
+         * to PATH by {@code brazil-build}, and that PATH is inherited by Gradle
+         * and by each Test task's forked JVM. With one, {@code lake exe -q strata}
+         * in its StrataCLI subpackage, where the executable lives.
+         */
+        static Invocation of(VerifierOptions options) {
+            var arguments = new ArrayList<String>();
+            if (options.interpret()) {
+                // Interpret mode shares the `==== DIAGNOSTICS ====` output format
+                // with laurelAnalyzeBinary, so parseStrataOutput is reused as is.
+                arguments.add("laurelInterpretBinary");
+                if (options.entry() != null) {
+                    // Map the user-facing `pkg.Class#method` form to the Laurel
+                    // procedure name (`pkg.Class_method`).
+                    arguments.add("--entry");
+                    arguments.add(options.entry().replace('#', '_'));
+                }
+                if (options.fuel() != null) {
+                    arguments.add("--fuel");
+                    arguments.add(Integer.toString(options.fuel()));
+                }
+                if (options.interpreter() != null) {
+                    arguments.add("--interpreter");
+                    arguments.add(options.interpreter());
+                }
+            } else {
+                arguments.add("laurelAnalyzeBinary");
+                arguments.add("--solver");
+                arguments.add("z3");
+            }
+            var projectDir = options.strataProjectDir();
+            return projectDir == null
+                    ? new Invocation(List.of("strata"), List.copyOf(arguments), null)
+                    : new Invocation(List.of("lake", "exe", "-q", "strata"), List.copyOf(arguments),
+                            projectDir.resolve("StrataCLI"));
+        }
+
+        List<String> command() {
+            var command = new ArrayList<>(launcher);
+            command.addAll(arguments);
+            return command;
+        }
+
+        ProcessBuilder processBuilder() {
+            var builder = new ProcessBuilder(command());
+            if (directory != null) {
+                builder.directory(directory.toFile());
+            }
+            return builder;
+        }
+
+        /** What failed to start, for the message. */
+        String describe() {
+            var launched = "`" + String.join(" ", launcher) + "`";
+            return directory == null
+                    ? launched + " from PATH (pass --strata <path> or set JVERIFY_STRATA)"
+                    : launched + " in " + directory;
+        }
+    }
+
     public JVerifyResults runVerifier(PositionResolver positions,
                                       Map<URI, IntervalTree<Integer, MethodVerificationStatus>> methodStatuses,
                                       IonValue serializedProgram) {
-        // Rely on `strata` being on PATH. Under Brazil this is achieved by
-        // declaring StrataCLI as a build-tool: its `runtime/bin/` is
-        // prepended to PATH by `brazil-build`, and that PATH is inherited by
-        // Gradle and by each Test task's forked JVM.
-        var command = new ArrayList<String>(List.of("strata"));
-        if (verifierOptions.interpret()) {
-            // Interpret mode shares the `==== DIAGNOSTICS ====` output format
-            // with laurelAnalyzeBinary, so parseStrataOutput is reused as is.
-            command.add("laurelInterpretBinary");
-            if (verifierOptions.entry() != null) {
-                // Map the user-facing `pkg.Class#method` form to the Laurel
-                // procedure name (`pkg.Class_method`).
-                command.add("--entry");
-                command.add(verifierOptions.entry().replace('#', '_'));
-            }
-            if (verifierOptions.fuel() != null) {
-                command.add("--fuel");
-                command.add(Integer.toString(verifierOptions.fuel()));
-            }
-        } else {
-            command.add("laurelAnalyzeBinary");
-            command.add("--solver");
-            command.add("z3");
-        }
-        var processBuilder = new ProcessBuilder(command);
+        var invocation = Invocation.of(verifierOptions);
+        var processBuilder = invocation.processBuilder();
         return verifierOptions.time("Running Strata", () -> {
             try (var process = new AutoClosingProcessWrapper(processBuilder.redirectErrorStream(true).start())) {
                 try (var strataStdin = process.getProcess().getOutputStream();
@@ -123,8 +169,7 @@ public class StrataBackend {
                 }
                 return parseStrataOutput(positions, methodStatuses, verifierOptions, process.getProcess());
             } catch (InterruptedException | IOException e) {
-                verifierOptions.outWriter().println(
-                        "Failed to use Strata (expected `strata` on PATH via the StrataCLI build-tool)."
+                verifierOptions.outWriter().println("Failed to run " + invocation.describe()
                         + "\nError message: " + e.getMessage());
                 // Backend failed to launch: not a verification outcome.
                 return new JVerifyResults.DidNotRun(new ArrayList<>(), -1);

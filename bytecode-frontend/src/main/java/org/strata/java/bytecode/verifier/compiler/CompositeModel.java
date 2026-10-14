@@ -158,10 +158,8 @@ final class CompositeModel {
 
     /**
      * The sort names of {@code sortName}'s DIRECT Java supertypes: its
-     * superclass (if any) followed by its directly-implemented interfaces.
-     * Program types resolve from their classfiles; JCL/library types via
-     * reflection on the loaded {@code Class} (never classpath resources, which
-     * are unavailable on the build fleet). {@code java.lang.Object} maps to the
+     * superclass (if any) followed by its directly-implemented interfaces, as
+     * {@link ClassResolver} answers them. {@code java.lang.Object} maps to the
      * {@code Object} sort.
      */
     List<String> directSupertypeSorts(String sortName) {

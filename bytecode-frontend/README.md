@@ -61,6 +61,32 @@ this); only position precision degrades:
 - Input with no debug information at all (`-g:none`, obfuscated/stripped
   jars) is refused up front.
 
+## Command line
+
+`brazil-build installDist` builds
+`bytecode-frontend/build/install/bytecode-verifier/bin/bytecode-verifier`:
+
+```
+bytecode-verifier [--interpret [--entry C#m] [--fuel N] [--interpreter core|laurel]]
+                  [--emit-laurel FILE] [--show-ranges]
+                  [--paths] [--verify-by-default=B] [--verbose] [--track-time]
+                  [--strata DIR]
+                  FILE.java... [--classpath P...] [--contract-path P...]
+```
+
+The options and the report format are those of JFE's `verifier`, but the
+diagnostic ranges are statement-level (see above), JFE's
+`--filter-position` and `--include-filter-dependencies` are not implemented,
+and the input is compiled against the command's own CLASS-retention build of
+the JVerify library, ahead of `--classpath`. Unlike JFE's, its javac compiles
+no sources it finds on `--classpath`: give them as input files.
+As in JFE, `--classpath` and `--contract-path` take every value up to the next
+option, so give them after the input files, and Strata runs as `strata` from
+`PATH` (under `brazil-build`, the workspace's StrataCLI: its own build if it is
+checked out there), or, with `--strata DIR` or `JVERIFY_STRATA=DIR`, as
+`lake exe strata` in `DIR/StrataCLI` (`DIR` being the jverify repository's
+`Strata` submodule, or a Brazil workspace's `src` once StrataCLI is built there).
+
 ## Modules
 
 - **`bytecode-frontend`** -- classfile analysis (CFG/dominators/CRT/locals,
@@ -91,15 +117,17 @@ source file, or test references the bytecode frontend. Concretely:
   them. Rather than maintain a second copy, the `generateBytecodeLibSources`
   task copies `:library`'s sources at build time, rewriting only the retention
   token, and `compileBytecodeLib`/`bytecodeLibJar` compile them into a plain
-  jar used *only* as the driver's `javac -g -Xjcov` classpath (the artifacts
-  land under `build/bytecode-lib/` -- generated sources, classes, and
+  jar used *only* as the driver's `javac -g -Xjcov` classpath: the tests pass
+  it by path, and the command carries it as a resource of its jar (the
+  artifacts land under `build/bytecode-lib/` -- generated sources, classes, and
   `bytecode-frontend-lib.jar`; nothing is checked in). It is deliberately
   **not** a Gradle module: it shares package `org.strata.jverify` with
   `:library`, and Brazil puts every module jar on every other module's compile
   classpath, so a second module exporting that package would split it across
   two JPMS modules and break JFE's own `module-info`'d builds (e.g.
-  `contracts2jqwik`). Flip `:library` to `CLASS` someday and this whole seam
-  collapses to a plain dependency.
+  `contracts2jqwik`). Flipping `:library` to `CLASS` instead would put the
+  annotations into every user's classfiles, where JFE trusts `@Nat` and
+  `@Unbounded` on dependencies it never verified.
 
 ### How isolation holds under Brazil
 

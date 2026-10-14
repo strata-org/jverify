@@ -26,6 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -75,7 +76,7 @@ class ArraysEndToEndTest {
     private static JVerifyResults run(Compiled program, LibraryContracts contracts, boolean continueOnErrors)
             throws Exception {
         return new VerifierDriver(options(continueOnErrors)).analyzeClassesDir(
-                program.classes(), List.of(program.uri()), new Reporter(), false, contracts);
+                program.classes(), List.of(program.uri()), new Reporter(), false, contracts, Map.of());
     }
 
     private static JVerifyResults run(Path tmp, String className, String source) throws Exception {

@@ -1,5 +1,7 @@
 package org.strata.java.bytecode.frontend;
 
+import com.sun.source.util.JavacTask;
+
 import javax.tools.Diagnostic;
 import javax.tools.DiagnosticCollector;
 import javax.tools.JavaFileObject;
@@ -59,11 +61,13 @@ public final class BytecodeFrontend {
              * plain-{@code -g} retry, so positions are line- not
              * column-precise through no choice of the caller's.
              */
-            boolean degradedToLineNumbers) {
+            boolean degradedToLineNumbers,
+            /** What javac knew of the classes the classfiles mention, by fqn ({@link TypeRecorder}). */
+            Map<String, TypeFacts> types) {
 
         CompileResult(Path classesDir, boolean success,
-                      List<Diagnostic<? extends JavaFileObject>> diagnostics) {
-            this(classesDir, success, diagnostics, false);
+                      List<Diagnostic<? extends JavaFileObject>> diagnostics, Map<String, TypeFacts> types) {
+            this(classesDir, success, diagnostics, false, types);
         }
     }
 
@@ -105,7 +109,7 @@ public final class BytecodeFrontend {
         var degraded = compileWith(List.of("-g", "-proc:none"),
                 sources, classPath, outputDir, diagnosticOutput);
         var r = degraded.result();
-        return new CompileResult(r.classesDir(), r.success(), r.diagnostics(), true);
+        return new CompileResult(r.classesDir(), r.success(), r.diagnostics(), true, r.types());
     }
 
     /**
@@ -166,18 +170,23 @@ public final class BytecodeFrontend {
             if (!classPath.isEmpty()) {
                 fileManager.setLocationFromPaths(StandardLocation.CLASS_PATH, classPath);
             }
-            var task = compiler.getTask(new PrintWriter(diagnosticOutput), fileManager,
+            // Without a source path javac compiles the classpath's sources too,
+            // into classes that belong to no input file.
+            fileManager.setLocationFromPaths(StandardLocation.SOURCE_PATH, List.of());
+            var task = (JavacTask) compiler.getTask(new PrintWriter(diagnosticOutput), fileManager,
                     diagnostics, options, null, sources);
+            var recorder = new TypeRecorder(task, outputDir);
+            task.addTaskListener(recorder);
             try {
                 boolean success = task.call();
                 return new Attempt(
-                        new CompileResult(outputDir, success, diagnostics.getDiagnostics()), null);
+                        new CompileResult(outputDir, success, diagnostics.getDiagnostics(), recorder.types()), null);
             } catch (RuntimeException | Error e) {
                 // The diagnostics collector already holds anything reported
                 // before the crash, so a caller that gives up can still show
                 // real Java errors rather than only the internal failure.
                 return new Attempt(
-                        new CompileResult(outputDir, false, diagnostics.getDiagnostics()), e);
+                        new CompileResult(outputDir, false, diagnostics.getDiagnostics(), Map.of()), e);
             }
         }
     }

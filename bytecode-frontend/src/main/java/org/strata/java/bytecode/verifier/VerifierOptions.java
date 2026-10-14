@@ -12,8 +12,7 @@ import java.util.function.Supplier;
 /**
  * Options for a verification run. Port of StrataJavaFrontEnd's
  * {@code org.strata.jverify.verifier.VerifierOptions} minus the
- * javac-frontend-only knobs (PositionFilter, backendPath/lake) and plus the
- * bytecode-frontend inputs:
+ * javac-frontend-only PositionFilter and plus the bytecode-frontend inputs:
  *
  * @param classPathEntries entries put on javac's classpath when compiling the
  *        input sources with {@code -g -Xjcov} (must include the bytecode-frontend spec library
@@ -26,6 +25,12 @@ import java.util.function.Supplier;
  *        classfiles before translation, refusing any that fail
  *        {@code ClassFile.verify}. Off by default: the driver's only
  *        classfiles are its own javac output, which always verifies.
+ * @param interpreter the interpreter {@code interpret} runs, {@code core} or
+ *        {@code laurel}, passed to Strata as {@code --interpreter}; null
+ *        leaves Strata's default (core).
+ * @param strataProjectDir a Strata project directory to run Strata from, with
+ *        {@code lake exe strata} in its {@code StrataCLI} subdirectory, as
+ *        JFE's {@code --strata} does; null runs {@code strata} from PATH.
  */
 public record VerifierOptions(PrintWriter outWriter,
                               Path workingDirectory,
@@ -42,7 +47,30 @@ public record VerifierOptions(PrintWriter outWriter,
                               boolean interpret,
                               @Nullable String entry,
                               @Nullable Integer fuel,
-                              boolean jvmVerifyClassfiles) {
+                              boolean jvmVerifyClassfiles,
+                              @Nullable String interpreter,
+                              @Nullable Path strataProjectDir) {
+    public VerifierOptions(PrintWriter outWriter,
+                           Path workingDirectory,
+                           Collection<Path> classPathEntries,
+                           @Nullable Path printSerializedOutputProgram,
+                           boolean emitLaurelOnly,
+                           boolean showRanges,
+                           Collection<Path> contractSourcePath,
+                           boolean showFilepaths,
+                           boolean verifyByDefault,
+                           boolean continueOnErrors,
+                           boolean verbose,
+                           boolean shouldTrackTime,
+                           boolean interpret,
+                           @Nullable String entry,
+                           @Nullable Integer fuel,
+                           boolean jvmVerifyClassfiles) {
+        this(outWriter, workingDirectory, classPathEntries, printSerializedOutputProgram, emitLaurelOnly,
+                showRanges, contractSourcePath, showFilepaths, verifyByDefault, continueOnErrors, verbose,
+                shouldTrackTime, interpret, entry, fuel, jvmVerifyClassfiles, null, null);
+    }
+
     public <T> T time(String name, Supplier<T> supply) {
         if (!shouldTrackTime) {
             return supply.get();
