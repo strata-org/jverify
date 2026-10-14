@@ -15,12 +15,16 @@ import java.lang.constant.ClassDesc;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -165,5 +169,54 @@ class BytecodeFrontendTest {
                 List.of(new SourceFile(tmp.resolve("U.java"), "class U { static void m(dep.A a) { } }")),
                 List.of(tmp.resolve("classpath")), tmp.resolve("classes"), new PrintWriter(System.err)));
         assertTrue(e.getMessage().startsWith("cyclic inheritance involving dep."), e::getMessage);
+    }
+
+    /**
+     * An SQL statement's 9000 positional parameters read, from {@code VALUES}' {@code L} to the {@code ;},
+     * like a class name with 9000 {@code $}s, too many even for a memoized search over its splits.
+     */
+    @Test
+    void aStringConstantWithManyDollarSignsCompilesPromptly(@TempDir Path tmp) {
+        String params = IntStream.rangeClosed(1, 9000).mapToObj(i -> "$" + i).collect(Collectors.joining(", "));
+        var source = new SourceFile(tmp.resolve("Sql.java"),
+                "class Sql { static final String INSERT = \"INSERT INTO t VALUES (" + params + ");\"; }");
+        var result = assertTimeoutPreemptively(Duration.ofSeconds(30), () -> BytecodeFrontend.compile(
+                List.of(source), List.of(), tmp.resolve("classes"), new PrintWriter(System.err)));
+        assertTrue(result.success(), () -> String.valueOf(result.diagnostics()));
+    }
+
+    /**
+     * Eight string constants of about 60000 {@code L}s, any of which could start a class name. Rescanning one
+     * from each {@code L} takes about the timeout, hence eight, and javac pools equal constants, hence unequal.
+     */
+    @Test
+    void longRunsOfLsCompilePromptly(@TempDir Path tmp) {
+        String constants = IntStream.range(0, 8)
+                .mapToObj(i -> "static final String S" + i + " = \"" + "L".repeat(60000 - i) + "\";")
+                .collect(Collectors.joining(" "));
+        var source = new SourceFile(tmp.resolve("Ls.java"), "class Ls { " + constants + " }");
+        var result = assertTimeoutPreemptively(Duration.ofSeconds(30), () -> BytecodeFrontend.compile(
+                List.of(source), List.of(), tmp.resolve("classes"), new PrintWriter(System.err)));
+        assertTrue(result.success(), () -> String.valueOf(result.diagnostics()));
+    }
+
+    /**
+     * {@code U} mentions {@code dep.Box} and {@code dep.Lists.Node.Link}, a member of a member class, only in its
+     * field's signature; InnerClasses also lists its anonymous class, which has no outer class.
+     */
+    @Test
+    void classesOnlyASignatureMentionsAreRecorded(@TempDir Path tmp) throws Exception {
+        var dep = BytecodeFrontend.compile(List.of(
+                        new SourceFile(tmp.resolve("Box.java"), "package dep; public class Box<T> { }"),
+                        new SourceFile(tmp.resolve("Lists.java"), "package dep; public class Lists {"
+                                + " public static class Node { public static class Link { } } }")),
+                List.of(), tmp.resolve("classpath"), new PrintWriter(System.err));
+        assertTrue(dep.success(), () -> String.valueOf(dep.diagnostics()));
+        var result = BytecodeFrontend.compile(List.of(new SourceFile(tmp.resolve("U.java"),
+                        "class U { java.util.List<dep.Box<dep.Lists.Node.Link>> f; Object o = new Object() { }; }")),
+                List.of(tmp.resolve("classpath")), tmp.resolve("classes"), new PrintWriter(System.err));
+        assertTrue(result.success(), () -> String.valueOf(result.diagnostics()));
+        assertTrue(result.types().keySet().containsAll(List.of("dep.Box", "dep.Lists.Node.Link")),
+                () -> String.valueOf(result.types().keySet()));
     }
 }

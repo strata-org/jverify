@@ -12,7 +12,9 @@ import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.ElementFilter;
 import java.io.IOException;
+import java.lang.classfile.Attributes;
 import java.lang.classfile.ClassFile;
+import java.lang.classfile.attribute.InnerClassInfo;
 import java.lang.classfile.constantpool.ClassEntry;
 import java.lang.classfile.constantpool.Utf8Entry;
 import java.nio.file.Files;
@@ -30,8 +32,11 @@ import java.util.stream.Stream;
  * left to reflection, which sees the same ones.
  */
 final class TypeRecorder implements TaskListener {
-    /** A class in a descriptor or signature: {@code Lpkg/C;} or {@code Lpkg/C<}. */
-    private static final Pattern CLASS_IN_DESCRIPTOR = Pattern.compile("L([^;<>.\\[]+)[;<]");
+    /**
+     * A run of the characters a class name can hold. A descriptor or signature names a class as
+     * {@code Lpkg/C;} or {@code Lpkg/C<}.
+     */
+    private static final Pattern NAME_CHARS = Pattern.compile("[^;<>.\\[]+");
 
     private final JavacTask task;
     private final Path outputDir;
@@ -68,17 +73,29 @@ final class TypeRecorder implements TaskListener {
         }
         try (Stream<Path> walk = Files.walk(outputDir)) {
             for (Path file : walk.filter(p -> p.toString().endsWith(".class")).toList()) {
-                for (var entry : ClassFile.of().parse(file).constantPool()) {
+                var model = ClassFile.of().parse(file);
+                var members = new HashMap<String, InnerClassInfo>();
+                model.findAttribute(Attributes.innerClasses()).ifPresent(a -> a.classes().stream()
+                        .filter(c -> c.outerClass().isPresent())
+                        .forEach(c -> members.put(c.innerClass().asInternalName(), c)));
+                for (var entry : model.constantPool()) {
                     String text = entry instanceof ClassEntry c ? c.asSymbol().descriptorString()
                             : entry instanceof Utf8Entry u ? u.stringValue() : null;
                     if (text == null) {
                         continue;
                     }
-                    var m = CLASS_IN_DESCRIPTOR.matcher(text);
+                    // The name starts after the run's first 'L': a pattern starting at any 'L' would
+                    // rescan a string constant's long run from each of them.
+                    var m = NAME_CHARS.matcher(text);
                     while (m.find()) {
-                        TypeElement t = byBinaryName(m.group(1).replace('/', '.'));
-                        if (t != null) {
-                            record(t);
+                        int start = text.indexOf('L', m.start(), m.end()) + 1;
+                        int end = m.end();
+                        if (start > 0 && start < end && end < text.length()
+                                && (text.charAt(end) == ';' || text.charAt(end) == '<')) {
+                            TypeElement t = byInternalName(text.substring(start, end), members);
+                            if (t != null) {
+                                record(t);
+                            }
                         }
                     }
                 }
@@ -89,21 +106,20 @@ final class TypeRecorder implements TaskListener {
     }
 
     /**
-     * The class whose binary name is {@code name}: javac finds a top-level class by it, even one with a
-     * '$' in its name, but a nested class only as the member of its outer class that one '$' names.
+     * The class whose internal name is {@code name}. javac finds a top-level class by its binary name,
+     * even one with a '$' in it, but not a member class; it lists each member class a classfile mentions
+     * in the classfile's InnerClasses attribute, {@code members} here.
      */
-    private @Nullable TypeElement byBinaryName(String name) {
-        TypeElement t = task.getElements().getTypeElement(name);
-        if (t != null) {
-            return t;
+    private @Nullable TypeElement byInternalName(String name, Map<String, InnerClassInfo> members) {
+        InnerClassInfo member = members.get(name);
+        if (member == null) {
+            return task.getElements().getTypeElement(name.replace('/', '.'));
         }
-        for (int i = name.lastIndexOf('$'); i > 0; i = name.lastIndexOf('$', i - 1)) {
-            TypeElement outer = byBinaryName(name.substring(0, i));
-            if (outer != null) {
-                for (TypeElement member : ElementFilter.typesIn(outer.getEnclosedElements())) {
-                    if (member.getSimpleName().contentEquals(name.substring(i + 1))) {
-                        return member;
-                    }
+        TypeElement outer = byInternalName(member.outerClass().orElseThrow().asInternalName(), members);
+        if (outer != null) {
+            for (TypeElement t : ElementFilter.typesIn(outer.getEnclosedElements())) {
+                if (t.getSimpleName().contentEquals(member.innerName().orElseThrow().stringValue())) {
+                    return t;
                 }
             }
         }
