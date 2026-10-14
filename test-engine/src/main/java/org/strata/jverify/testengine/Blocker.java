@@ -207,7 +207,6 @@ public enum Blocker {
     STRATA_LAMBDA_VALUES,
     STRATA_SEQUENCE_EQUALITY,
     STRATA_ABSTRACT_PURE_FUNCTIONS,
-    STRATA_LIFTED_CALL_TYPE_INFERENCE,
     /** Strata catch-all: regressions, trait-redecl, loop-elim, HOF/streams, etc.
      *  Heterogeneous by design; split candidate (follow-up). */
     STRATA_OTHER

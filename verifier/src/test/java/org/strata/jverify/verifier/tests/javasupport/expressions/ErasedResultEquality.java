@@ -1,6 +1,5 @@
 package org.strata.jverify.verifier.tests.javasupport.expressions;
 
-import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 /**
@@ -14,7 +13,7 @@ import org.strata.jverify.testengine.JVerifyTest;
  * class -- and falsely rejects it. Verified 4 = {@code id} + {@code same} + the
  * implicit constructors of the fixture and C.
  */
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_LIFTED_CALL_TYPE_INFERENCE}, methodsVerified = 4, errorCount = 0)
+@JVerifyTest(methodsVerified = 4, errorCount = 0)
 class ErasedResultEquality {
     static class C {
     }
