@@ -46,7 +46,8 @@ public class StrataBackend {
     }
 
     /**
-     * Serialize {@code program} to Ion, optionally write it to
+     * Refuse an {@code entry} that names no static no-argument procedure;
+     * otherwise serialize {@code program} to Ion, optionally write it to
      * {@code printSerializedOutputProgram}, and (unless emit-Laurel-only mode
      * is on) run the Strata backend on it.
      *
@@ -59,6 +60,13 @@ public class StrataBackend {
     public JVerifyResults verifyProgram(Program program,
                                         PositionResolver positions,
                                         Map<URI, IntervalTree<Integer, MethodVerificationStatus>> methodStatuses) {
+        if (verifierOptions.interpret() && verifierOptions.entry() != null
+                && program.staticProcedures().stream().noneMatch(p -> p.inputs().isEmpty()
+                        && p.name().text().equals(entryProcedure(verifierOptions.entry())))) {
+            verifierOptions.outWriter().println("--entry " + verifierOptions.entry()
+                    + " does not name a static no-argument method");
+            return new JVerifyResults.NoVerdict(new ArrayList<>(), 2);
+        }
         var serializedProgram = verifierOptions.time("Serializing Laurel AST", () -> {
             var ion = IonSystemBuilder.standard().build();
             var programIon = program.toIon(ion);
@@ -89,6 +97,11 @@ public class StrataBackend {
         return runVerifier(positions, methodStatuses, serializedProgram);
     }
 
+    /** The Laurel procedure that the user-facing {@code pkg.Class#method} names: {@code pkg.Class_method}. */
+    static String entryProcedure(String entry) {
+        return entry.replace('#', '_');
+    }
+
     /**
      * How Strata runs on a serialized program: the launcher that starts it, its
      * arguments, and the directory it runs in (null: the current one).
@@ -108,10 +121,8 @@ public class StrataBackend {
                 // with laurelAnalyzeBinary, so parseStrataOutput is reused as is.
                 arguments.add("laurelInterpretBinary");
                 if (options.entry() != null) {
-                    // Map the user-facing `pkg.Class#method` form to the Laurel
-                    // procedure name (`pkg.Class_method`).
                     arguments.add("--entry");
-                    arguments.add(options.entry().replace('#', '_'));
+                    arguments.add(entryProcedure(options.entry()));
                 }
                 if (options.fuel() != null) {
                     arguments.add("--fuel");

@@ -364,6 +364,18 @@ class MainTest {
         assertTrue(r.out().contains("Found 1 errors"), r::toString);
     }
 
+    /** {@code m} takes an argument, and NatParam has no {@code n}. */
+    @Test
+    void entryMustNameAStaticNoArgumentMethod(@TempDir Path tmp) throws Exception {
+        var input = write(tmp, "NatParam.java", NAT_PARAM).toString();
+        for (var entry : List.of("p.NatParam#m", "p.NatParam#n")) {
+            var r = run("--interpret", "--entry", entry, input);
+            assertEquals(2, r.exitCode(), r::toString);
+            assertTrue(r.out().contains("--entry " + entry + " does not name a static no-argument method"),
+                    r::toString);
+        }
+    }
+
     @Test
     void fuelBoundsTheRun(@TempDir Path tmp) throws Exception {
         var r = run("--interpret", "--fuel", "50", write(tmp, "Loop.java", LOOP).toString());
