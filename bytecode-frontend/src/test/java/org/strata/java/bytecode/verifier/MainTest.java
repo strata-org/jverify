@@ -303,6 +303,30 @@ class MainTest {
         assertTrue(r.out().contains("package dep does not exist"), r::toString);
     }
 
+    /**
+     * {@code dep.A} and {@code dep.B} extend each other, which javac accepts of classfiles a program only mentions.
+     * javac still writes {@code U.class} when a later {@code Bad.java} fails, but the run reports only
+     * {@code Bad.java}'s error.
+     */
+    @Test
+    void aSuperclassCycleOnTheClasspathIsReported(@TempDir Path tmp) throws Exception {
+        Path classes = tmp.resolve("classes");
+        Path dep = Files.createDirectories(classes.resolve("dep"));
+        ClassDesc a = ClassDesc.of("dep.A");
+        ClassDesc b = ClassDesc.of("dep.B");
+        Files.write(dep.resolve("A.class"), ClassFile.of().build(a, c -> c.withFlags(ClassFile.ACC_PUBLIC).withSuperclass(b)));
+        Files.write(dep.resolve("B.class"), ClassFile.of().build(b, c -> c.withFlags(ClassFile.ACC_PUBLIC).withSuperclass(a)));
+        String u = write(tmp, "U.java", "class U {\n    static void m(dep.A a) {\n    }\n}\n").toString();
+        var r = run(u, "--classpath", classes.toString());
+        assertEquals(2, r.exitCode(), r::toString);
+        assertTrue(r.out().contains("U.java(1:1-1:1): error: cyclic inheritance involving dep."), r::toString);
+        var bad = run(u, write(tmp, "Bad.java", "class Bad {\n    int x = \"s\";\n}\n").toString(),
+                "--classpath", classes.toString());
+        assertEquals(2, bad.exitCode(), bad::toString);
+        assertTrue(bad.out().contains("incompatible types"), bad::toString);
+        assertFalse(bad.out().contains("cyclic inheritance"), bad::toString);
+    }
+
     @Test
     void failingCheckIsReported(@TempDir Path tmp) throws Exception {
         var r = run(write(tmp, "Fails.java", FAILS).toString());

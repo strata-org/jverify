@@ -64,7 +64,10 @@ public final class BytecodeFrontend {
              * column-precise through no choice of the caller's.
              */
             boolean degradedToLineNumbers,
-            /** What javac knew of the classes the classfiles mention, by fqn ({@link TypeRecorder}). */
+            /**
+             * What javac knew of the classes the classfiles mention, by fqn ({@link TypeRecorder});
+             * empty when the compilation failed.
+             */
             Map<String, TypeFacts> types) {
 
         CompileResult(Path classesDir, boolean success,
@@ -198,8 +201,9 @@ public final class BytecodeFrontend {
             }
             try {
                 boolean success = task.call();
-                return new Attempt(
-                        new CompileResult(outputDir, success, diagnostics.getDiagnostics(), recorder.types()), null);
+                // A cycle in a failed compilation's record would hide javac's errors.
+                return new Attempt(new CompileResult(outputDir, success, diagnostics.getDiagnostics(),
+                        success ? recorder.types() : Map.of()), null);
             } catch (RuntimeException | Error e) {
                 // The diagnostics collector already holds anything reported
                 // before the crash, so a caller that gives up can still show

@@ -59,7 +59,7 @@ final class TypeRecorder implements TaskListener {
             var chain = new HashSet<String>();
             for (String c = fqn; c != null && types.containsKey(c); c = types.get(c).superclass()) {
                 if (!chain.add(c)) {
-                    throw new IOException("cyclic inheritance involving " + c);
+                    throw new SuperclassCycleException(c);
                 }
             }
         }

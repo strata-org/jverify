@@ -74,9 +74,16 @@ public class VerifierDriver {
                                     List.copyOf(options.classPathEntries()), classesDir, options.outWriter(),
                                     options.noConstantFolding() ? ConstantUnfolding::install : null);
                         } catch (IOException e) {
+                            if (e instanceof org.strata.java.bytecode.frontend.SuperclassCycleException) {
+                                reporter.reportError(readFiles.getFirst().toUri(), Reporter.NO_RANGE, e.getMessage());
+                                return null;
+                            }
                             throw new RuntimeException(e);
                         }
                     });
+            if (compileResult == null) {
+                return new JVerifyResults.NoVerdict(new ArrayList<>(reporter.diagnostics()), 2);
+            }
             if (!compileResult.success()) {
                 var diagnostics = new ArrayList<Diagnostic<?>>();
                 for (var d : compileResult.diagnostics()) {
