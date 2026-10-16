@@ -172,9 +172,11 @@ final class SpecCallTranslator {
                     // modifies(everything()): the wildcard frame.
                     AstNode<StmtExpr> r = b.push(new StmtExpr.All());
                     b.specStmts.put(r, new BodyTranslator.SpecStmt("everything", List.of(), null, List.of(), b.pos));
-                } else if (name.equals("old") && argc == 1 && ctx.method.arrayModelMember) {
-                    // JArray's set postcondition: the pre-state value of its argument.
-                    // No label: the procedure's pre-state, which is what old(e) means.
+                } else if (name.equals("old") && argc == 1) {
+                    // The pre-state value of the argument. No label: the
+                    // procedure's pre-state, which is what old(e) means.
+                    // Preconditions and throwsOn guards refuse it at
+                    // contract extraction (BodyTranslator.refuseOld).
                     AstNode<StmtExpr> arg = args.get(0);
                     AstNode<StmtExpr> r = b.push(new StmtExpr.Old(arg, Optional.empty()));
                     b.noteDesc(r, b.descOf.get(arg));
@@ -188,10 +190,6 @@ final class SpecCallTranslator {
                     if (t != null) {
                         b.staticTypeOf.put(r, t);
                     }
-                } else if (name.equals("old") || name.equals("result")) {
-                    // JVerify spec vocabulary without a translation: refused
-                    // like any other unsupported spec method.
-                    throw new JavaViolationException("Unsupported JVerify method: " + name);
                 } else {
                     throw new JavaViolationException("Unsupported JVerify method: " + name);
                 }

@@ -2663,6 +2663,7 @@ public class BytecodeToLaurelCompiler {
                 converted = spec.args().get(0);
                 body.checkContractArg(converted);
             }
+            BodyTranslator.refuseOld(converted, "a precondition");
             converted = body.coerce(ArrayAccessTranslator.stripLoadFacts(converted), "Z");
             preconditions.add(new Condition(
                     LaurelTrees.rerange(converted, condRange, ctx.method.statementNodes),
@@ -2792,6 +2793,7 @@ public class BytecodeToLaurelCompiler {
             src.defaultRange = guardRange;
             var guardArg = spec.args().get(0);
             body.checkPlaceable(guardArg);
+            BodyTranslator.refuseOld(guardArg, "a throwsOn guard");
             var guard = LaurelTrees.rerange(body.coerce(guardArg, "Z"), guardRange,
                     ctx.method.statementNodes);
             List<Condition> casePosts = new ArrayList<>();

@@ -303,6 +303,25 @@ final class BodyTranslator {
         }
     }
 
+    /**
+     * Refuse {@code old(...)} inside {@code n}. A precondition and a throwsOn
+     * guard are already evaluated in the pre-state, so {@code old} there has
+     * no meaning. Strata rejects it too, but as a resolution error that stops
+     * verification of the whole file; refusing here skips only this method.
+     */
+    static void refuseOld(AstNode<StmtExpr> n, String where) {
+        if (n == null) {
+            return;
+        }
+        if (n.val() instanceof StmtExpr.Old) {
+            throw new JavaViolationException("old(...) is not allowed in " + where
+                    + ": it is already evaluated in the method's pre-state");
+        }
+        for (AstNode<StmtExpr> child : childrenOf(n.val())) {
+            refuseOld(child, where);
+        }
+    }
+
     // --- Delegates for the translators' externally-used entry points ---
 
     AstNode<StmtExpr> translateLambdaBody(LambdaHandle lambda, Map<String, String> extraRenames) {

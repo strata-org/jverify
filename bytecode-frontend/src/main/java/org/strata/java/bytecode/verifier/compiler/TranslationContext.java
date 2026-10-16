@@ -91,7 +91,7 @@ final class TranslationContext {
         /**
          * Translating an instance member of the built-in JArray class: its
          * receiver is {@code JArray<TArrayElement>}, its {@code modifies(this)}
-         * is {@code self?#contentsVersion}, and {@code old(e)} translates.
+         * is {@code self?#contentsVersion}.
          */
         boolean arrayModelMember;
         /**

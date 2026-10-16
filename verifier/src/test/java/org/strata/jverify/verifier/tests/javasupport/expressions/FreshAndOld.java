@@ -4,7 +4,7 @@ import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(methodsVerified = 2, errorCount = 0)
+@JVerifyTest(methodsVerified = 3, errorCount = 0)
 class FreshAndOld {
     int x;
     
@@ -17,7 +17,6 @@ class FreshAndOld {
     }
     
     void oldTest() {
-//       ^ warning: instance method 'oldTest' was not verified: Unsupported JVerify method: old
         modifies(this);
         precondition(x == 1);
 

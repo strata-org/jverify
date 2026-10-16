@@ -242,6 +242,12 @@ public class JVerify {
     public static int old(int value) {
         throw new ContractException();
     }
+    public static long old(long value) {
+        throw new ContractException();
+    }
+    public static boolean old(boolean value) {
+        throw new ContractException();
+    }
 
     /**
      * Provides observational equality. Two values are observationally equal if they can not be distinguished.
