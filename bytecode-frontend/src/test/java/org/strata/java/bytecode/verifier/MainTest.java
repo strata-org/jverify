@@ -335,6 +335,29 @@ class MainTest {
         assertTrue(r.out().contains("Found 1 errors"), r::toString);
     }
 
+    private static final String MIXED = """
+            package p;
+
+            class Mixed {
+                static void m() {
+                    Thread.onSpinWait();
+                    Thread.dumpStack();
+                    Runnable r = () -> { };
+                }
+            }
+            """;
+
+    /** One error (the lambda) and two warnings (the calls without a contract): only the error is counted. */
+    @Test
+    void warningsAreNotCountedAsErrors(@TempDir Path tmp) throws Exception {
+        var r = run(write(tmp, "Mixed.java", MIXED).toString());
+        assertEquals(2, r.exitCode(), r::toString);
+        assertTrue(r.out().contains("warning: missing contract for method 'onSpinWait'"), r::toString);
+        assertTrue(r.out().contains("warning: missing contract for method 'dumpStack'"), r::toString);
+        assertTrue(r.out().contains("error: Unsupported expression: JCLambda"), r::toString);
+        assertTrue(r.out().contains("Found 1 errors"), r::toString);
+    }
+
     @Test
     void pathsShowsTheFilePath(@TempDir Path tmp) throws Exception {
         var file = write(tmp, "Fails.java", FAILS);

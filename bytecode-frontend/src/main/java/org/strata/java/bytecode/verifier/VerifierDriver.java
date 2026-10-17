@@ -229,9 +229,8 @@ public class VerifierDriver {
             pw.println(formatDiagnostic(options.showFilepaths(), diagnostic));
         }
         var verificationResults = results.verdictOrNull();
-        int errorCount = verificationResults != null
-                ? verificationResults.verificationFailedAssertions()
-                : results.diagnostics().size();
+        int errorCount = (int) results.diagnostics().stream()
+                .filter(d -> d.getKind() == Diagnostic.Kind.ERROR).count();
         // Soundness backstop: a non-zero exit code must never read as "0 errors".
         if (errorCount == 0 && results.exitCode() != 0) {
             pw.println("Verification did not complete (exit code "
