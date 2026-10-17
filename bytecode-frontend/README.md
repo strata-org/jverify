@@ -75,7 +75,8 @@ bytecode-verifier [--interpret [--entry C#m] [--fuel N] [--interpreter core|laur
 ```
 
 The options and the report format are those of JFE's `verifier`, but the
-diagnostic ranges are statement-level (see above), JFE's
+diagnostic ranges are statement-level (see above), `--emit-laurel` names the
+file it wrote instead of counting errors, JFE's
 `--filter-position` and `--include-filter-dependencies` are not implemented,
 and the input is compiled against the command's own CLASS-retention build of
 the JVerify library, ahead of `--classpath`. Unlike JFE's, its javac compiles

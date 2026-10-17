@@ -485,14 +485,46 @@ class MainTest {
         assertTrue(r.out().contains("==== DIAGNOSTICS ===="), r::toString);
     }
 
-    /** The program is written and nothing is verified: a failing check exits 0. */
+    private static final String SPINS = """
+            package p;
+
+            import static org.strata.jverify.JVerify.check;
+
+            class Spins {
+                static void m() {
+                    Thread.onSpinWait();
+                    check(false);
+                }
+            }
+            """;
+
+    /**
+     * The program is written and nothing is verified: a failing check exits 0, the warning
+     * for the uncontracted call is reported, and the run ends with the file it wrote, not
+     * an error count.
+     */
     @Test
     void emitLaurelWritesTheProgramWithoutVerifying(@TempDir Path tmp) throws Exception {
         var ion = tmp.resolve("out/program.ion");
-        var r = run("--emit-laurel", ion.toString(), write(tmp, "Fails.java", FAILS).toString());
+        var r = run("--emit-laurel", ion.toString(), write(tmp, "Spins.java", SPINS).toString());
         assertEquals(0, r.exitCode(), r::toString);
         assertTrue(Files.size(ion) > 0, r::toString);
         assertFalse(r.out().contains("assertion does not hold"), r::toString);
+        assertTrue(r.out().contains("warning: missing contract for method 'onSpinWait'"), r::toString);
+        assertTrue(r.out().strip().endsWith("Wrote the Laurel program to " + ion + " without verifying it."),
+                r::toString);
+        assertFalse(r.out().contains("Found"), r::toString);
+    }
+
+    /** Nothing is written, so the Java error is counted as without {@code --emit-laurel}. */
+    @Test
+    void emitLaurelCountsAJavaError(@TempDir Path tmp) throws Exception {
+        var ion = tmp.resolve("program.ion");
+        var r = run("--emit-laurel", ion.toString(), write(tmp, "Broken.java", "class Broken {").toString());
+        assertEquals(2, r.exitCode(), r::toString);
+        assertTrue(r.out().contains("Found 1 errors"), r::toString);
+        assertFalse(r.out().contains("Wrote"), r::toString);
+        assertFalse(Files.exists(ion), r::toString);
     }
 
     /** {@code tmp} has no StrataCLI, which only running Strata would need. */

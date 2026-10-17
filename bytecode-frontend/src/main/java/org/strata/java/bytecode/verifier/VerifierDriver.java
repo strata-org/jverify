@@ -228,6 +228,11 @@ public class VerifierDriver {
         for (var diagnostic : results.diagnostics()) {
             pw.println(formatDiagnostic(options.showFilepaths(), diagnostic));
         }
+        if (options.emitLaurelOnly() && results.exitCode() == 0) {
+            pw.println("Wrote the Laurel program to " + options.printSerializedOutputProgram()
+                    + " without verifying it.");
+            return;
+        }
         var verificationResults = results.verdictOrNull();
         int errorCount = (int) results.diagnostics().stream()
                 .filter(d -> d.getKind() == Diagnostic.Kind.ERROR).count();
