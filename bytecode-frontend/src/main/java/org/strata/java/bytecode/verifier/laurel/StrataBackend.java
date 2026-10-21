@@ -320,7 +320,10 @@ public class StrataBackend {
      * here from parsed diagnostics -- so a non-zero process exit means Strata
      * crashed (Lean panic / kill / OOM), never a normal "found failures" run.
      * This is a cross-package invariant of Strata's
-     * {@code laurelAnalyzeBinaryCommand}. A crash is classified
+     * {@code laurelAnalyzeBinaryCommand} (unlike laurelInterpretCommand, which
+     * does exit with failuresFound after an interpreter error, and with
+     * knownLimitation, mapped to 2 below, at a call its interpreter refuses to
+     * run). A crash is classified
      * {@link JVerifyResults.DidNotRun} regardless of whether some diagnostics
      * were printed before it; otherwise a crash mid-print returns a partial
      * Ran verdict that an xfail test swallows as an "expected" AssertionError
@@ -343,7 +346,13 @@ public class StrataBackend {
                     + verifierExitCode + " without reporting diagnostics: "
                     + preDiagnosticOutput.strip()));
         }
-        var exitCode = verifierExitCode == 0 ? (diagnostics.isEmpty() ? 0 : 4) : verifierExitCode;
+        var exitCode = switch (verifierExitCode) {
+            case 0 -> diagnostics.isEmpty() ? 0 : 4;
+            // Strata's 4 is a known limitation, not this tool's 4, "failures found": exit as
+            // for a construct the frontend refuses.
+            case 4 -> 2 /* picocli USAGE */;
+            default -> verifierExitCode;
+        };
         if (aborted) {
             return new JVerifyResults.DidNotRun(diagnostics, exitCode);
         }
