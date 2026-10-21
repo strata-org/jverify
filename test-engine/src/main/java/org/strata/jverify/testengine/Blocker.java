@@ -108,6 +108,12 @@ public enum Blocker {
      */
     FRONTEND_GENERICS,
     /**
+     * Front end: an array shape the bytecode front end refuses to lower --
+     * reference-typed element arrays, multi-dimensional arrays and {@code @Nullable}
+     * arrays. Distinct from {@link #STRATA_ARRAYS}: these programs never reach Strata.
+     */
+    FRONTEND_ARRAYS,
+    /**
      * Strata: a Laurel type parameter carries NO constraints, so a Java type
      * variable's bound cannot be expressed. {@code LaurelAST}'s
      * {@code typeArgs : List Identifier} is a list of bare names in all five
@@ -207,6 +213,11 @@ public enum Blocker {
     STRATA_LAMBDA_VALUES,
     STRATA_SEQUENCE_EQUALITY,
     STRATA_ABSTRACT_PURE_FUNCTIONS,
+    /**
+     * Strata: a query needs non-linear integer arithmetic ({@code %} or {@code *} with
+     * symbolic operands on both sides) and the solver times out instead of deciding it.
+     */
+    STRATA_NONLINEAR_ARITHMETIC,
     /** Strata catch-all: regressions, trait-redecl, loop-elim, HOF/streams, etc.
      *  Heterogeneous by design; split candidate (follow-up). */
     STRATA_OTHER
