@@ -17,7 +17,7 @@ import static org.strata.jverify.JVerify.check;
         methodsVerified = 2,
         methodsInvalid = 1,
         methodsSkipped = 0,
-        errorCount = 4
+        errorCount = 5
 )
 class TranslatorSkip {
     static int unsupported(int n) {
@@ -30,6 +30,7 @@ class TranslatorSkip {
 //                ^^^^^^^ Error: assertion could not be proved
         }
         return sum;
+//             ^^^ Error: assertion could not be proved
     }
 
     static void supported(int x) {
