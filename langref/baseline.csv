@@ -213,7 +213,7 @@ org/strata/jverify/langref/jls14/s14_18/ThrowStatement_1.java,error
 org/strata/jverify/langref/jls14/s14_18/ThrowStatement_2.java,error
 org/strata/jverify/langref/jls14/s14_18/ThrowStatement_3.java,error
 org/strata/jverify/langref/jls14/s14_18/Throw_NullThrows.java,unsupported
-org/strata/jverify/langref/jls14/s14_18/Throw_RethrowSame.java,interp_error
+org/strata/jverify/langref/jls14/s14_18/Throw_RethrowSame.java,passed
 org/strata/jverify/langref/jls14/s14_19/SynchronizedStatement_1.java,unsupported
 org/strata/jverify/langref/jls14/s14_19/SynchronizedStatement_2.java,unsupported
 org/strata/jverify/langref/jls14/s14_19/SynchronizedStatement_3.java,unsupported
