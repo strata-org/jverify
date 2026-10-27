@@ -30,6 +30,12 @@ import java.util.Map;
  *   <li>{@code RUN fqcn reason} -- run the test normally even though the
  *       shared annotation marks it {@code expectedToFail} (the source gap it
  *       records does not apply to the bytecode pipeline).
+ *   <li>{@code SKIP fqcn reason} -- do not run the test on the bytecode
+ *       frontend at all. Only for fixtures that CRASH the frontend: a crash
+ *       is an infra error that {@code applyXfailInversion} deliberately does
+ *       not absorb, so XFAIL cannot cover it. Prefer XFAIL otherwise -- SKIP
+ *       has no XPASS tripwire and must be retired by hand once the crash is
+ *       fixed.
  * </ul>
  *
  * @see JVerifyTestEngine#verifyFile
@@ -44,10 +50,13 @@ final class BytecodeXfailManifest {
 
     private final Map<String, Xfail> forcedXfail;
     private final Map<String, String> forcedRun;
+    private final Map<String, String> forcedSkip;
 
-    private BytecodeXfailManifest(Map<String, Xfail> forcedXfail, Map<String, String> forcedRun) {
+    private BytecodeXfailManifest(Map<String, Xfail> forcedXfail, Map<String, String> forcedRun,
+                                  Map<String, String> forcedSkip) {
         this.forcedXfail = forcedXfail;
         this.forcedRun = forcedRun;
+        this.forcedSkip = forcedSkip;
     }
 
     /** True when {@code className} should be treated as an xfail on bytecode. */
@@ -65,13 +74,19 @@ final class BytecodeXfailManifest {
         return forcedRun.containsKey(className);
     }
 
+    /** The SKIP reason for {@code className}, or {@code null} to run it. */
+    String skipReason(String className) {
+        return forcedSkip.get(className);
+    }
+
     /** Load the manifest from the classpath, or an empty manifest if absent. */
     static BytecodeXfailManifest load() {
         Map<String, Xfail> xfail = new HashMap<>();
         Map<String, String> run = new HashMap<>();
+        Map<String, String> skip = new HashMap<>();
         try (InputStream in = BytecodeXfailManifest.class.getResourceAsStream(RESOURCE)) {
             if (in == null) {
-                return new BytecodeXfailManifest(xfail, run);
+                return new BytecodeXfailManifest(xfail, run, skip);
             }
             try (var reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
                 String line;
@@ -98,7 +113,7 @@ final class BytecodeXfailManifest {
                                         "unknown Blocker '" + parts[2] + "'"));
                             }
                             String reason = remainder(parts, 3);
-                            if (xfail.containsKey(fqcn) || run.containsKey(fqcn)) {
+                            if (xfail.containsKey(fqcn) || run.containsKey(fqcn) || skip.containsKey(fqcn)) {
                                 throw new IllegalStateException(malformed(lineNo, line,
                                         "duplicate manifest entry for " + fqcn));
                             }
@@ -110,21 +125,33 @@ final class BytecodeXfailManifest {
                                         "RUN needs: RUN <fqcn> <reason>"));
                             }
                             String fqcn = parts[1];
-                            if (xfail.containsKey(fqcn) || run.containsKey(fqcn)) {
+                            if (xfail.containsKey(fqcn) || run.containsKey(fqcn) || skip.containsKey(fqcn)) {
                                 throw new IllegalStateException(malformed(lineNo, line,
                                         "duplicate manifest entry for " + fqcn));
                             }
                             run.put(fqcn, remainder(parts, 2));
                         }
+                        case "SKIP" -> {
+                            if (parts.length < 2) {
+                                throw new IllegalStateException(malformed(lineNo, line,
+                                        "SKIP needs: SKIP <fqcn> <reason>"));
+                            }
+                            String fqcn = parts[1];
+                            if (xfail.containsKey(fqcn) || run.containsKey(fqcn) || skip.containsKey(fqcn)) {
+                                throw new IllegalStateException(malformed(lineNo, line,
+                                        "duplicate manifest entry for " + fqcn));
+                            }
+                            skip.put(fqcn, remainder(parts, 2));
+                        }
                         default -> throw new IllegalStateException(malformed(lineNo, line,
-                                "line must start with XFAIL or RUN"));
+                                "line must start with XFAIL, RUN or SKIP"));
                     }
                 }
             }
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read " + RESOURCE, e);
         }
-        return new BytecodeXfailManifest(xfail, run);
+        return new BytecodeXfailManifest(xfail, run, skip);
     }
 
     private static String remainder(String[] parts, int from) {

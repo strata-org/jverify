@@ -1785,7 +1785,11 @@ public class JavaToLaurelCompiler {
         private boolean inContractContext = false;
         private int labelCounter = 0;
 
-        private record LabelEntry(String javaLabel, String breakLabel, String continueLabel) {}
+        /** isLoop distinguishes loop entries from labeled-block entries: an
+         *  unlabeled break may only target a loop (JLS 14.15), never a labeled
+         *  block, and a switch never reaches here (SwitchDesugarer rewrites
+         *  switch-targeted breaks into labeled breaks). */
+        private record LabelEntry(String javaLabel, String breakLabel, String continueLabel, boolean isLoop) {}
         private final Deque<LabelEntry> labelStack = new ArrayDeque<>();
         private String pendingLabel = null;
 
@@ -1951,7 +1955,7 @@ public class JavaToLaurelCompiler {
             String continueLbl = needsLabels ? freshLabel("loop_continue") : null;
             String javaLabel = pendingLabel;
             pendingLabel = null;
-            labelStack.push(new LabelEntry(javaLabel, breakLbl, continueLbl));
+            labelStack.push(new LabelEntry(javaLabel, breakLbl, continueLbl, true));
             try {
                 return body.apply(breakLbl, continueLbl);
             } finally {
@@ -1965,8 +1969,21 @@ public class JavaToLaurelCompiler {
                 for (var entry : labelStack) {
                     if (target.equals(entry.javaLabel)) return entry.breakLabel;
                 }
-            } else if (!labelStack.isEmpty()) {
-                return labelStack.peek().breakLabel;
+            } else {
+                // JLS 14.15: an unlabeled break targets the innermost enclosing
+                // loop (or switch, but SwitchDesugarer has already rewritten
+                // switch-targeted breaks into labeled breaks), so walk past
+                // labeled-block entries instead of taking the stack top.
+                for (var entry : labelStack) {
+                    if (entry.isLoop) {
+                        // A loop entry with a null breakLabel means
+                        // containsBreakOrContinue missed this break; resolving
+                        // past it to an outer loop would be the original bug
+                        // again, so refuse instead.
+                        if (entry.breakLabel == null) break;
+                        return entry.breakLabel;
+                    }
+                }
             }
             throw new JavaViolationException("break target not found");
         }
@@ -1979,7 +1996,13 @@ public class JavaToLaurelCompiler {
                 }
             } else {
                 for (var entry : labelStack) {
-                    if (entry.continueLabel != null) return entry.continueLabel;
+                    if (entry.isLoop) {
+                        // Same backstop as resolveBreakLabel: resolving past a
+                        // label-less loop entry to an outer loop would be the
+                        // D566037730 bug for continue, so refuse instead.
+                        if (entry.continueLabel == null) break;
+                        return entry.continueLabel;
+                    }
                 }
             }
             throw new JavaViolationException("continue target not found");
@@ -2013,6 +2036,11 @@ public class JavaToLaurelCompiler {
                 try {
                     translateMethod(method, isStatic);
                 } catch (JavaViolationException e) {
+                    // A refusal can fire between a JCLabeledStatement setting
+                    // pendingLabel and the loop consuming it; without this
+                    // reset the stale label would attach to the next method's
+                    // first loop.
+                    pendingLabel = null;
                     // Demote so an un-emitted method is not counted Verified. This
                     // demotion is what makes the asymmetry below safe: the fallback
                     // state is Skipped (an honest "not checked"), not Verified.
@@ -2416,7 +2444,7 @@ public class JavaToLaurelCompiler {
                     var continueLbl = freshLabel("loop_continue");
                     var javaLabel = pendingLabel;
                     pendingLabel = null;
-                    labelStack.push(new LabelEntry(javaLabel, breakLbl, continueLbl));
+                    labelStack.push(new LabelEntry(javaLabel, breakLbl, continueLbl, true));
                     try {
                         var cond = convertExpression(doWhile.cond, renames);
                         var parts = extractLoopParts(doWhile.body, renames);
@@ -2447,7 +2475,7 @@ public class JavaToLaurelCompiler {
                         yield convertStatement(labeledStmt.body, renames);
                     } else {
                         String brkLbl = freshLabel("label_break");
-                        labelStack.push(new LabelEntry(pendingLabel, brkLbl, null));
+                        labelStack.push(new LabelEntry(pendingLabel, brkLbl, null, false));
                         pendingLabel = null;
                         try {
                             StmtExpr body = convertStatementOrEmpty(labeledStmt.body, renames);

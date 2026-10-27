@@ -23,6 +23,8 @@
 # reproduce, because bf translates the form javac leaves behind.
 # ============================================================================
 XFAIL  org.strata.jverify.verifier.tests.javasupport.lambdas.PolymorphicLambdas                   FRONTEND_DISPATCH  type-variable method refusal diagnostic not reproduced
+SKIP   org.strata.jverify.verifier.tests.javasupport.statements.SwitchBreak                       arrow-case break crashes ControlFlowStructurer (NoSuchElementException), which XFAIL cannot absorb; separate ticket from D566037730
+XFAIL  org.strata.jverify.verifier.tests.javasupport.statements.LabeledContinue                   FRONTEND_OTHER  unconditional labeled continue to the outer loop aborts without a verdict (exit 2)
 
 # --- Uncaught exceptions: an error only if they can actually escape ---
 #

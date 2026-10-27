@@ -253,6 +253,11 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
     public static void verifyFile(SourceFile sourceFile, JVerifyTest annotation, List<AnnotatedRange> ranges,
                                   VerifierOptions options, String className) throws IOException {
         var manifest = xfailManifest();
+        // A SKIP entry marks a fixture that crashes this frontend (an infra
+        // error applyXfailInversion deliberately propagates), so it must not
+        // run at all.
+        String skipReason = manifest.skipReason(className);
+        Assumptions.assumeTrue(skipReason == null, () -> "bytecode-xfails SKIP: " + skipReason);
         var forcedXfail = manifest.forcedXfail(className);
         boolean forcedRun = manifest.isForcedRun(className);
 

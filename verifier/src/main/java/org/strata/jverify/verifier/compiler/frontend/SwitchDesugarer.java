@@ -6,6 +6,7 @@ import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
+import com.sun.tools.javac.tree.TreeScanner;
 import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
@@ -33,6 +34,7 @@ public class SwitchDesugarer extends TreeTranslator {
     private final Names names;
     private final Symtab symtab;
     private int nextSelectorIndex = 0;
+    private int nextSwitchBreakIndex = 0;
 
     public SwitchDesugarer(Context context) {
         this.maker = TreeMaker.instance(context);
@@ -49,13 +51,55 @@ public class SwitchDesugarer extends TreeTranslator {
 
     @Override
     public void visitSwitch(JCTree.JCSwitch tree) {
-        var maybeIf = switchToIf(tree.selector, tree.cases, tree.isExhaustive);
+        var maybeIf = switchToIf(tree.selector, tree.cases, tree.isExhaustive)
+                .flatMap(desugared -> retargetSwitchBreaks(tree, desugared));
         if (maybeIf.isPresent()) {
             result = maybeIf.get();
             result.accept(this);
             return;
         }
         super.visitSwitch(tree);
+    }
+
+    /// A `break` in an arrow-case body leaves the switch (JLS 14.15), but the
+    /// generated if-cascade is not a break target, so without intervention the
+    /// break would re-resolve to the enclosing loop — a soundness bug (the
+    /// verifier checks a loop that exits earlier than the Java loop; see
+    /// D566037730). Wrap the cascade in a labeled statement and retarget every
+    /// break that javac resolved to this switch (`JCBreak.target` identity; we
+    /// run after ATTR, which fills it in) at the new label. Breaks belonging to
+    /// nested loops or nested switches have a different target and are left
+    /// alone. The `java?` label namespace cannot collide with user labels.
+    ///
+    /// Empty means refusal: an unlabeled break with a null target would have
+    /// to be resolved by guessing, so fall through to LOWER (method-level
+    /// skip) rather than risk the wrong target.
+    private Optional<JCTree.JCStatement> retargetSwitchBreaks(JCTree.JCSwitch switchTree, JCTree.JCStatement desugared) {
+        var breaks = new ListBuffer<JCTree.JCBreak>();
+        boolean[] unresolvable = {false};
+        desugared.accept(new TreeScanner() {
+            @Override public void visitBreak(JCTree.JCBreak brk) {
+                if (brk.target == switchTree) {
+                    breaks.append(brk);
+                } else if (brk.target == null && brk.label == null) {
+                    unresolvable[0] = true;
+                }
+            }
+        });
+        if (unresolvable[0]) {
+            return Optional.empty();
+        }
+        if (breaks.isEmpty()) {
+            return Optional.of(desugared);
+        }
+        var labelName = names.fromString("java?switchBreak" + (nextSwitchBreakIndex++));
+        maker.pos = desugared.pos;
+        var labeled = maker.Labelled(labelName, desugared);
+        for (var brk : breaks) {
+            brk.label = labelName;
+            brk.target = labeled;
+        }
+        return Optional.of(labeled);
     }
 
     @Override
