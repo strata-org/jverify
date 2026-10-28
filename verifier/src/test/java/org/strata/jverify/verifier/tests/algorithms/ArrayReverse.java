@@ -1,15 +1,15 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR}, exitCode = 0)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_OTHER}, exitCode = 0)
 class ArrayReverse {
-    @Pure
+    @Transparent
     @Erased
     static boolean sameBetween(int[] a, int[] orig, int lo, int hi) {
         reads(a);
@@ -17,7 +17,7 @@ class ArrayReverse {
         return forall((int k) -> implies(lo <= k && k <= hi, a[k] == orig[k]));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean swappedBelow(int[] a, int[] orig, int i) {
         reads(a);
@@ -26,7 +26,7 @@ class ArrayReverse {
                 a[k] == orig[a.length - 1 - k] && a[a.length - 1 - k] == orig[k]));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean isReverse(int[] a, int[] orig) {
         reads(a);

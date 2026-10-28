@@ -70,7 +70,6 @@ final class ArrayModel {
     static final String SPEC_WRITE = "an array allocation or write inside a specification is not yet supported";
     static final String CONTRACT_WRITE = "an array allocation or write inside library contract code"
             + " is not yet supported";
-    static final String PURE_WRITE = "array allocation or writes inside a @Pure method are not yet supported";
     static final String ORDER = "an array allocation or write inside an expression with an earlier call"
             + " or field read is not yet supported";
     static final String VALUE_USE = "an array element assignment or increment used as a value"
@@ -85,7 +84,7 @@ final class ArrayModel {
     /** The element load helper prefix: {@code java?array_load_<suffix>(x: int): <range type>}. */
     static final String LOAD_HELPER_PREFIX = "java?array_load_";
     /**
-     * The transparent element load helper prefix for a transparent {@code @Pure}
+     * The transparent element load helper prefix for a transparent {@code @Transparent}
      * body: {@code java?array_pure_load_<suffix>(x: int): <range type>}, the
      * element clamped to the kind's range.
      */

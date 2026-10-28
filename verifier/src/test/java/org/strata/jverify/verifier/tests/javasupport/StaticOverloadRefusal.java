@@ -1,6 +1,6 @@
 package org.strata.jverify.verifier.tests.javasupport;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
@@ -21,17 +21,16 @@ import static org.strata.jverify.JVerify.*;
 )
 class StaticOverloadRefusal {
 
-    @Pure
+    @Transparent
     static int dup(int x) {
         return x;
     }
 
-    @Pure
+    @Transparent
     static int dup(boolean b) {
         return b ? 1 : 0;
     }
 
-    @Pure
     static int unique(int x) {
         postcondition((int r) -> r == x);
         return x;

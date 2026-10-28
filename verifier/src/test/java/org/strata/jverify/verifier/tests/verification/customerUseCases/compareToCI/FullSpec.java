@@ -1,7 +1,7 @@
 package org.strata.jverify.verifier.tests.verification.customerUseCases.compareToCI;
 
 import org.strata.jverify.JVerify;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.JVerifyTest;
 
@@ -19,7 +19,7 @@ import static org.strata.jverify.JVerify.precondition;
  * step, and {@link #compareToCIImpl} claims it as a postcondition.
  *
  * <p>Skipped, not xfailed, because the blocker's diagnostic cannot be pinned. A recursive
- * {@code @Pure} method becomes a Laurel function, and Strata rejects a recursive function with no
+ * {@code @Transparent} method becomes a Laurel function, and Strata rejects a recursive function with no
  * measure:
  *
  * <pre>
@@ -47,7 +47,7 @@ import static org.strata.jverify.JVerify.precondition;
  * {@code IntMap} because {@code Character.toUpperCase}/{@code toLowerCase} are opaque and so are
  * not even functions -- two calls on one argument need not agree -- which makes the theorem
  * relative to an abstract fold rather than to the Unicode tables. And no helper here states a
- * postcondition: any {@code ensures} on a {@code @Pure} method demotes it from transparent to
+ * postcondition: any {@code ensures} on a {@code @Transparent} method demotes it from transparent to
  * opaque, which costs congruence, so bounds obligations live at the call sites instead.
  *
  * <p>Even once the measure lands, the loop invariant relating the whole comparison to the
@@ -60,27 +60,27 @@ import static org.strata.jverify.JVerify.precondition;
         + " unattributable diagnostic. See the class comment.")
 class FullSpec {
 
-    @Pure
+    @Transparent
     static boolean isHigh(@Unbounded int c) {
         return 55296 <= c && c <= 56319;
     }
 
-    @Pure
+    @Transparent
     static boolean isLow(@Unbounded int c) {
         return 56320 <= c && c <= 57343;
     }
 
-    @Pure
+    @Transparent
     static boolean isSurrogate(@Unbounded int c) {
         return 55296 <= c && c <= 57343;
     }
 
-    @Pure
+    @Transparent
     static @Unbounded int toCodePoint(@Unbounded int high, @Unbounded int low) {
         return (high - 55296) * 1024 + (low - 56320) + 65536;
     }
 
-    @Pure
+    @Transparent
     static @Unbounded int sign(@Unbounded int v) {
         if (v > 0) {
             return 1;
@@ -91,12 +91,12 @@ class FullSpec {
         return 0;
     }
 
-    @Pure
+    @Transparent
     static boolean pairsAt(JVerify.IntMap m, @Unbounded int i, @Unbounded int len) {
         return isHigh(m.get(i)) && i + 1 < len && isLow(m.get(i + 1));
     }
 
-    @Pure
+    @Transparent
     static @Unbounded int headCodePoint(JVerify.IntMap m, @Unbounded int i, @Unbounded int len) {
         if (pairsAt(m, i, len)) {
             return toCodePoint(m.get(i), m.get(i + 1));
@@ -104,7 +104,7 @@ class FullSpec {
         return m.get(i);
     }
 
-    @Pure
+    @Transparent
     static @Unbounded int headWidth(JVerify.IntMap m, @Unbounded int i, @Unbounded int len) {
         if (pairsAt(m, i, len)) {
             return 2;
@@ -112,7 +112,7 @@ class FullSpec {
         return 1;
     }
 
-    @Pure
+    @Transparent
     static @Unbounded int compareSpec(JVerify.IntMap fold,
                                       JVerify.IntMap a, @Unbounded int ai, @Unbounded int alen,
                                       JVerify.IntMap b, @Unbounded int bi, @Unbounded int blen) {

@@ -1,11 +1,11 @@
 package q;
 
 import org.strata.jverify.Contract;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 
 @Contract(Boolean.class)
 class BooleanContract {
-    @Pure
+    @Transparent
     public static boolean logicalAnd(boolean a, boolean b) {
         return true;
     }

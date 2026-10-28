@@ -2,7 +2,7 @@ package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
 import org.strata.jverify.Nullable;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
@@ -17,7 +17,7 @@ class BinarySearchTree {
         @Nullable Node right;
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean isBst(@Nullable Node n, @Unbounded int lo, @Unbounded int hi, @Unbounded int height) {
         reads(everything());
@@ -30,7 +30,7 @@ class BinarySearchTree {
                 && isBst(n.right, n.key, hi, height - 1);
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean inTree(@Nullable Node n, int key, @Unbounded int height) {
         reads(everything());

@@ -1010,7 +1010,7 @@ class MainTest {
     @Test
     void anOptedOutMethodsDeclarationReadsAFieldOfASubclass(@TempDir Path tmp) throws Exception {
         var r = run(write(tmp, "H.java", """
-                import org.strata.jverify.Pure;
+                import org.strata.jverify.Transparent;
                 import org.strata.jverify.Verify;
 
                 import static org.strata.jverify.JVerify.check;
@@ -1020,7 +1020,7 @@ class MainTest {
                     int k;
 
                     @Verify(false)
-                    @Pure
+                    @Transparent
                     boolean ok(Sub s) {
                         precondition(s.w > 0);
                         return true;
@@ -1051,7 +1051,7 @@ class MainTest {
     @Test
     void anInlinedPreconditionReadsAFieldOfALaterClass(@TempDir Path tmp) throws Exception {
         var r = run(write(tmp, "O2b.java", """
-                import org.strata.jverify.Pure;
+                import org.strata.jverify.Transparent;
 
                 import static org.strata.jverify.JVerify.check;
                 import static org.strata.jverify.JVerify.precondition;
@@ -1065,7 +1065,7 @@ class MainTest {
                 }
 
                 class D {
-                    @Pure
+                    @Transparent
                     static int need(P p) {
                         precondition(p.f > 0);
                         return 1;

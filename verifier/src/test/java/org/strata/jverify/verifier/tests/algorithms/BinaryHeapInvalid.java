@@ -2,14 +2,14 @@ package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
 import org.strata.jverify.Invariant;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR, Blocker.FRONTEND_OTHER}, exitCode = 4)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER, Blocker.STRATA_OTHER}, exitCode = 4)
 class BinaryHeapInvalid {
     private final int[] heap;
     private int size;
@@ -20,21 +20,21 @@ class BinaryHeapInvalid {
         this.size = 0;
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean heapExcept(int[] a, int size, int hole) {
         reads(a);
         return forall((int k) -> implies(0 < k && k < size && k != hole, a[(k - 1) / 2] >= a[k]));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean heapExceptBelow(int[] a, int size, int hole) {
         reads(a);
         return forall((int k) -> implies(0 < k && k < size && (k - 1) / 2 != hole, a[(k - 1) / 2] >= a[k]));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static @Unbounded int countBelow(int[] a, int v, @Unbounded int hi) {
         reads(a);
@@ -45,7 +45,7 @@ class BinaryHeapInvalid {
         return countBelow(a, v, hi - 1) + (a[hi - 1] == v ? 1 : 0);
     }
 
-    @Pure
+    @Transparent
     @Invariant
     private boolean isHeap() {
         reads(this);
@@ -53,26 +53,26 @@ class BinaryHeapInvalid {
         return 0 <= size && size <= heap.length && heap.length <= 1000000 && heapExcept(heap, size, -1);
     }
 
-    @Pure
+    @Transparent
     public int size() {
         reads(this);
         return size;
     }
 
-    @Pure
+    @Transparent
     public int capacity() {
         reads(this);
         return heap.length;
     }
 
-    @Pure
+    @Transparent
     public @Unbounded int count(int v) {
         reads(this);
         reads(heap);
         return countBelow(heap, v, size);
     }
 
-    @Pure
+    @Transparent
     public int max() {
         reads(this);
         reads(heap);

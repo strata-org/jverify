@@ -2,7 +2,7 @@ package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
 import org.strata.jverify.Nullable;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
@@ -16,7 +16,7 @@ class SortedListInsertInvalid {
         @Nullable Node next;
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean sortedList(@Nullable Node n, @Unbounded int len) {
         reads(everything());
@@ -33,7 +33,7 @@ class SortedListInsertInvalid {
         return sortedList(n.next, len - 1);
     }
 
-    @Pure
+    @Transparent
     @Erased
     static @Unbounded int occurrences(@Nullable Node n, int v, @Unbounded int len) {
         reads(everything());

@@ -1,15 +1,15 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR, Blocker.FRONTEND_ARRAYS}, exitCode = 4)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_ARRAYS}, exitCode = 4)
 class GraphBfsInvalid {
-    @Pure
+    @Transparent
     @Erased
     static boolean adjacencyWellFormed(int[][] adj) {
         reads(everything());
@@ -17,7 +17,7 @@ class GraphBfsInvalid {
                 0 <= adj[u][k] && adj[u][k] < adj.length));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean closedUnderEdges(int[][] adj, boolean[] visited) {
         reads(everything());
@@ -25,14 +25,14 @@ class GraphBfsInvalid {
                 visited[adj[u][k]]));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean edge(int[][] adj, int u, int v) {
         reads(everything());
         return 0 <= u && u < adj.length && exists((int k) -> 0 <= k && k < adj[u].length && adj[u][k] == v);
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean parentsJustify(int[][] adj, boolean[] visited, int[] parent, int src) {
         reads(everything());

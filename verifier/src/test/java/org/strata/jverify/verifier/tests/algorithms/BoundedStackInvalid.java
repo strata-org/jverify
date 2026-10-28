@@ -1,7 +1,7 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Invariant;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
@@ -19,26 +19,26 @@ class BoundedStackInvalid {
         this.size = 0;
     }
 
-    @Pure
+    @Transparent
     @Invariant
     private boolean sizeInRange() {
         reads(this);
         return 0 <= size && size <= items.length;
     }
 
-    @Pure
+    @Transparent
     public int size() {
         reads(this);
         return size;
     }
 
-    @Pure
+    @Transparent
     public int capacity() {
         reads(this);
         return items.length;
     }
 
-    @Pure
+    @Transparent
     public int peekAt(int k) {
         reads(this);
         reads(items);

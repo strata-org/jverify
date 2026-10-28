@@ -1,23 +1,22 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
-import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR}, exitCode = 4)
+@JVerifyTest(skip = "Core symbolicEval runs out of memory on the recursive @Transparent openAt (P552053383)", exitCode = 4)
 class XmlNestingInvalid {
-    @Pure
+    @Transparent
     @Erased
     static boolean tags(int[] events) {
         reads(events);
         return forall((int k) -> implies(0 <= k && k < events.length, events[k] != 0 && events[k] != -2147483648));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static @Unbounded int depthAfter(int[] events, @Unbounded int hi) {
         reads(events);
@@ -28,7 +27,7 @@ class XmlNestingInvalid {
         return depthAfter(events, hi - 1) + (events[hi - 1] > 0 ? 1 : -1);
     }
 
-    @Pure
+    @Transparent
     @Erased
     static int openAt(int[] events, @Unbounded int hi, @Unbounded int d) {
         reads(events);
@@ -42,7 +41,7 @@ class XmlNestingInvalid {
         return openAt(events, hi - 1, d);
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean matchedBelow(int[] events, int hi) {
         reads(events);
@@ -50,7 +49,7 @@ class XmlNestingInvalid {
                 depthAfter(events, k) > 0 && openAt(events, k, depthAfter(events, k) - 1) == -events[k]));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean stackModels(int[] events, int[] stack, int depth, int hi) {
         reads(events);

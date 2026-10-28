@@ -1,16 +1,16 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR, Blocker.FRONTEND_OTHER}, exitCode = 4)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, exitCode = 4)
 class UnionFindInvalid {
-    @Pure
+    @Transparent
     @Erased
     static boolean ranked(int[] parent, int[] rank) {
         reads(parent);
@@ -21,7 +21,7 @@ class UnionFindInvalid {
                     && (parent[i] == i || rank[parent[i]] > rank[i])));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static int rootOf(int[] parent, int[] rank, int i) {
         reads(parent);

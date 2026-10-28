@@ -1,23 +1,23 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR}, exitCode = 4)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_OTHER}, exitCode = 4)
 class ArrayFillCopySumInvalid {
-    @Pure
+    @Transparent
     @Erased
     static boolean filledBelow(int[] a, int v, int hi) {
         reads(a);
         return forall((int k) -> implies(0 <= k && k < hi, a[k] == v));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean copiedBelow(int[] dst, int[] src, int hi) {
         reads(dst);
@@ -25,7 +25,7 @@ class ArrayFillCopySumInvalid {
         return forall((int k) -> implies(0 <= k && k < hi, dst[k] == src[k]));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static @Unbounded int sumBelow(int[] a, @Unbounded int hi) {
         reads(a);

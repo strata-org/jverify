@@ -9,12 +9,12 @@ Here's an example:
 ```java
 @Contract
 class ListContract<T> implements List<T> {
-  @Pure
+  @Transparent
   public T get(int index) {
     throw new ContractException();
   }
   
-  @Pure
+  @Transparent
   public int size() {
     throw new ContractException();
   }

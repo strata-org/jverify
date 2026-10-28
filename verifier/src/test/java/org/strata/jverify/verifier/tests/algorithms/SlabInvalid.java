@@ -2,7 +2,7 @@ package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
 import org.strata.jverify.Invariant;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
@@ -26,7 +26,7 @@ class SlabInvalid {
         this.len = 0;
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean freeChainFrom(boolean[] occupied, int[] nextFree, int at, @Unbounded int steps) {
         reads(occupied);
@@ -39,7 +39,7 @@ class SlabInvalid {
                 && freeChainFrom(occupied, nextFree, nextFree[at], steps - 1);
     }
 
-    @Pure
+    @Transparent
     @Invariant
     private boolean wellFormed() {
         reads(this);
@@ -50,14 +50,14 @@ class SlabInvalid {
                 && freeChainFrom(occupied, nextFree, freeHead, values.length);
     }
 
-    @Pure
+    @Transparent
     public boolean contains(int key) {
         reads(this);
         reads(occupied);
         return 0 <= key && key < len && occupied[key];
     }
 
-    @Pure
+    @Transparent
     public int get(int key) {
         reads(this);
         reads(values);

@@ -13,8 +13,6 @@ package org.strata.jverify.testengine;
 public enum Blocker {
     /** Restore a dropped front-end diagnostic emitter / message key (exit-2 negative tests). */
     FRONTEND_DIAGNOSTIC,
-    /** @Pure structural/purity validator not yet re-implemented. */
-    FRONTEND_PURE_VALIDATOR,
     /**
      * Constructor translation, and with it any field value a caller observes.
      *
@@ -55,7 +53,7 @@ public enum Blocker {
      * a type parameter), {@link #STRATA_GENERIC_OVERRIDE} (an override may not fix
      * the base's type parameter to a concrete type) and {@link #STRATA_WILDCARDS}.
      * There is deliberately no catch-all "Strata generics" bucket -- Strata has
-     * generics, and a generic {@code @Pure} procedure IS transparent (measured), so
+     * generics, and a generic {@code @Transparent} procedure IS transparent (measured), so
      * a failure that merely involves a type parameter is almost always something
      * else.
      */

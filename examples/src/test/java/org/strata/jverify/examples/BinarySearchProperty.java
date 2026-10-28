@@ -17,11 +17,11 @@ import static org.strata.jverify.JVerify.*;
  * and {@code contains} helpers below), because we are <em>testing</em> this
  * contract rather than verifying it — see "Testing unverified contracts".</p>
  *
- * <p>{@code binarySearch} uses a loop, so it cannot be {@code @Pure}; it does
- * not mutate any object, but {@code contracts2jqwik} cannot confirm that, so
- * generating the property in {@link BinarySearchPropertyGenerated} emits a
- * frame soundness warning. The translation still proceeds: the property checks
- * the postcondition, and we know by inspection the method mutates nothing.</p>
+ * <p>{@code binarySearch} does not mutate any object, but {@code contracts2jqwik}
+ * cannot confirm that, so generating the property in
+ * {@link BinarySearchPropertyGenerated} emits a frame soundness warning. The
+ * translation still proceeds: the property checks the postcondition, and we
+ * know by inspection the method mutates nothing.</p>
  */
 class BinarySearchProperty {
 
@@ -63,7 +63,7 @@ class BinarySearchProperty {
     }
 
     // Executable contract helpers. We are testing this contract, not verifying
-    // it, so these are ordinary Java rather than @Pure/@Erased spec helpers.
+    // it, so these are ordinary Java rather than @Transparent/@Erased spec helpers.
     static boolean isSorted(int[] a) {
         for (int i = 1; i < a.length; i++) {
             if (a[i - 1] > a[i]) {

@@ -1,7 +1,7 @@
 package org.strata.jverify.examples;
 
 import org.strata.jverify.Impure;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 
 @SuppressWarnings("unused")
 class ObjectRules {
@@ -11,7 +11,7 @@ class ObjectRules {
         Object pureObject2 = impureObject; // upcast is legal
     }
     
-    @Pure
+    @Transparent
     @Impure Object newObjectIsImpure() {
         return new Object(); // no cast needed
 //             ^ error: using 'new' in a pure expression to create an instance of an impure type is not allowed

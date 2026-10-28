@@ -1,6 +1,5 @@
 package org.strata.jverify.verifier.tests.javasupport.classes;
 
-import org.strata.jverify.Pure;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.JVerifyTest;
 
@@ -18,7 +17,6 @@ import static org.strata.jverify.JVerify.postcondition;
 @JVerifyTest(exitCode = 4, methodsVerified = 1, methodsInvalid = 1, errorCount = 1)
 final class InstanceMethodContractViolated {
 
-    @Pure
     @Unbounded
     int addOne(@Unbounded int x) {
         postcondition((int r) -> r == x + 2);

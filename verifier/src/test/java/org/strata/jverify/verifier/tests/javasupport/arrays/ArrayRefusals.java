@@ -10,7 +10,7 @@ import java.util.function.IntFunction;
 import org.strata.jverify.testengine.JVerifyTest;
 import org.strata.jverify.*;
 import static org.strata.jverify.JVerify.*;
-@JVerifyTest(continueOnErrors = true, exitCode = 0, methodsInvalid = 0, errorCount = 0, methodsVerified = 3, methodsSkipped = 20)
+@JVerifyTest(continueOnErrors = true, exitCode = 0, methodsInvalid = 0, errorCount = 0, methodsVerified = 3, methodsSkipped = 19)
 class ArrayRefusals {
     static int ok(int[] a) {
         precondition(a.length > 0);
@@ -111,12 +111,6 @@ class ArrayRefusals {
 //                         ^ error: an array allocation or write inside a specification is not yet supported
         postcondition((int r) -> new int[1].length == 1);
         return 0;
-    }
-
-    @Pure
-    static int pureWrite() {
-//                         ^ error: array allocation or writes inside a @Pure method are not yet supported
-        return new int[1].length;
     }
 
     static int order() {

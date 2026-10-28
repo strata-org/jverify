@@ -132,7 +132,6 @@ record BasicConsList(int head, @Nullable Wrapper<BasicConsList> tail) {}
 /** Members */
 @SuppressWarnings("ManualMinMaxCalculation")
 record Vec3(int x, int y, int z) {
-    @Pure
     public int max() {
         postcondition((int m) -> m >= x && m >= y && m >= z);
         postcondition((int m) -> m == x || m == y || m == z);
@@ -140,14 +139,14 @@ record Vec3(int x, int y, int z) {
                 : (y >= z ? y : z);
     }
 
-    @Pure
+    @Transparent
     public Vec3 allMax() {
         return new Vec3(this.max(), this.max(), this.max());
     }
 }
 
 record Factor(int value) implements ICoefficient {
-    @Pure
+    @Transparent
     @Override
     public @Unbounded int times(int i) {
         return value * i;
@@ -185,7 +184,7 @@ interface ICoefficient {
     @Contract
     class CoefficientContract implements ICoefficient {
 
-        @Pure
+        @Transparent
         @Override
         public @Unbounded int times(int i) {
             throw new ContractException();

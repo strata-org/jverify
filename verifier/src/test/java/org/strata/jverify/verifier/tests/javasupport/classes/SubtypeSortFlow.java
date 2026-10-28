@@ -1,6 +1,6 @@
 package org.strata.jverify.verifier.tests.javasupport.classes;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.JVerifyTest;
 
@@ -25,7 +25,7 @@ import static org.strata.jverify.JVerify.*;
  * (JLS 4.10.2) or interface sorts come out parentless.
  */
 /*
- * Verified 12 = the 4 @Pure helpers + retFlow + the 3 driver methods + one
+ * Verified 12 = the 4 @Transparent helpers + retFlow + the 3 driver methods + one
  * implicit constructor each for SubtypeSortFlow, Root, Base, and Sub.
  */
 @JVerifyTest(methodsVerified = 12, methodsSkipped = 0, errorCount = 0)
@@ -39,15 +39,15 @@ public class SubtypeSortFlow {
 
     static final class Sub extends Base {}
 
-    @Pure @Unbounded static int takesRoot(Root r) { postcondition((int x) -> x == 1); return 1; }
+    @Unbounded static int takesRoot(Root r) { postcondition((int x) -> x == 1); return 1; }
 
-    @Pure @Unbounded static int takesBase(Base b) { postcondition((int x) -> x == 2); return 2; }
+    @Unbounded static int takesBase(Base b) { postcondition((int x) -> x == 2); return 2; }
 
-    @Pure @Unbounded static int takesTag(Tag t) { postcondition((int x) -> x == 3); return 3; }
+    @Unbounded static int takesTag(Tag t) { postcondition((int x) -> x == 3); return 3; }
 
-    @Pure @Unbounded static int takesObject(Object o) { postcondition((int x) -> x == 4); return 4; }
+    @Unbounded static int takesObject(Object o) { postcondition((int x) -> x == 4); return 4; }
 
-    @Pure static Base retFlow(Sub s) { return s; }
+    @Transparent static Base retFlow(Sub s) { return s; }
 
     static void argAndChain(Sub s) {
         check(takesBase(s) == 2);    // one hop

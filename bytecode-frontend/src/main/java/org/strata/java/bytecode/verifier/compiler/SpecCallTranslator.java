@@ -247,7 +247,7 @@ final class SpecCallTranslator {
     }
 
     /**
-     * A supplier-style clause given as a reference to a {@code @Pure} static method of
+     * A supplier-style clause given as a reference to a {@code @Transparent} static method of
      * this program ({@code precondition(Foo::truth)}) is a call to that method with no
      * arguments. Null for anything else -- an instance or library method, an impure
      * one, one taking arguments -- which keeps the refusal.
@@ -269,7 +269,7 @@ final class SpecCallTranslator {
                 target = mm;
             }
         }
-        if (target == null || !Declarations.hasAnnotation(target, "Pure")) {
+        if (target == null || !Declarations.hasAnnotation(target, "Transparent")) {
             return null;
         }
         int arity = target.methodTypeSymbol().parameterCount();

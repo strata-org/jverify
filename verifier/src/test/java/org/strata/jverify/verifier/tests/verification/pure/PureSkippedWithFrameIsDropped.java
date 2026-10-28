@@ -1,19 +1,19 @@
 package org.strata.jverify.verifier.tests.verification.pure;
 
 import org.strata.jverify.Impure;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.check;
 import static org.strata.jverify.JVerify.precondition;
 
 /**
- * A SKIPPED {@code @Pure} method that holds a real frame is DROPPED, not reduced to an
+ * A SKIPPED {@code @Transparent} method that holds a real frame is DROPPED, not reduced to an
  * opaque declaration.
  *
  * <p>An opaque declaration with an EMPTY frame is a positive promise that the call
  * changes nothing. That is only honest for a procedure
- * whose frame is already empty -- and purity does not imply it: a {@code @Pure} method
+ * whose frame is already empty -- and purity does not imply it: a {@code @Transparent} method
  * may write the heap, and the front end then synthesizes a wildcard {@code modifies *}
  * for it. {@code keepsOpaqueDeclaration} is the gate; when it says no, the procedure is
  * dropped and its callers cascade-demote, exactly as they do for a non-pure
@@ -49,7 +49,7 @@ public class PureSkippedWithFrameIsDropped {
         return new Helper().step(b);
     }
 
-    @Pure
+    @Transparent
     static int accumulate(Box b) {
 //             ^ error: call to 'helper', which could not be translated
         int stepped = helper(b);

@@ -117,7 +117,7 @@ condition of `if ((6 & 3) == 2)`, stay folded.
 - **`@JVerifyTest`, `TestMarkup`, `Blocker`, `JVerifyTestRecord`** come from
   `:test-engine`; the engine that runs them (`BytecodeTestEngine`) lives here.
 - **The spec library** is `:library`, built a second time with `CLASS`
-  retention so `@Pure`/`@Nat`/`@Unbounded`/`@Contract` survive into the
+  retention so `@Transparent`/`@Nat`/`@Unbounded`/`@Contract` survive into the
   classfiles the frontend reads. The `generateBytecodeLibSources` task copies
   `:library`'s sources at build time, rewriting only the retention token, and
   `compileBytecodeLib`/`bytecodeLibJar` compile them into a plain jar that this

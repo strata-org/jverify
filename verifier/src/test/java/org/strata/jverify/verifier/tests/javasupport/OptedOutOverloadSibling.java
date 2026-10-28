@@ -1,6 +1,6 @@
 package org.strata.jverify.verifier.tests.javasupport;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Verify;
 import org.strata.jverify.testengine.JVerifyTest;
 
@@ -9,7 +9,7 @@ import static org.strata.jverify.JVerify.*;
 /**
  * An opted-out method still counts when deciding whether a name is overloaded.
  *
- * <p>A skipped {@code @Pure} method keeps an opaque DECLARATION, so it is emitted under
+ * <p>A skipped {@code @Transparent} method keeps an opaque DECLARATION, so it is emitted under
  * whatever name the overload suffix gives it. If the opted-out sibling were excluded from
  * the signature count, each of these would see a single signature, both would emit a bare
  * {@code dup}, and Strata would get a duplicate procedure plus an ambiguous call.
@@ -21,14 +21,13 @@ import static org.strata.jverify.JVerify.*;
 @JVerifyTest(continueOnErrors = true, exitCode = 4, methodsVerified = 3, errorCount = 1)
 class OptedOutOverloadSibling {
 
-    @Pure
     static int dup(int x) {
         postcondition((int r) -> r == 7);
         return 7;
     }
 
     @Verify(false)
-    @Pure
+    @Transparent
     static int dup(boolean b) {
         return 9;
     }

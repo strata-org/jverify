@@ -2,7 +2,7 @@ package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
 import org.strata.jverify.Nullable;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
@@ -16,14 +16,14 @@ class BinaryTrie {
         boolean terminal;
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean isWord(int[] word) {
         reads(word);
         return forall((int k) -> implies(0 <= k && k < word.length, word[k] == 0 || word[k] == 1));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean storedFrom(@Nullable Node n, int[] word, @Unbounded int depth) {
         reads(everything());

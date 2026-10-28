@@ -1,13 +1,13 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR, Blocker.FRONTEND_ARRAYS, Blocker.FRONTEND_OTHER}, exitCode = 0)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_ARRAYS, Blocker.FRONTEND_OTHER}, exitCode = 0)
 class SubjectObserver {
     static class Observer {
         int cache;
@@ -26,7 +26,7 @@ class SubjectObserver {
         }
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean synced(Subject s) {
         reads(everything());

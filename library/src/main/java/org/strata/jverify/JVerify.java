@@ -128,8 +128,8 @@ public class JVerify {
     }
 
     /**
-     * Specifies that the given heap object(s) (and its fields) may be read in the current context.
-     * This is only necessary within {@link Pure} methods, which otherwise cannot read the object or its fields.
+     * Specifies that the given heap object (and its fields) may be read in the current context.
+     * JVerify currently accepts this clause but does not use it.
      */
     public static void reads(Object object) {
     }
@@ -195,11 +195,7 @@ public class JVerify {
          * the given object(s) may be modified. Same argument forms as
          * {@link JVerify#modifies},
          * including {@link JVerify#everything()}. A case with no stated frame
-         * leaves its throwing path <em>unframed</em> -- callers cannot assume
-         * anything survives it. (The normal path differs: its unstated frame
-         * defaults to "nothing changes", with a heap-write wildcard fallback.)
-         * State the case's frame when callers need to know what a throw
-         * preserves.
+         * gets the same default as an unstated {@link JVerify#modifies}.
          */
         public ThrowsOnCase modifies(Object object) {
             return this;

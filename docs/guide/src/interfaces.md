@@ -10,7 +10,6 @@ interface I {
     @Contract
     class IContract implements I {
 
-        @Pure
         public int foo(int x) {
             precondition(x != 0);
             postcondition((Integer r) -> r > 10);
@@ -28,7 +27,7 @@ interface I {
 
 Because the contractor, `IContract`, implements `I`, JVerify infers that `I` is the _contractee_, the type for which a contract is provided. If `I` was a final type and could not be used in an `extends` or `implements` clause, then we could write `@Contract(I.class)` to specify `I` as the contractee.
 
-Notice that for `bar`, the contract is provided by the interface `I`, while for `foo`, the contract is provided by the contract class `IContract`. When both the contracter and the contractee occur in source, annotations on the type, such as `@Modifiable`, must be placed on the contractee, while annotations on the method, such as `@Pure`, must be placed on the method that defines the contract.
+Notice that for `bar`, the contract is provided by the interface `I`, while for `foo`, the contract is provided by the contract class `IContract`. When both the contracter and the contractee occur in source, annotations on the type, such as `@Modifiable`, must be placed on the contractee, while annotations on the method, such as `@Transparent`, must be placed on the method that defines the contract.
 
 `@Contract` classes are erased, so you won't be able to use them in executed code.
 

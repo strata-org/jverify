@@ -1,6 +1,6 @@
 package org.strata.jverify.verifier.tests.javasupport;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import java.util.function.IntPredicate;
@@ -33,12 +33,12 @@ public class AvoidNameCollisionsTest {
         return 2;
     }
     
-    @Pure
+    @Transparent
     boolean predicate(int r) {
         return true;
     }
 
-    @Pure
+    @Transparent
     boolean map(int r) {return true;}
 
     public class Base {

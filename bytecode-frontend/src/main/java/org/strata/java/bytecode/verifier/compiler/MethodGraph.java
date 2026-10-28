@@ -53,7 +53,7 @@ final class MethodGraph {
         String refusalReason;
         /**
          * Refused but QUIET (opted out), and its callers must still be demoted: a
-         * skipped {@code @Pure} method whose frame is not empty cannot be reduced to
+         * skipped {@code @Transparent} method whose frame is not empty cannot be reduced to
          * a callable declaration (see BytecodeToLaurelCompiler's frame gate), so a
          * call to it has nothing honest to bind to. Quiet refusals are otherwise
          * excluded from the cascade, because a call to an ordinary opted-out method

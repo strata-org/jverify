@@ -2,15 +2,16 @@ package org.strata.jverify.verifier.tests.verification.externalcontracts;
 
 import org.strata.jverify.Contract;
 import org.strata.jverify.ContractException;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
+import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import java.math.BigInteger;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 2)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_DIAGNOSTIC}, exitCode = 2)
 public class LibraryContractGhostFieldErrors {
 
     @Contract(BigInteger.class)
@@ -25,7 +26,7 @@ public class LibraryContractGhostFieldErrors {
             throw new ContractException();
         }
         
-        @Pure
+        @Transparent
         int intValue() {
             reads(this);
             //noinspection ConstantValue
@@ -33,12 +34,10 @@ public class LibraryContractGhostFieldErrors {
             return value;
         }
 
-        @Pure
         DummyBigIntegerContract add(DummyBigIntegerContract delta) {
+//                              ^ error: a contract for an impure method may only call super or this, or throw a ContractException in its body
             postcondition((DummyBigIntegerContract b) -> b.value == this.value + delta.value);
-            // try not specifying a pure body using the contract class
             throw new RuntimeException();
-//          ^ error: a pure block must end in a return or if-else statement
         }
     }
     

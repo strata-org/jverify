@@ -171,7 +171,6 @@ class ThrowsOnContract {
     /** The negative direction is deliberately not pinned: the same shape with a
         false `throwsOn(false)` fails the exhaustiveness claim, but that
         diagnostic is currently unattributed to a method. */
-    @org.strata.jverify.Pure
     static int pureWithCase(int x) throws AppException {
         throwsOn(x < 0);
         if (x < 0) {
@@ -269,7 +268,7 @@ class ThrowsOnContract {
 
     /** Exhaustiveness in reverse: the only stated case is x < 0, so landing
         in the handler proves the guard held. The caller must give up its own
-        frame: the callee's THROWING path is unframed (@Pure covers the
+        frame: the callee's THROWING path is unframed (@Transparent covers the
         normal path's frame, not the exceptional one's), and a call whose
         exceptional path may change anything defeats the caller's implicit
         "nothing changes" default. */

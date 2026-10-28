@@ -11,12 +11,11 @@ abstract class StreamContract<T> implements Stream<T> {
 
     public JVerify.Sequence<T> elements;
 
-    @Pure
+    @Transparent
     public T reduce(T identity, BinaryOperator<T> accumulator) {
         return SequenceHelper.reduce(elements, identity, accumulator);
     }
 
-    @Pure
     public <R> Stream<R> map(Function<? super T, ? extends R> mapper) {
         precondition(JVerify.forall((int i) ->
                 implies(0 <= i && i < elements.size(),
@@ -30,7 +29,7 @@ abstract class StreamContract<T> implements Stream<T> {
     }
     
     @Erased
-    @Pure
+    @Transparent
     public static <T> StreamContract<T> fromStream(Stream<T> stream) {
         return JVerify.<Stream<T>, StreamContract<T>>cast(stream);
     }

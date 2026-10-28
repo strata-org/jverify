@@ -1,16 +1,16 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR}, exitCode = 4)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_OTHER}, exitCode = 4)
 class KadaneInvalid {
-    @Pure
+    @Transparent
     @Erased
     static @Unbounded int sumRange(int[] a, @Unbounded int lo, @Unbounded int hi) {
         reads(a);
@@ -21,7 +21,7 @@ class KadaneInvalid {
         return sumRange(a, lo, hi - 1) + a[hi - 1];
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean isBestUpTo(int[] a, int best, int i) {
         reads(a);
@@ -29,7 +29,7 @@ class KadaneInvalid {
                 && exists((int lo) -> exists((int hi) -> 0 <= lo && lo <= hi && hi <= i && sumRange(a, lo, hi) == best));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean isBestEndingAt(int[] a, int cur, int i) {
         reads(a);

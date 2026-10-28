@@ -2,14 +2,14 @@ package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
 import org.strata.jverify.Nullable;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR, Blocker.FRONTEND_ARRAYS, Blocker.STRATA_NULLABLE}, exitCode = 0)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_ARRAYS, Blocker.FRONTEND_OTHER, Blocker.STRATA_NULLABLE}, exitCode = 0)
 class ChainedHashTable {
     static class Entry {
         int key;
@@ -17,14 +17,14 @@ class ChainedHashTable {
         @Nullable Entry next;
     }
 
-    @Pure
+    @Transparent
     @Erased
     static int bucketOf(int key, int buckets) {
         precondition(buckets > 0);
         return ((key % buckets) + buckets) % buckets;
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean chainIn(@Nullable Entry e, int bucket, int buckets, @Unbounded int len) {
         reads(everything());
@@ -36,7 +36,7 @@ class ChainedHashTable {
         return len > 0 && bucketOf(e.key, buckets) == bucket && chainIn(e.next, bucket, buckets, len - 1);
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean wellFormed(@Nullable Entry[] table, int[] lengths) {
         reads(everything());
@@ -45,7 +45,7 @@ class ChainedHashTable {
                     lengths[b] >= 0 && chainIn(table[b], b, table.length, lengths[b])));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean chainHas(@Nullable Entry e, int key, @Unbounded int len) {
         reads(everything());
@@ -56,7 +56,7 @@ class ChainedHashTable {
         return e.key == key || chainHas(e.next, key, len - 1);
     }
 
-    @Pure
+    @Transparent
     @Erased
     static int chainValue(@Nullable Entry e, int key, @Unbounded int len) {
         reads(everything());

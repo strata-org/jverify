@@ -1,7 +1,7 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
@@ -13,7 +13,7 @@ class CsvFields {
     static final int COMMA = ',';
     static final int QUOTE = '"';
 
-    @Pure
+    @Transparent
     @Erased
     static boolean quotedAfter(int[] in, @Unbounded int hi) {
         reads(in);
@@ -24,7 +24,7 @@ class CsvFields {
         return quotedAfter(in, hi - 1) != (in[hi - 1] == QUOTE);
     }
 
-    @Pure
+    @Transparent
     @Erased
     static @Unbounded int separatorsBelow(int[] in, @Unbounded int hi) {
         reads(in);

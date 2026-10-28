@@ -1,22 +1,22 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR, Blocker.FRONTEND_ARRAYS}, exitCode = 0)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_ARRAYS}, exitCode = 0)
 class NearestNeighbourTour {
-    @Pure
+    @Transparent
     @Erased
     static boolean square(int[][] d, int n) {
         reads(d);
         return d.length == n && forall((int r) -> implies(0 <= r && r < n, d[r].length == n));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean distinctValidBelow(int[] tour, int n, int hi) {
         reads(tour);
@@ -24,7 +24,7 @@ class NearestNeighbourTour {
                 && forall((int k, int m) -> implies(0 <= k && k < m && m < hi, tour[k] != tour[m]));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean visitedMatches(boolean[] visited, int[] tour, int hi) {
         reads(visited);

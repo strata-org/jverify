@@ -14,7 +14,8 @@ JVerify intends to support the full Java language, but is actively under develop
 - **Control flow:** `if`/`else`, `while`, `for`, `return`, `assert`, variable declarations, blocks.
 - **JVerify contract primitives:** `precondition()`, `postcondition()`, `check()`, `assume()`, `implies()`, `invariant()`.
 - **Quantifiers:** `forall()`, `exists()`.
-- **Pure static methods** via `@Pure`.
+- **Transparent methods** via `@Transparent`. The Strata back-end does not yet accept a
+  loop, a heap write or a `throw` in a transparent body, and reports it.
 - **Static method calls.**
 - **Exceptions:** `throws` clauses (unchecked types included; multi-`throws`
   joins to the closest common ancestor), `throw`, `try`/`catch`/`finally`
@@ -36,7 +37,7 @@ JVerify intends to support the full Java language, but is actively under develop
 - **`switch` expressions** in arrow form (`case 0 -> 1`). Not yet: the
   statement-group form (`case 0:` with `yield`), a block or `throw` as an arm body,
   and `case` patterns.
-- **Annotations:** `@Pure`, `@Impure`, `@Verify`, `@Contract`, `@Unbounded`, `@Nat`.
+- **Annotations:** `@Transparent`, `@Impure`, `@Verify`, `@Contract`, `@Unbounded`, `@Nat`.
 
 ## Not yet supported
 
@@ -82,9 +83,7 @@ The constructs rejected this way are:
 - `isAbstract()` anywhere but a precondition
 - A contract call (`precondition`, `postcondition`, …) placed after the body, in a
   loop, or otherwise out of position
-- A `@Pure` method whose body is not reducible to an expression — it must end in a
-  `return` (or an `if`/`else` that does), and may otherwise contain only variable
-  declarations, each with an initializer, and no mutation
+- A postcondition or `modifies` clause on a `@Transparent` method
 - A malformed `@Contract` class
 - Any construct that cannot be translated in a **static** method: a static method that
   cannot be translated is an error, an instance method a warning

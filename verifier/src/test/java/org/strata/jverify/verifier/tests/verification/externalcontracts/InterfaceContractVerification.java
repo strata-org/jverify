@@ -2,7 +2,7 @@ package org.strata.jverify.verifier.tests.verification.externalcontracts;
 
 import org.strata.jverify.Contract;
 import org.strata.jverify.ContractException;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.check;
@@ -51,7 +51,7 @@ public class InterfaceContractVerification {
             return 6;
         }
 
-        @Pure
+        @Transparent
         public int addedMethod() {
             return 1;
         }

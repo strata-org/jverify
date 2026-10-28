@@ -1,6 +1,6 @@
 package org.strata.jverify.verifier.tests.javasupport;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
 
 /**
@@ -17,14 +17,14 @@ import org.strata.jverify.testengine.JVerifyTest;
 class MangledNameSeparation {
 
     static class Foo_bar {
-        @Pure
+        @Transparent
         int baz() {
             return 0;
         }
     }
 
     static class Foo {
-        @Pure
+        @Transparent
         int bar_baz() {
             return 0;
         }

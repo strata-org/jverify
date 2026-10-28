@@ -136,7 +136,7 @@ class FieldAccessModifies {
     // runtime effect) would trigger the synthesized `modifies *`
     // fallback and demote otherwise-clean callees to OpaqueSpec.
 
-    /** A non-Pure helper; treating it as heap-writing would poison any
+    /** A non-@Transparent helper; treating it as heap-writing would poison any
      *  method that mentions it, even inside a postcondition lambda. */
     static boolean impureBooleanHelper() { return true; }
 

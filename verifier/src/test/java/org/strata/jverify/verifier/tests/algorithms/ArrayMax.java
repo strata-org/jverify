@@ -1,22 +1,22 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR}, exitCode = 0)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_OTHER}, exitCode = 0)
 class ArrayMax {
-    @Pure
+    @Transparent
     @Erased
     static boolean boundsBelow(int[] a, int m, int hi) {
         reads(a);
         return forall((int k) -> implies(0 <= k && k < hi, a[k] <= m));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean occursBelow(int[] a, int m, int hi) {
         reads(a);

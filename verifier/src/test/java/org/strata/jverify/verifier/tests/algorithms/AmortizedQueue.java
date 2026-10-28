@@ -1,7 +1,7 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Invariant;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
@@ -22,7 +22,7 @@ class AmortizedQueue {
         this.backSize = 0;
     }
 
-    @Pure
+    @Transparent
     @Invariant
     private boolean representation() {
         reads(this);
@@ -32,19 +32,19 @@ class AmortizedQueue {
                 && frontSize + backSize <= front.length;
     }
 
-    @Pure
+    @Transparent
     public int length() {
         reads(this);
         return frontSize + backSize;
     }
 
-    @Pure
+    @Transparent
     public int capacity() {
         reads(this);
         return front.length;
     }
 
-    @Pure
+    @Transparent
     public int elementAt(int k) {
         reads(this);
         reads(front);

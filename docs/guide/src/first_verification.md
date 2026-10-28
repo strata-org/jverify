@@ -45,7 +45,7 @@ The line points at the failing postcondition.
 
 ## Adding JVerify to a Java project
 
-To verify your own code, add the JVerify library as a compile-time dependency so you can use annotations such as `@Pure` and specification methods such as `precondition`. In a Gradle build script:
+To verify your own code, add the JVerify library as a compile-time dependency so you can use annotations such as `@Transparent` and specification methods such as `precondition`. In a Gradle build script:
 
 ```kotlin
 dependencies {

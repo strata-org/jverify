@@ -1,7 +1,7 @@
 package q;
 
 import org.strata.jverify.Contract;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Verify;
 
 @Contract(Math.class)
@@ -10,13 +10,13 @@ class MathContract {
         return 7;
     }
 
-    @Pure
+    @Transparent
     @Verify(false)
     public static int max(int a, int b) {
         return 7;
     }
 
-    @Pure
+    @Transparent
     public static int min(int a, int b) {
         return 7;
     }

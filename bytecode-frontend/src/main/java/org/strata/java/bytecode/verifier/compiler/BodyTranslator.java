@@ -1093,7 +1093,7 @@ final class BodyTranslator {
      * change the meaning or the method's shape:
      * <ul>
      *   <li>in a contract, a spec lambda, a {@code check}/{@code assume}, or a
-     *       {@code @Pure} method (a transparent function cannot throw);</li>
+     *       {@code @Transparent} method (a transparent function cannot throw);</li>
      *   <li>under a conditional sub-expression (a ternary arm, the right
      *       operand of {@code &&}/{@code ||}), which may not be evaluated, and
      *       in any conditional or repeated context ({@link #inConditional}: a

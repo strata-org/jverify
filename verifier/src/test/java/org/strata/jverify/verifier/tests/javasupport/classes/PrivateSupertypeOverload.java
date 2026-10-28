@@ -1,6 +1,6 @@
 package org.strata.jverify.verifier.tests.javasupport.classes;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.JVerifyTest;
 
@@ -32,11 +32,11 @@ import static org.strata.jverify.JVerify.*;
 public class PrivateSupertypeOverload {
 
     static class BaseR {
-        @Pure @Unbounded private int val(String s) { return 0; }
+        @Transparent @Unbounded private int val(String s) { return 0; }
     }
 
     static final class SubR extends BaseR {
-        @Pure @Unbounded int val(int x) { postcondition((int r) -> r == 9); return 9; }
+        @Unbounded int val(int x) { postcondition((int r) -> r == 9); return 9; }
     }
 
     static void root(SubR s) {

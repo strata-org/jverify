@@ -428,9 +428,9 @@ final class ArrayAccessTranslator {
     /**
      * Before an allocation or a write emits a statement: refuse where it
      * would not run exactly once, in Java's order. In order: a conditional
-     * or repeated context, a specification, contract code, a {@code @Pure}
-     * program method, and a pending stack entry that is not simple (its
-     * evaluation would move after the emitted statements).
+     * or repeated context, a specification, contract code, and a pending stack
+     * entry that is not simple (its evaluation would move after the emitted
+     * statements).
      */
     private void checkPlacement() {
         if (b.inConditional()) {
@@ -441,9 +441,6 @@ final class ArrayAccessTranslator {
         }
         if (ctx.contractMode) {
             throw new JavaViolationException(ArrayModel.CONTRACT_WRITE);
-        }
-        if (ctx.method.pure) {
-            throw new JavaViolationException(ArrayModel.PURE_WRITE);
         }
         for (AstNode<StmtExpr> pending : b.stack) {
             if (!b.isSimple(pending)) {
@@ -482,7 +479,7 @@ final class ArrayAccessTranslator {
     }
 
     /**
-     * {@code n}, a transparent {@code @Pure} body, with every {@code
+     * {@code n}, a transparent {@code @Transparent} body, with every {@code
      * java?array_load_<k>(x)} replaced by the transparent {@code
      * java?array_pure_load_<k>(x)} ({@link LaurelFactory#registerPureArrayLoadHelper}):
      * Strata turns the body into a function, which cannot call the opaque
@@ -548,7 +545,7 @@ final class ArrayAccessTranslator {
                 var target = rewriteLoads(f.target(), onLoad);
                 yield target == f.target() ? v : new StmtExpr.Var(new Variable.Field(target, f.fieldName()));
             }
-            // The statements of a transparent @Pure body.
+            // The statements of a transparent @Transparent body.
             case StmtExpr.Block blk -> {
                 var stmts = rewriteAll(blk.statements(), onLoad);
                 yield stmts == blk.statements() ? v : new StmtExpr.Block(stmts, blk.label());

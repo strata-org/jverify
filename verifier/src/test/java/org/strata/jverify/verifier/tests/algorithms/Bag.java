@@ -2,7 +2,7 @@ package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
 import org.strata.jverify.Invariant;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
@@ -20,14 +20,14 @@ class Bag {
         this.size = 0;
     }
 
-    @Pure
+    @Transparent
     @Invariant
     private boolean sizeInRange() {
         reads(this);
         return 0 <= size && size <= items.length;
     }
 
-    @Pure
+    @Transparent
     @Erased
     static @Unbounded int countBelow(int[] a, int v, @Unbounded int hi) {
         reads(a);
@@ -38,20 +38,20 @@ class Bag {
         return countBelow(a, v, hi - 1) + (a[hi - 1] == v ? 1 : 0);
     }
 
-    @Pure
+    @Transparent
     public @Unbounded int count(int v) {
         reads(this);
         reads(items);
         return countBelow(items, v, size);
     }
 
-    @Pure
+    @Transparent
     public int size() {
         reads(this);
         return size;
     }
 
-    @Pure
+    @Transparent
     public int capacity() {
         reads(this);
         return items.length;

@@ -179,10 +179,10 @@ class LibraryContractsTest {
                     package q;
                     import org.strata.jverify.Contract;
                     import org.strata.jverify.ContractException;
-                    import org.strata.jverify.Pure;
+                    import org.strata.jverify.Transparent;
                     @Contract(Math.class)
                     class MathContract {
-                        @Pure
+                        @Transparent
                         public static int abs(int a) {
                             throw new ContractException();
                         }

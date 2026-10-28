@@ -137,8 +137,12 @@ public final class LibraryContracts {
 
     private final ArrayDeque<ContractMember> demandQueue = new ArrayDeque<>();
     private final Set<String> demandedKeys = new LinkedHashSet<>();
-    /** sortOrFqn_laurelName -> @Pure, for every member a lookup returned. */
-    private final Map<String, Boolean> pureKeys = new HashMap<>();
+    /**
+     * sortOrFqn_laurelName -> the member is emitted with an empty frame, for every
+     * member a lookup returned: a library member's frame is exactly its explicit
+     * {@code modifies}.
+     */
+    private final Map<String, Boolean> frameEmptyKeys = new HashMap<>();
 
     private LibraryContracts(boolean disabled, JavaFileObject objectContract,
                              List<JavaFileObject> userSources, List<Path> classPath) {
@@ -852,7 +856,8 @@ public final class LibraryContracts {
             if (mm.methodName().stringValue().equals(name) && isStatic(mm) == isStatic
                     && mappedParams(mm.methodTypeSymbol()).equals(callParams)) {
                 var member = memberOf(kind, cm, mm, declared, sortOrFqn, contracteeFqn, uri, contractPure);
-                pureKeys.put(member.sortOrFqn() + "_" + member.laurelName(), member.isPure());
+                frameEmptyKeys.put(member.sortOrFqn() + "_" + member.laurelName(),
+                        member.isTransparent() || !declaresModifies(mm));
                 return member;
             }
         }
@@ -876,7 +881,7 @@ public final class LibraryContracts {
             laurelName = sb.toString();
         }
         boolean spec = kind == ContractMember.Kind.SPEC_INTERFACE;
-        boolean isPure = spec || Declarations.hasAnnotation(mm, "Pure");
+        boolean isTransparent = spec || Declarations.hasAnnotation(mm, "Transparent");
         boolean verify = spec || effectiveVerify(cm, mm);
 
         boolean returnsTypeVar = false;
@@ -893,7 +898,7 @@ public final class LibraryContracts {
                     && sig.arguments().get(i) instanceof Signature.TypeVarSig);
         }
         return new ContractMember(kind, cm.thisClass().asInternalName(), name, mm.methodTypeSymbol(),
-                sortOrFqn, laurelName, contracteeFqn, isStatic, isPure, mm.code().isPresent(), verify,
+                sortOrFqn, laurelName, contracteeFqn, isStatic, isTransparent, mm.code().isPresent(), verify,
                 returnsTypeVar, paramIsTypeVar, uri, contractPure);
     }
 
@@ -956,8 +961,24 @@ public final class LibraryContracts {
         return demandQueue.poll();
     }
 
-    /** True iff a member a lookup returned under {@code sortOrFqn_laurelName} is {@code @Pure}. */
-    boolean isPureKey(String key) {
-        return pureKeys.getOrDefault(key, false);
+    /** True iff a member a lookup returned under {@code sortOrFqn_laurelName} has an empty frame. */
+    boolean isFrameEmptyKey(String key) {
+        return frameEmptyKeys.getOrDefault(key, false);
+    }
+
+    private static boolean declaresModifies(MethodModel mm) {
+        var code = mm.code().orElse(null);
+        if (code == null) {
+            return false;
+        }
+        for (var el : code) {
+            if (el instanceof java.lang.classfile.instruction.InvokeInstruction inv
+                    && (inv.owner().asInternalName().equals("org/strata/jverify/JVerify")
+                            || inv.owner().asInternalName().equals("org/strata/jverify/JVerify$ThrowsOnCase"))
+                    && inv.name().stringValue().equals("modifies")) {
+                return true;
+            }
+        }
+        return false;
     }
 }

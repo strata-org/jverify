@@ -30,7 +30,7 @@ interface I {
     @Contract
     class IContract implements I {
 
-        @Pure
+        @Transparent
         public int f(int x) {
             precondition(x > 2);
 //                       ^^^^^ Related location: this proposition could not be proved
@@ -61,7 +61,7 @@ class CInvalidContract implements I {
         c = new Container();
     }
     
-    @Pure
+    @Transparent
     @Override
     public int f(int x) {
 //             ^ Error: function's (possibly automatically generated) decreases clause must be below or equal to that in the trait
@@ -81,7 +81,7 @@ class CValid implements I {
     @Nullable Anything obj;
 
     //@InheritContract
-    @Pure
+    @Transparent
     @Override
     public int f(int x) {
         precondition(x > 2);
@@ -107,7 +107,7 @@ class CInvalidImplementation implements I {
     }
 
     //@InheritContract
-    @Pure
+    @Transparent
     @Override
     public int f(int x) {
         precondition(x > 2);

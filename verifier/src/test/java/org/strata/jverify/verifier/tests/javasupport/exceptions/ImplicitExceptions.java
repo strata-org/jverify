@@ -1,6 +1,5 @@
 package org.strata.jverify.verifier.tests.javasupport.exceptions;
 
-import org.strata.jverify.Pure;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.check;
@@ -374,8 +373,6 @@ class ImplicitExceptions {
         return x;
     }
 
-    /** A `@Pure` method whose body throws is opaque: a function cannot throw. */
-    @Pure
     static int pureThrowUnreachable(int x) {
         precondition(x >= 0);
         if (x < 0) {
@@ -384,7 +381,6 @@ class ImplicitExceptions {
         return x;
     }
 
-    @Pure
     static int pureThrowReachable(int x) {
         if (x < 0) {
             throw new AppException();

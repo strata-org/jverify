@@ -405,7 +405,7 @@ Positive tests (`PrimitiveCasts.java`):
 3. **Documenting the choice for users.** `library/`'s public docs
    should note that narrowing primitive casts require the source to
    provably fit the target — same as arithmetic overflow. Add to the
-   `@Pure`/`@Invariant` overview page.
+   `@Transparent`/`@Invariant` overview page.
 
 4. **Postcondition-cast + matching-precondition case.** A method whose
    *own* precondition would prove the cast's precondition doesn't

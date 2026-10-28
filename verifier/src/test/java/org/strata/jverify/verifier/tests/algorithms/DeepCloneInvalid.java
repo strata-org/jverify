@@ -2,7 +2,7 @@ package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
 import org.strata.jverify.Nullable;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
@@ -17,7 +17,7 @@ class DeepCloneInvalid {
         @Nullable Node right;
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean isTree(@Nullable Node n, @Unbounded int height) {
         reads(everything());
@@ -28,7 +28,7 @@ class DeepCloneInvalid {
         return height > 0 && isTree(n.left, height - 1) && isTree(n.right, height - 1);
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean isomorphic(@Nullable Node a, @Nullable Node b, @Unbounded int height) {
         reads(everything());
@@ -40,7 +40,7 @@ class DeepCloneInvalid {
                 && isomorphic(a.left, b.left, height - 1) && isomorphic(a.right, b.right, height - 1);
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean disjoint(@Nullable Node a, @Nullable Node b, @Unbounded int ha, @Unbounded int hb) {
         reads(everything());

@@ -1,6 +1,5 @@
 package org.strata.jverify.verifier.tests.javasupport.classes;
 
-import org.strata.jverify.Pure;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.JVerifyTest;
 
@@ -31,7 +30,6 @@ public class FinalReceiverInheritedCall {
 }
 
 class B {
-    @Pure
     @Unbounded
     int value() {
         postcondition((int r) -> r == 7);

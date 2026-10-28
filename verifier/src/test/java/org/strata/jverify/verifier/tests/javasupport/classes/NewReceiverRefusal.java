@@ -1,6 +1,6 @@
 package org.strata.jverify.verifier.tests.javasupport.classes;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
 
 /**
@@ -13,7 +13,7 @@ import org.strata.jverify.testengine.JVerifyTest;
 @JVerifyTest(continueOnErrors = true, exitCode = 0, methodsVerified = 3, methodsSkipped = 1, errorCount = 0)
 class NewReceiverRefusal {
     static class Box {
-        @Pure
+        @Transparent
         int value() {
             return 0;
         }

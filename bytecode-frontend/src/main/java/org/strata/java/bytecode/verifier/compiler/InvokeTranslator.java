@@ -292,59 +292,6 @@ final class InvokeTranslator {
         return args.size() == arity ? args : List.of();
     }
 
-    /**
-     * A skipped {@code @Pure} callee is exempt from the opted-out call refusal: it
-     * keeps an opaque DECLARATION, so the name resolves and the caller stays
-     * verifiable while learning nothing about the result -- the documented intent
-     * of {@code @Verify(false) @Pure} (see PureUnverifiedMethod). A non-pure one is
-     * still refused: it has no honest frame, so nothing sound can be said about it.
-     */
-    private boolean pureByDeclaration(java.lang.classfile.MethodModel m) {
-        if (isPureCallee(m)) {
-            return true;
-        }
-        var owner = m.parent().orElse(null);
-        if (owner == null) {
-            return false;
-        }
-        String name = m.methodName().stringValue();
-        var params = m.methodTypeSymbol().parameterList();
-        var queue = new java.util.ArrayDeque<String>();
-        var seen = new java.util.HashSet<String>();
-        queue.add(JavaNames.dottedFqn(owner.thisClass().asInternalName()));
-        while (!queue.isEmpty()) {
-            String t = queue.poll();
-            if (!seen.add(t)) {
-                continue;
-            }
-            var models = new ArrayList<java.lang.classfile.ClassModel>();
-            var tcm = ctx.resolver.programClassModels.get(t);
-            if (tcm == null) {
-                continue;
-            }
-            models.add(tcm);
-            for (var e : ctx.resolver.contracteeOf.entrySet()) {
-                if (e.getValue().equals(t) && ctx.resolver.programClassModels.containsKey(e.getKey())) {
-                    models.add(ctx.resolver.programClassModels.get(e.getKey()));
-                }
-            }
-            for (var cm : models) {
-                for (var mm : cm.methods()) {
-                    if (mm.methodName().stringValue().equals(name)
-                            && mm.methodTypeSymbol().parameterList().equals(params) && isPureCallee(mm)) {
-                        return true;
-                    }
-                }
-            }
-            String sup = ctx.resolver.programSuper.get(t);
-            if (sup != null) {
-                queue.add(sup);
-            }
-            queue.addAll(ctx.resolver.directInterfacesOf(t));
-        }
-        return false;
-    }
-
     private List<AstNode<StmtExpr>> unifyTypeVariableArgs(java.lang.classfile.MethodModel callee,
                                                          List<AstNode<StmtExpr>> args) {
         var sig = callee.findAttribute(java.lang.classfile.Attributes.signature()).map(sa -> {
@@ -517,32 +464,8 @@ final class InvokeTranslator {
         return true;
     }
 
-    private static boolean isRecordAccessor(java.lang.classfile.MethodModel m) {
-        var owner = m.parent().orElse(null);
-        if (owner == null || m.methodTypeSymbol().parameterCount() != 0) {
-            return false;
-        }
-        var rec = owner.findAttribute(java.lang.classfile.Attributes.record()).orElse(null);
-        return rec != null && rec.components().stream()
-                .anyMatch(c -> c.name().stringValue().equals(m.methodName().stringValue()));
-    }
-
-    private boolean calleeRefused(java.lang.classfile.MethodModel m) {
-        var owner = m.parent().orElse(null);
-        if (owner == null) {
-            return false;
-        }
-        String fqn = JavaNames.dottedFqn(owner.thisClass().asInternalName());
-        for (var info : ctx.graph.methodInfos.values()) {
-            if (info.refused && info.classFqn.equals(fqn) && info.name.equals(m.methodName().stringValue())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private static boolean isPureCallee(java.lang.classfile.MethodModel m) {
-        return Declarations.hasAnnotation(m, "Pure");
+        return Declarations.hasAnnotation(m, "Transparent");
     }
 
     /** {@code Integer.valueOf(int)} and its siblings: javac's autoboxing of one primitive. */
@@ -919,11 +842,6 @@ final class InvokeTranslator {
      */
     private void finishCall(AstNode<StmtExpr> call, java.lang.constant.MethodTypeDesc d,
                             java.lang.classfile.MethodModel callee, boolean resultIsTypeVar) {
-        if (ctx.method.pureBody && !ctx.method.shapeErrorReported && callee != null && !pureByDeclaration(callee)
-                && !isRecordAccessor(callee) && !calleeRefused(callee)) {
-            b.reportConstructError("expression is not allowed to invoke a method ("
-                    + callee.methodName().stringValue() + ")");
-        }
         String ret = d.returnType().descriptorString();
         if (ret.equals("V")) {
             b.addStmt(call.val());

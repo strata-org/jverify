@@ -1,9 +1,9 @@
 package org.strata.jverify.builtin;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 
 class IntegerContractHelper {
-    @Pure
+    @Transparent
     public static boolean sumWillOverflow(int a, int b) {
         if (a > 0 && b > 0) {
             return a > Integer.MAX_VALUE - b;

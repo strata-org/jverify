@@ -1,23 +1,23 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR, Blocker.FRONTEND_ARRAYS}, exitCode = 4)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_ARRAYS}, exitCode = 4)
 class MatrixMultiplyInvalid {
-    @Pure
+    @Transparent
     @Erased
     static boolean square(int[][] m, int n) {
         reads(m);
         return m.length == n && forall((int r) -> implies(0 <= r && r < n, m[r].length == n));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean bounded(int[][] m, int n) {
         reads(m);
@@ -25,7 +25,7 @@ class MatrixMultiplyInvalid {
                 -100 <= m[r][c] && m[r][c] <= 100));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static @Unbounded int dot(int[][] a, int[][] b, int i, int j, @Unbounded int k) {
         reads(a);
@@ -39,7 +39,7 @@ class MatrixMultiplyInvalid {
         return dot(a, b, i, j, k - 1) + a[i][k - 1] * b[k - 1][j];
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean productBelow(int[][] c, int[][] a, int[][] b, int n, int rows, int cols) {
         reads(c);

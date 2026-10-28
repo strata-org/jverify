@@ -1,23 +1,23 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR}, exitCode = 4)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_OTHER}, exitCode = 4)
 class FloydCycleInvalid {
-    @Pure
+    @Transparent
     @Erased
     static boolean closed(int[] next) {
         reads(next);
         return forall((int i) -> implies(0 <= i && i < next.length, 0 <= next[i] && next[i] < next.length));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static int iterate(int[] next, int x, @Unbounded int k) {
         reads(next);

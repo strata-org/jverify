@@ -1,13 +1,13 @@
 package org.strata.jverify.verifier.tests.javasupport.classes;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
 /**
- * How a caller can use a parameter-dependent {@code @Pure} method's result. The
+ * How a caller can use a parameter-dependent {@code @Transparent} method's result. The
  * transparent function inlines at the use site, so the caller sees
  * {@code addOne(a) == a + 1} — provided the relationship to {@code a} survives:
  *
@@ -27,7 +27,7 @@ import static org.strata.jverify.JVerify.*;
 @JVerifyTest(methodsVerified = 5, errorCount = 0)
 final class PureCallResult {
 
-    @Pure
+    @Transparent
     @Unbounded
     static int addOne(@Unbounded int x) {
         return x + 1;

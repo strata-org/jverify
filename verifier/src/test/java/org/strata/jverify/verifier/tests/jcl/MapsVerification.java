@@ -16,7 +16,7 @@ import static org.strata.jverify.JVerify.precondition;
  * {@code contains} to {@code mapContains}. Both carry transparent bodies over {@code select}, so a
  * read is a FUNCTION of its key -- {@link #readIsFunctional} -- and a fact stated about one key
  * survives into an obligation -- {@link #factSurvivesIntoObligation}. A call to an opaque
- * {@code @Pure} method gives neither: it is re-havoc'd at every use. This is the reference-typed
+ * {@code @Transparent} method gives neither: it is re-havoc'd at every use. This is the reference-typed
  * counterpart of what {@link IntMapReads} pins for the int-to-int specialization.
  *
  * <p>{@link #distinctKeysAreUnrelatedShouldFAIL} and

@@ -36,7 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class BytecodeFrontendTest {
 
     private static final String SOURCE = """
-            import org.strata.jverify.Pure;
+            import org.strata.jverify.Transparent;
             import static org.strata.jverify.JVerify.*;
 
             public class Sample {
@@ -56,7 +56,7 @@ class BytecodeFrontendTest {
                     return result;
                 }
 
-                @Pure
+                @Transparent
                 public static int sumTo(int n) {
                     precondition(n >= 0);
                     int total = 0;
@@ -112,13 +112,13 @@ class BytecodeFrontendTest {
         assertTrue(clampCalls.contains("precondition"), () -> "calls: " + clampCalls);
         assertTrue(clampCalls.contains("check"), () -> "calls: " + clampCalls);
 
-        // CLASS-retention @Pure from the spec library is visible in bytecode.
+        // CLASS-retention @Transparent from the spec library is visible in bytecode.
         boolean pure = sumTo.findAttribute(java.lang.classfile.Attributes.runtimeInvisibleAnnotations())
                 .map(a -> a.annotations().stream().anyMatch(x ->
                         java.lang.constant.ClassDesc.ofDescriptor(x.className().stringValue())
-                                .displayName().equals("Pure")))
+                                .displayName().equals("Transparent")))
                 .orElse(false);
-        assertTrue(pure, "sumTo should carry @Pure");
+        assertTrue(pure, "sumTo should carry @Transparent");
 
         // CharacterRangeTable spans are present with real line numbers.
         assertFalse(clampShape.crt().isEmpty(), "statements should carry CRT spans");

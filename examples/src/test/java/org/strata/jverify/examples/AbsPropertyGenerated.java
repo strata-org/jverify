@@ -4,7 +4,6 @@ import net.jqwik.api.Assume;
 import net.jqwik.api.ForAll;
 import net.jqwik.api.Property;
 import org.strata.jverify.AsProperty;
-import org.strata.jverify.Pure;
 import static org.strata.jverify.JVerify.*;
 
 public class AbsPropertyGenerated extends AbsProperty {

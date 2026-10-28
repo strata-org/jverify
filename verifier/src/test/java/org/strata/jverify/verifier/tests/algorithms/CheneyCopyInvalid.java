@@ -2,13 +2,13 @@ package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
 import org.strata.jverify.Nullable;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR, Blocker.FRONTEND_ARRAYS, Blocker.STRATA_NULLABLE}, exitCode = 4)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_ARRAYS, Blocker.FRONTEND_OTHER, Blocker.STRATA_NULLABLE}, exitCode = 4)
 class CheneyCopyInvalid {
     static class Obj {
         int payload;
@@ -17,14 +17,14 @@ class CheneyCopyInvalid {
         @Nullable Obj forward;
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean member(Obj[] space, @Nullable Obj o) {
         reads(space);
         return o == null || exists((int i) -> 0 <= i && i < space.length && space[i] == o);
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean closedUnforwarded(Obj[] from) {
         reads(everything());
@@ -32,14 +32,14 @@ class CheneyCopyInvalid {
                 from[i] != null && from[i].forward == null && member(from, from[i].left) && member(from, from[i].right)));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static @Nullable Obj image(@Nullable Obj o) {
         reads(everything());
         return o == null ? null : o.forward;
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean isomorphicCopy(Obj[] from) {
         reads(everything());
@@ -51,7 +51,7 @@ class CheneyCopyInvalid {
                 && (from[i].right == null || from[i].right.forward != null)));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean injective(Obj[] from) {
         reads(everything());

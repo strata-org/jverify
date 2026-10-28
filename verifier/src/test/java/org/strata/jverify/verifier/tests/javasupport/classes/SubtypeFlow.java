@@ -1,6 +1,6 @@
 package org.strata.jverify.verifier.tests.javasupport.classes;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.JVerifyTest;
 
@@ -32,7 +32,7 @@ import static org.strata.jverify.JVerify.*;
  *       sorts were emitted parentless.
  * </ul>
  * {@code legs()} is {@code final} so its receiver call is monomorphic (passes
- * refuseIfPolymorphicDispatch); {@code @Pure} plus a postcondition proves the
+ * refuseIfPolymorphicDispatch); {@code @Transparent} plus a postcondition proves the
  * receiver-flow check, so a dropped edge fails rather than passing vacuously.
  *
  * <p>Verified 10 = root + takesAnimal + takesPet + takesObject + retFlow +
@@ -74,7 +74,6 @@ interface Pet { }
 class Creature { }
 
 class Animal extends Creature implements Pet {
-    @Pure
     @Unbounded
     final int legs() {
         postcondition((int r) -> r == 4);

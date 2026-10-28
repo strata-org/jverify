@@ -1,6 +1,5 @@
 package org.strata.jverify.verifier.tests.javasupport.classes;
 
-import org.strata.jverify.Pure;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.JVerifyTest;
 
@@ -24,7 +23,7 @@ import static org.strata.jverify.JVerify.*;
 public class InheritedNameOverload {
 
     static final class Holder {
-        @Pure @Unbounded int toString(int x) { postcondition((int r) -> r == 5); return 5; }
+        @Unbounded int toString(int x) { postcondition((int r) -> r == 5); return 5; }
     }
 
     static void root(Holder h) {

@@ -31,7 +31,7 @@ class IntPair {
         this.b = b_;
     }
 
-    @Pure
+    @Transparent
     public int getA() {
         reads(this);
         return a;

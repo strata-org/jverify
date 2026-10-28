@@ -3,7 +3,7 @@ package org.strata.jverify.verifier.tests.javasupport.statements;
 import org.strata.jverify.Contract;
 import org.strata.jverify.ContractException;
 import org.strata.jverify.Nullable;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
 import org.strata.jverify.testengine.Blocker;
 
@@ -97,7 +97,7 @@ class TranslationErrors {
 
     @Contract(Integer.class)
     static class IntegerContract {
-        @Pure
+        @Transparent
         public int intValue() {
             throw new ContractException();
         }

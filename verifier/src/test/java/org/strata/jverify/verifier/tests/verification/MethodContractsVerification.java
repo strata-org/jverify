@@ -2,7 +2,7 @@ package org.strata.jverify.verifier.tests.verification;
 
 import org.strata.jverify.Contract;
 import org.strata.jverify.ContractException;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import java.util.function.IntPredicate;
@@ -31,12 +31,12 @@ public class MethodContractsVerification {
         return 2;
     }
 
-    @Pure
+    @Transparent
     public static boolean isEven(int x) {
         return x % 2 == 0;
     }
 
-    @Pure
+    @Transparent
     public static boolean truth() {
         return true;
     }
@@ -88,14 +88,14 @@ public class MethodContractsVerification {
         return x == 2;
     }
 
-    @Pure
+    @Transparent
     boolean useIntPredicate(IntPredicate predicate, int i) {
         return predicate.test(i);
     }
 
     @Contract
     static abstract class IntPredicateContract implements IntPredicate {
-        @Pure
+        @Transparent
         @Override
         public boolean test(int value) {
             throw new ContractException();

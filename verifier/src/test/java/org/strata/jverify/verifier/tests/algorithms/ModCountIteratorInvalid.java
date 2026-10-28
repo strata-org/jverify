@@ -2,7 +2,7 @@ package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
 import org.strata.jverify.Invariant;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
@@ -23,7 +23,7 @@ class ModCountIteratorInvalid {
             this.modCount = 0;
         }
 
-        @Pure
+        @Transparent
         @Invariant
         private boolean inRange() {
             reads(this);
@@ -54,14 +54,14 @@ class ModCountIteratorInvalid {
             this.expectedModCount = list.modCount;
         }
 
-        @Pure
+        @Transparent
         boolean unmodified() {
             reads(this);
             reads(list);
             return list.modCount == expectedModCount;
         }
 
-        @Pure
+        @Transparent
         boolean hasNext() {
             reads(this);
             reads(list);
@@ -81,7 +81,7 @@ class ModCountIteratorInvalid {
         }
     }
 
-    @Pure
+    @Transparent
     @Erased
     static @Unbounded int sumBelow(int[] a, @Unbounded int hi) {
         reads(a);

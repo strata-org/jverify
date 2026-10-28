@@ -1,6 +1,6 @@
 package org.strata.jverify.verifier.tests.javasupport;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.Verify;
 import org.strata.jverify.testengine.JVerifyTest;
@@ -26,9 +26,8 @@ final class CallToOptedOutOverload {
         return x + y;
     }
 
-    // @Pure + postcondition so callsEmitted's equality is provable: two calls
+    // @Transparent + postcondition so callsEmitted's equality is provable: two calls
     // to a non-pure procedure cannot be proven equal.
-    @Pure
     @Unbounded
     static int foo(@Unbounded int x) {
         postcondition((int r) -> r == x);

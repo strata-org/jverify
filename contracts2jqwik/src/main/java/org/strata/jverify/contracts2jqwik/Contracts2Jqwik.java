@@ -49,8 +49,8 @@ import java.util.Optional;
  *     <li>Frame clauses {@code reads(...)} describe verifier-only read effects
  *         and are dropped. {@code modifies(...)} clauses are dropped too, but a
  *         method whose frame is not provably sound to drop (i.e. not
- *         {@code @Pure} and not {@code modifies(everything())}) is translated
- *         with a warning, since the generated test cannot check the frame.</li>
+ *         {@code modifies(everything())}) is translated with a warning, since
+ *         the generated test cannot check the frame.</li>
  *     <li>Quantifiers ({@code forall}, {@code exists}) are non-executable;
  *         clauses containing them are skipped with a warning.</li>
  * </ul>
@@ -74,10 +74,6 @@ public final class Contracts2Jqwik {
     private static final String AS_PROPERTY_SIMPLE = "AsProperty";
     /** Fully qualified name for {@code @AsProperty}. */
     private static final String AS_PROPERTY_FQN = "org.strata.jverify.AsProperty";
-    /** Simple-name match for {@code @Pure}. */
-    private static final String PURE_SIMPLE = "Pure";
-    /** Fully qualified name for {@code @Pure}. */
-    private static final String PURE_FQN = "org.strata.jverify.Pure";
 
     /** Result of translating a single input file. */
     public static final class Result {
@@ -103,10 +99,9 @@ public final class Contracts2Jqwik {
      *
      * <p>{@code reads(...)} and {@code modifies(...)} frame clauses are dropped
      * from the generated test, which checks the postcondition only. Dropping the
-     * frame is sound when the method is {@code @Pure} (mutation checked by purity
-     * analysis) or its frame is {@code modifies(everything())} (vacuous); for any
-     * other method a warning is emitted, since the generated test cannot confirm
-     * the frame is respected.</p>
+     * frame is sound only when it is {@code modifies(everything())} (vacuous);
+     * for any other method a warning is emitted, since the generated test cannot
+     * confirm the frame is respected.</p>
      */
     public static Result translate(String source, String inputFileName) {
         CompilationUnit cu = StaticJavaParser.parse(source);
@@ -177,17 +172,6 @@ public final class Contracts2Jqwik {
         return false;
     }
 
-    /** Returns true if {@code method} is annotated with {@code @Pure}. */
-    private static boolean hasPure(MethodDeclaration method) {
-        for (AnnotationExpr ann : method.getAnnotations()) {
-            String name = ann.getNameAsString();
-            if (name.equals(PURE_SIMPLE) || name.equals(PURE_FQN)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     /** Collects the arguments of every top-level {@code modifies(...)} call in {@code body}. */
     private static List<Expression> collectModifiesArgs(BlockStmt body) {
         List<Expression> args = new ArrayList<>();
@@ -214,14 +198,10 @@ public final class Contracts2Jqwik {
      * needed); otherwise returns a short description of the frame for the
      * warning message.
      *
-     * <p>Sound iff the method is {@code @Pure} (mutation checked by purity
-     * analysis) or its frame is exactly {@code modifies(everything())}
+     * <p>Sound iff the frame is exactly {@code modifies(everything())}
      * (vacuous).</p>
      */
-    private static String frameUnsoundnessReason(MethodDeclaration original, BlockStmt body) {
-        if (hasPure(original)) {
-            return null;
-        }
+    private static String frameUnsoundnessReason(BlockStmt body) {
         List<Expression> modifiesArgs = collectModifiesArgs(body);
         boolean frameIsEverything = !modifiesArgs.isEmpty()
             && modifiesArgs.stream().allMatch(Contracts2Jqwik::isEverythingCall);
@@ -229,9 +209,10 @@ public final class Contracts2Jqwik {
             return null;
         }
         if (modifiesArgs.isEmpty()) {
-            return "is not @Pure and declares no modifies clause (so its frame is empty: it may modify nothing)";
+            return "declares no modifies clause (so JVerify infers its frame from the body: "
+                + "empty, or everything if the body may write the heap)";
         }
-        return "is not @Pure and has a modifies clause narrower than modifies(everything())";
+        return "has a modifies clause narrower than modifies(everything())";
     }
 
     /**
@@ -249,16 +230,14 @@ public final class Contracts2Jqwik {
         BlockStmt body = bodyOpt.get();
 
         // Frame soundness: the generated test checks the postcondition but never
-        // the frame, so dropping a modifies clause is only sound when the method
-        // is @Pure (mutation checked by purity analysis) or its frame is
-        // modifies(everything()) (vacuous). Otherwise we translate anyway but
-        // warn, since the result is only guaranteed sound in those two cases.
-        String frameReason = frameUnsoundnessReason(original, body);
+        // the frame, so dropping a modifies clause is only sound when the frame
+        // is modifies(everything()) (vacuous). Otherwise we translate anyway but
+        // warn, since the result is only guaranteed sound in that case.
+        String frameReason = frameUnsoundnessReason(body);
         if (frameReason != null) {
             warnings.add("@AsProperty method '" + original.getNameAsString() + "' "
                 + frameReason + ". The generated test does not check the frame, so the "
-                + "translation is only guaranteed sound when the method is @Pure or its "
-                + "frame is modifies(everything()).");
+                + "translation is only guaranteed sound when the frame is modifies(everything()).");
         }
 
         List<Expression> preconditions = new ArrayList<>();

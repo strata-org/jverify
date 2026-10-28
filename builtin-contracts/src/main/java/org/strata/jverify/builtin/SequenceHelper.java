@@ -1,11 +1,11 @@
 package org.strata.jverify.builtin;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.JVerify.Sequence;
 import java.util.function.BinaryOperator;
 
 class SequenceHelper {
-    @Pure
+    @Transparent
     public static <T> T reduce(Sequence<T> sequence, T identity, BinaryOperator<T> accumulator) {
         if (sequence.size() == 0) {
             return identity;

@@ -7,7 +7,7 @@ package org.strata.jverify.examples;
 import static org.strata.jverify.JVerify.*;
 import org.strata.jverify.Invariant;
 import org.strata.jverify.Nullable;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 
 class UserProfile {
     public enum AccountType { Free, Premium }

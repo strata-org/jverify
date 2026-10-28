@@ -2,7 +2,7 @@ package org.strata.jverify.verifier.tests.javasupport.wildcards;
 
 import org.strata.jverify.Contract;
 import org.strata.jverify.ContractException;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 import static org.strata.jverify.JVerify.modifies;
@@ -39,7 +39,7 @@ public class WildcardsNotSupported {
     static class Container<T> {
         T value;
 
-        @Pure
+        @Transparent
         public T get() {
 //               ^ warning: instance method 'get' was not verified: Unsupported type: T
             reads(this);

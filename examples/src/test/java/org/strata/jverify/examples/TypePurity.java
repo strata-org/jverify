@@ -2,7 +2,7 @@ package org.strata.jverify.examples;
 
 import org.strata.jverify.Contract;
 import org.strata.jverify.Impure;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 
 import static org.strata.jverify.JVerify.*;
 
@@ -20,7 +20,7 @@ interface PureInterface {
             postcondition(x == old(x) + 1);
         }
         
-        @Pure
+        @Transparent
         public int getX() {
             return x;
         }
@@ -41,7 +41,7 @@ interface ImpureInterface {
             postcondition(x == old(x) + 1);
         }
 
-        @Pure
+        @Transparent
         public int getX() { return x; }
     }
 }
@@ -50,12 +50,12 @@ interface ImpureInterface {
 // ^ error: a record class may not be annotated with @Impure, or extend or implement a type annotated with @Impure
         implements ImpureInterface
 {
-    @Pure
+    @Transparent
     static RecordsArePure createR() {
         return new RecordsArePure(3); // legal
     }
     
-    @Pure
+    @Transparent
     public boolean compare(RecordsArePure other) {
         return this == other;
 //                  ^ error: '==' is only allowed when at least one operand's type is impure
@@ -74,7 +74,7 @@ interface ImpureInterface {
 }
 
 class ClassesAreImpure {
-    @Pure
+    @Transparent
     ClassesAreImpure createC() {
         return new ClassesAreImpure();
 //             ^ error: using 'new' in a pure expression to create an instance of an impure type is not allowed

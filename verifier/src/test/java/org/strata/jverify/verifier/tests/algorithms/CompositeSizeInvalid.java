@@ -2,13 +2,13 @@ package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
 import org.strata.jverify.Nullable;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR, Blocker.FRONTEND_ARRAYS, Blocker.STRATA_NULLABLE}, exitCode = 4)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_ARRAYS, Blocker.FRONTEND_OTHER, Blocker.STRATA_NULLABLE}, exitCode = 4)
 class CompositeSizeInvalid {
     static class Node {
         int size;
@@ -17,21 +17,21 @@ class CompositeSizeInvalid {
         @Nullable Node right;
     }
 
-    @Pure
+    @Transparent
     @Erased
     static int sizeOf(@Nullable Node n) {
         reads(everything());
         return n == null ? 0 : n.size;
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean member(Node[] all, @Nullable Node n) {
         reads(all);
         return n == null || exists((int i) -> 0 <= i && i < all.length && all[i] == n);
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean consistent(Node[] all) {
         reads(everything());
@@ -44,7 +44,7 @@ class CompositeSizeInvalid {
                 && (all[i].parent == null || all[i].parent.left == all[i] || all[i].parent.right == all[i])));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean sizesBounded(Node[] all) {
         reads(everything());

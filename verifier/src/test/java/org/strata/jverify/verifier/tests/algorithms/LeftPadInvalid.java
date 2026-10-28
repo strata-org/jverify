@@ -1,22 +1,22 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR}, exitCode = 4)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_OTHER}, exitCode = 4)
 class LeftPadInvalid {
-    @Pure
+    @Transparent
     @Erased
     static boolean paddedBelow(int[] res, int c, int hi) {
         reads(res);
         return forall((int k) -> implies(0 <= k && k < hi, res[k] == c));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean copiedBelow(int[] res, int[] s, int pad, int hi) {
         reads(res);

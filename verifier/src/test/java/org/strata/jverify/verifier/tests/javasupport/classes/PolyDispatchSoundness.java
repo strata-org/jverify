@@ -1,6 +1,6 @@
 package org.strata.jverify.verifier.tests.javasupport.classes;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
@@ -46,11 +46,11 @@ import static org.strata.jverify.JVerify.*;
 @JVerifyTest(continueOnErrors = true, exitCode = 4, methodsVerified = 4, errorCount = 2)
 class PolyDispatchSoundness {
     static class BaseP {
-        @Pure int compute() { postcondition((int r) -> r >= 0); return 0; }
+        int compute() { postcondition((int r) -> r >= 0); return 0; }
     }
     static class SubP extends BaseP {
-        @Pure @Override int compute() { return -1; }
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: override postcondition no weaker than '$result >= 0' from 'org.strata.jverify.verifier.tests.javasupport.classes.PolyDispatchSoundness.BaseP.compute' could not be proved
+        @Transparent @Override int compute() { return -1; }
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: override postcondition no weaker than '$result >= 0' from 'org.strata.jverify.verifier.tests.javasupport.classes.PolyDispatchSoundness.BaseP.compute' could not be proved
     }
     static void root() {
         BaseP b = new SubP();

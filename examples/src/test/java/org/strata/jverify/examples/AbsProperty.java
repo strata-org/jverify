@@ -1,7 +1,6 @@
 package org.strata.jverify.examples;
 
 import org.strata.jverify.AsProperty;
-import org.strata.jverify.Pure;
 import net.jqwik.api.ForAll;
 
 import static org.strata.jverify.JVerify.*;
@@ -22,7 +21,6 @@ import static org.strata.jverify.JVerify.*;
 class AbsProperty {
 
     @AsProperty
-    @Pure
     int abs(@ForAll int x) {
         precondition(x != Integer.MIN_VALUE);
         postcondition((Integer r) -> r >= 0 && (r == x || r == -x));

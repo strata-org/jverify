@@ -1,24 +1,24 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR, Blocker.FRONTEND_OTHER}, exitCode = 4)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, exitCode = 4)
 class Base64Invalid {
     static final int PAD = '=';
 
-    @Pure
+    @Transparent
     @Erased
     static boolean bytes(int[] data) {
         reads(data);
         return forall((int k) -> implies(0 <= k && k < data.length, 0 <= data[k] && data[k] <= 255));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean sameBelow(int[] a, int[] b, int hi) {
         reads(a);
@@ -26,7 +26,7 @@ class Base64Invalid {
         return forall((int k) -> implies(0 <= k && k < hi, a[k] == b[k]));
     }
 
-    @Pure
+    @Transparent
     static int symbol(int sextet) {
         precondition(0 <= sextet && sextet < 64);
         return sextet < 26 ? 'A' + sextet
@@ -35,7 +35,7 @@ class Base64Invalid {
              : sextet == 62 ? '+' : '/';
     }
 
-    @Pure
+    @Transparent
     static int sextet(int c) {
         return 'A' <= c && c <= 'Z' ? c - 'A'
              : 'a' <= c && c <= 'z' ? c - 'a' + 26
@@ -43,7 +43,7 @@ class Base64Invalid {
              : c == '+' ? 62 : c == '/' ? 63 : -1;
     }
 
-    @Pure
+    @Transparent
     @Erased
     static int padOf(int[] text) {
         reads(text);
@@ -51,21 +51,21 @@ class Base64Invalid {
         return text.length == 0 ? 0 : (text[text.length - 1] == PAD ? 1 : 0) + (text[text.length - 2] == PAD ? 1 : 0);
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean symbolsBelow(int[] a, int hi) {
         reads(a);
         return forall((int k) -> implies(0 <= k && k < hi, sextet(a[k]) >= 0));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean wellFormed(int[] text) {
         reads(text);
         return forall((int k) -> implies(0 <= k && k < text.length, sextet(text[k]) >= 0 || (text[k] == PAD && k >= text.length - 2)));
     }
 
-    @Pure
+    @Transparent
     static int encodedLength(int n) {
         precondition(0 <= n && n <= 100000);
         return ((n + 2) / 3) * 4;

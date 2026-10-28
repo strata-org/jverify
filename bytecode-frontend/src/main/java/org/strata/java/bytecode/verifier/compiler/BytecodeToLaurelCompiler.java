@@ -92,7 +92,7 @@ public class BytecodeToLaurelCompiler {
     private final List<Procedure> procedures = new ArrayList<>();
     /** Composite-sort registry: referenced sorts, accessed fields, extends links, instance procs. */
     private final CompositeModel composites;
-    /** The program's type declarations: type trees, @Contract/@Pure markers, method sets. */
+    /** The program's type declarations: type trees, @Contract/@Transparent markers, method sets. */
     private final Declarations decls = new Declarations();
     /** The type universe: name resolution, hierarchy walks, classfile policy gates. */
     private final ClassResolver resolver;
@@ -240,7 +240,7 @@ public class BytecodeToLaurelCompiler {
         // The program class set is final: decide array-model availability once.
         composites.arrays.computeEnabled();
 
-        // Pre-pass: collect the type trees, @Contract markers, @Pure markers,
+        // Pre-pass: collect the type trees, @Contract markers, @Transparent markers,
         // and declared fields of every class in the compilation, so field
         // accesses and the heap-write fallback resolve regardless of order.
         var typeTrees = new HashMap<String, Declarations.TypeNode>();
@@ -477,7 +477,8 @@ public class BytecodeToLaurelCompiler {
      * a {@code <owner>_<name>} procedure (static). A member without code or a
      * spec-interface method becomes a declaration only. A member that does
      * not translate is refused with its reason, which its callers' demotion
-     * diagnostics carry; it is never diagnosed itself.
+     * diagnostics carry; it is never diagnosed itself, except for a
+     * postcondition on a {@code @Transparent} member.
      */
     private void translateLibraryMember(ContractMember m) {
         src.uri = m.uri();
@@ -500,6 +501,8 @@ public class BytecodeToLaurelCompiler {
             }
         } catch (RefusedInputException e) {
             throw e;
+        } catch (ReportedViolation e) {
+            info.refused = true;
         } catch (JavaViolationException e) {
             info.refused = true;
             info.refusalReason = e.getMessage();
@@ -540,9 +543,10 @@ public class BytecodeToLaurelCompiler {
      * {@code @Verify(false)}, postconditions, or an explicit {@code modifies},
      * the implementation is dropped: {@code Opaque([],none,[])} without
      * conditions, {@code Abstract(posts)} with postconditions only, else
-     * {@code Opaque(posts,none,modifies)}. Otherwise (a pure member with a
-     * real body) the body is the definition: {@code Transparent}, or
-     * {@code Opaque([],none,[])} when it loops. So an opted-out member is
+     * {@code Opaque(posts,none,modifies)}. Otherwise (a transparent member
+     * with a real body) the body is the definition: {@code Transparent},
+     * whatever its shape, so Strata reports a body it does not accept, such
+     * as one with a loop. So an opted-out member is
      * never {@code Transparent} and Strata never checks its body. The caller
      * refuses a {@code Transparent} member whose result type is
      * range-constrained ({@code int}, {@code char}, ...).
@@ -559,9 +563,6 @@ public class BytecodeToLaurelCompiler {
             if (!postconditions.isEmpty()) {
                 return new Body.Abstract(postconditions);
             }
-            return new Body.Opaque(List.of(), Optional.empty(), unguardedModifies(List.of()));
-        }
-        if (containsLoop(implementation)) {
             return new Body.Opaque(List.of(), Optional.empty(), unguardedModifies(List.of()));
         }
         return new Body.Transparent(noRange(methodBody));
@@ -1422,7 +1423,7 @@ public class BytecodeToLaurelCompiler {
             }
         }
         String key = body.calleeKeys.get(n.val());
-        if (key != null && !decls.isPure(key) && !contracts.isPureKey(key) && !calleeDeclaresEmptyFrame(body, n)) {
+        if (key != null && !decls.isTransparent(key) && !contracts.isFrameEmptyKey(key) && !calleeDeclaresEmptyFrame(body, n)) {
             return false;
         }
         for (var c : BodyTranslator.childrenOf(n.val())) {
@@ -1521,7 +1522,8 @@ public class BytecodeToLaurelCompiler {
                 }
                 for (var el : code) {
                     if (el instanceof java.lang.classfile.instruction.InvokeInstruction inv
-                            && inv.owner().asInternalName().equals("org/strata/jverify/JVerify")
+                            && (inv.owner().asInternalName().equals("org/strata/jverify/JVerify")
+                                    || inv.owner().asInternalName().equals("org/strata/jverify/JVerify$ThrowsOnCase"))
                             && inv.name().stringValue().equals("modifies")) {
                         return false;
                     }
@@ -1581,7 +1583,7 @@ public class BytecodeToLaurelCompiler {
             }
         }
         String key = body.calleeKeys.get(n.val());
-        if (key != null && !decls.isPure(key) && !contracts.isPureKey(key) && !calleeDeclaresEmptyFrame(body, n)) {
+        if (key != null && !decls.isTransparent(key) && !contracts.isFrameEmptyKey(key) && !calleeDeclaresEmptyFrame(body, n)) {
             return true;
         }
         for (var c : BodyTranslator.childrenOf(n.val())) {
@@ -1600,49 +1602,6 @@ public class BytecodeToLaurelCompiler {
         }
         for (var c : BodyTranslator.childrenOf(n.val())) {
             if (allocatesArray(c)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean containsLoop(List<AstNode<StmtExpr>> implementation) {
-        for (var stmt : implementation) {
-            if (containsWhile(stmt)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean containsWhile(AstNode<StmtExpr> n) {
-        if (n.val() instanceof StmtExpr.While) {
-            return true;
-        }
-        for (var c : BodyTranslator.childrenOf(n.val())) {
-            if (containsWhile(c)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /** The implementation contains a {@code throw} (caught or not). */
-    private static boolean containsThrow(List<AstNode<StmtExpr>> implementation) {
-        for (var stmt : implementation) {
-            if (containsThrowNode(stmt)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean containsThrowNode(AstNode<StmtExpr> n) {
-        if (n.val() instanceof StmtExpr.Throw) {
-            return true;
-        }
-        for (var c : BodyTranslator.childrenOf(n.val())) {
-            if (containsThrowNode(c)) {
                 return true;
             }
         }
@@ -2120,21 +2079,6 @@ public class BytecodeToLaurelCompiler {
         return false;
     }
 
-    private static Condition selfFunctionPostcondition(String methodName,
-            List<org.strata.jverify.laurel.Parameter> inputs, boolean isStatic) {
-        var args = new ArrayList<AstNode<StmtExpr>>();
-        for (int i = isStatic ? 0 : 1; i < inputs.size(); i++) {
-            args.add(noRange(new StmtExpr.Var(new Variable.Local(inputs.get(i).name()))));
-        }
-        StmtExpr call = isStatic
-                ? new StmtExpr.StaticCall(ident(methodName), args, List.of())
-                : new StmtExpr.InstanceCall(noRange(new StmtExpr.Var(new Variable.Local(inputs.get(0).name()))),
-                        ident(methodName), args);
-        var eq = primitiveOp(new Operation.Eq(),
-                noRange(LaurelFactory.reservedVar_(LAUREL_RESULT_BINDING)), noRange(call));
-        return new Condition(noRange(eq), Optional.empty(), new ConditionMode.Both());
-    }
-
     /**
      * Add the callee identifier of every InstanceCall/StaticCall in {@code
      * n}'s subtree to {@code out}; an array wrapper also adds the JArray
@@ -2466,9 +2410,8 @@ public class BytecodeToLaurelCompiler {
         ctx.impureTypeParams = impureBoundTypeParams(cm, m, msig);
         ctx.beginMethod(info);
         ctx.method.arrayModelMember = arrayModelMember;
-        ctx.method.pure = member == null && hasAnnotation(m, "Pure");
+        ctx.method.pure = member == null && hasAnnotation(m, "Transparent");
         ctx.method.relocatedContract = translatingRelocatedContract;
-        ctx.method.pureBody = member == null && verify && !translatingRelocatedContract && hasAnnotation(m, "Pure");
 
         // Input compiled without -Xjcov: no statement spans exist, so anchor
         // every emitted range at the method's LineNumberTable line envelope.
@@ -2491,19 +2434,7 @@ public class BytecodeToLaurelCompiler {
             if (new ContractPlacementChecker(reporter, src).checkIsAbstractPlacement(m, info.quiet)) {
                 info.constructErrorReported = true;
             }
-            // The @Pure shape rules apply only to a verified @Pure method: an
-            // opted-out one is a stub, typically a bare throw.
-            if (verify && !translatingRelocatedContract && hasAnnotation(m, "Pure")
-                    && new PureShapeChecker(reporter, src, info.quiet).check(m)) {
-                info.constructErrorReported = true;
-                ctx.method.shapeErrorReported = true;
-            }
-            if (translatingRelocatedContract && hasAnnotation(m, "Pure")
-                    && new PureShapeChecker(reporter, src, false).forContract().check(m)) {
-                info.constructErrorReported = true;
-                ctx.method.shapeErrorReported = true;
-            }
-            if (translatingRelocatedContract && !hasAnnotation(m, "Pure") && contractBodyHasStatements(m)) {
+            if (translatingRelocatedContract && !hasAnnotation(m, "Transparent") && contractBodyHasStatements(m)) {
                 reporter.reportError(src.uri, src.pointOf(src.methodCrtRange(m)),
                         "a contract for an impure method may only call super or this, or throw a ContractException in its body");
                 info.constructErrorReported = true;
@@ -2634,7 +2565,7 @@ public class BytecodeToLaurelCompiler {
                 throw new JavaViolationException(
                         "ContractException may only be thrown as the whole body of a contract method");
             }
-            if (!noImplementation && !member.isPure()) {
+            if (!noImplementation && !member.isTransparent()) {
                 throw new JavaViolationException("a contract for an impure method may only call super"
                         + " or this, or throw a ContractException in its body");
             }
@@ -2738,18 +2669,27 @@ public class BytecodeToLaurelCompiler {
         }
 
         var explicitModifies = new ArrayList<AstNode<StmtExpr>>();
-        // A user-written `modifies` on a @Pure method is an error. Not inert
-        // otherwise: a @Pure method is meant to be a
+        // A user-written `modifies` on a @Transparent method is an error. Not inert
+        // otherwise: a @Transparent method is meant to be a
         // transparent body, which cannot carry a frame, so the clause would silently
         // demote it to an opaque procedure -- a different translation instead of a
         // diagnostic. The JVerify.modifies call survives into bytecode, so this needs
         // no source structure. Only the USER's clause: a frame the front end
         // synthesizes for a heap-writing body is legitimate.
-        boolean pureMethod = hasAnnotation(m, "Pure");
+        boolean pureMethod = hasAnnotation(m, "Transparent");
         if (member == null && verify && pureMethod) {
             for (var stmt : mods) {
                 reporter.reportError(src.uri, positionRange(stmt.source()),
-                        "modifies clauses are not allowed in a pure method");
+                        "modifies clauses are not allowed in a transparent method");
+                info.constructErrorReported = true;
+            }
+        }
+        // Likewise a postcondition: a transparent body has no slot for one. Contract
+        // sources too: a relocated source contract and a library contract member.
+        if (pureMethod && (verify || translatingRelocatedContract)) {
+            for (var stmt : posts) {
+                reporter.reportError(src.uri, positionRange(stmt.source()),
+                        "postconditions are not allowed in a transparent method");
                 info.constructErrorReported = true;
             }
         }
@@ -2838,7 +2778,7 @@ public class BytecodeToLaurelCompiler {
         StmtExpr methodBody = new StmtExpr.Block(implementation, Optional.empty());
 
         // --- Body-variant selection ---
-        boolean isPure = hasAnnotation(m, "Pure");
+        boolean isTransparent = hasAnnotation(m, "Transparent");
         List<AstNode<StmtExpr>> modifies = !explicitModifies.isEmpty()
                 ? explicitModifies
                 : isCtor && onlySelfWrites(implementation, body)
@@ -2884,10 +2824,10 @@ public class BytecodeToLaurelCompiler {
             // A relocated contract method is a contract with no implementation:
             // `opaque` with its clauses as ensures. Not the
             // skipped-method arms below -- a contract's postconditions are the point,
-            // so they are kept even for a @Pure one, and callers are not refused.
+            // so they are kept even for a @Transparent one, and callers are not refused.
             boolean returns = implementation.stream().anyMatch(st -> st.val() instanceof StmtExpr.Return);
             boolean libraryContract = resolver.libraryContracts.values().stream().anyMatch(c -> c.decl().cm() == cm);
-            procBody = isPure && postconditions.isEmpty() && returns && libraryContract
+            procBody = isTransparent && postconditions.isEmpty() && returns && libraryContract
                     ? new Body.Transparent(noRange(methodBody))
                     : new Body.Opaque(postconditions, Optional.empty(), unguardedModifies(
                             !libraryContract && explicitModifies.isEmpty()
@@ -2898,7 +2838,7 @@ public class BytecodeToLaurelCompiler {
             // A skipped method's postconditions were never checked, so a caller
             // must not assume them. A PURE one is emitted as a DECLARATION only --
             // signature and preconditions, no implementation, no postconditions,
-            // empty frame -- which is what makes a `@Verify(false) @Pure` callee
+            // empty frame -- which is what makes a `@Verify(false) @Transparent` callee
             // callable-but-invisible (see PureUnverifiedMethod) rather than
             // cascade-demoting its callers. A non-pure one keeps its declared
             // postconditions only because every call to it is still refused at
@@ -2906,7 +2846,7 @@ public class BytecodeToLaurelCompiler {
             // it cannot be given a frame that is honest about what it may write.
             //
             // The declaration's EMPTY FRAME is a positive promise that the call
-            // changes nothing, and purity does not imply it: a @Pure method may write
+            // changes nothing, and purity does not imply it: a @Transparent method may write
             // the heap, and then carries a synthesized `modifies *` (or a user's
             // clause). So a pure method keeps the declaration only when its frame is
             // already empty and it has no throwsOn block (whose exceptional
@@ -2915,31 +2855,19 @@ public class BytecodeToLaurelCompiler {
             // without this a caller would PROVE `b.f == 0` across a call that may
             // write `b.f`
             // (PureSkippedWithFrameIsDropped, PureMethodWithModifies).
-            if (isPure && !(modifies.isEmpty() && throwsOnBlocks.isEmpty())) {
+            if (isTransparent && !(modifies.isEmpty() && throwsOnBlocks.isEmpty())) {
                 info.refused = true;
                 info.cascadeEvenIfQuiet = true;
             }
-            procBody = isPure || postconditions.isEmpty()
+            procBody = isTransparent || postconditions.isEmpty()
                     ? new Body.Opaque(List.of(), Optional.empty(), unguardedModifies(List.of()))
                     : new Body.Abstract(postconditions);
-        } else if (isPure && containsLoop(implementation)) {
-            if (!postconditions.isEmpty()) {
-                throw new JavaViolationException(
-                        "@Pure function with a loop and a postcondition is not yet supported");
-            }
-            procBody = new Body.Opaque(List.of(selfFunctionPostcondition(methodName, inputs, isStatic)),
-                    Optional.empty(), unguardedModifies(List.of()));
-        } else if (isPure && postconditions.isEmpty() && modifies.isEmpty()
-                && throwsType.isEmpty() && !containsThrow(implementation)) {
-            // A declared `throws`, or a `throw` in the body, forces Opaque: Strata
-            // rejects a transparent procedure whose body throws, because a transparent
-            // body becomes a function and throwing is not expressible as an expression.
-            // The declaration test is deliberately conservative -- it costs
-            // transparency only for a `@Pure` method that declares `throws` without
-            // ever throwing. The body test covers an undeclared unchecked `throw`,
-            // which no longer needs a `throws` clause (Laurel asserts it unreachable).
-            // The body becomes a function, where Strata cannot link the opaque
-            // array load helper: element reads use the transparent one.
+        } else if (isTransparent) {
+            // Whatever the body contains: what a transparent body may not do (loop,
+            // write the heap, throw) is Strata's to report. Postconditions and a
+            // user `modifies` were reported above. The body becomes a function,
+            // where Strata cannot link the opaque array load helper: element reads
+            // use the transparent one.
             procBody = new Body.Transparent(ArrayAccessTranslator.pureBodyLoads(noRange(methodBody), lf));
         } else {
             procBody = new Body.Opaque(postconditions, Optional.of(noRange(methodBody)),
@@ -3003,7 +2931,7 @@ public class BytecodeToLaurelCompiler {
         }
         var status = new MethodVerificationStatus(bareName,
                 range == UNKNOWN_RANGE ? Reporter.NO_RANGE : positionRange(range),
-                verify || (ctx.method.relocatedContract && hasAnnotation(m, "Pure")
+                verify || (ctx.method.relocatedContract && hasAnnotation(m, "Transparent")
                         && implementation.stream().anyMatch(st -> st.val() instanceof StmtExpr.Return))
                         ? MethodVerificationStatus.VerificationStatus.Verified
                         : MethodVerificationStatus.VerificationStatus.Skipped);

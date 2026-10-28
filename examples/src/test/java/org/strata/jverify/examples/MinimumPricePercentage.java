@@ -1,7 +1,7 @@
 package org.strata.jverify.examples;
 
 import org.strata.jverify.Erased;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 
 import java.math.BigDecimal;
 
@@ -9,7 +9,7 @@ import static org.strata.jverify.JVerify.*;
 
 public class MinimumPricePercentage {
     
-    @Pure
+    @Transparent
     public BigDecimal computeDiscountedPrice(BigDecimal startingPrice, 
                                    BigDecimal flatDiscount, 
                                    BigDecimal discountFactor) 

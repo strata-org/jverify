@@ -281,7 +281,7 @@ class ArraysEndToEndTest {
         assertEquals(new Counts(1, 1, 2, 1), counts(ran));
     }
 
-    // --- Element reads in a transparent @Pure method ---
+    // --- Element reads in a transparent @Transparent method ---
 
     @Test
     void pureElementReadVerifiesAtItsCallers(@TempDir Path tmp) throws Exception {
@@ -291,12 +291,12 @@ class ArraysEndToEndTest {
                 import org.strata.jverify.*;
                 import static org.strata.jverify.JVerify.*;
                 public class PureA {
-                    @Pure
+                    @Transparent
                     static int first(int[] a) {
                         precondition(a.length > 0);
                         return a[0];
                     }
-                    @Pure
+                    @Transparent
                     static boolean firstIsZero(int[] a) {
                         precondition(a.length > 0);
                         int x = a[0];
@@ -320,17 +320,17 @@ class ArraysEndToEndTest {
 
     @Test
     void pureElementReadFailuresAreReported(@TempDir Path tmp) throws Exception {
-        // An out-of-bounds read in the @Pure body, and a wrong claim about
+        // An out-of-bounds read in the @Transparent body, and a wrong claim about
         // a correct one's result, still fail.
         String source = """
                 import org.strata.jverify.*;
                 import static org.strata.jverify.JVerify.*;
                 public class PureOob {
-                    @Pure
+                    @Transparent
                     static int unguarded(int[] a) {
                         return a[0];
                     }
-                    @Pure
+                    @Transparent
                     static int first(int[] a) {
                         precondition(a.length > 0);
                         return a[0];

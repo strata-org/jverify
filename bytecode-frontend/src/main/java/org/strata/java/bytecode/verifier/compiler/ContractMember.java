@@ -28,7 +28,7 @@ import java.util.List;
  * @param contracteeFqn   dotted fqn of the contractee (contract members), of
  *                        the helper class, or of the spec interface
  * @param isStatic        the member is static
- * @param isPure          the member is {@code @Pure} (spec-interface members
+ * @param isTransparent          the member is {@code @Transparent} (spec-interface members
  *                        always are)
  * @param hasCode         the member's classfile method has a Code attribute
  * @param verify          the effective {@code @Verify} value: class
@@ -43,7 +43,7 @@ import java.util.List;
  */
 record ContractMember(Kind kind, String classInternal, String methodName,
                       MethodTypeDesc methodDesc, String sortOrFqn, String laurelName,
-                      String contracteeFqn, boolean isStatic, boolean isPure,
+                      String contracteeFqn, boolean isStatic, boolean isTransparent,
                       boolean hasCode, boolean verify, boolean returnsTypeVar,
                       List<Boolean> paramIsTypeVar, URI uri, boolean contractPure) {
 

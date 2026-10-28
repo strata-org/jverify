@@ -8,13 +8,11 @@ Annotate the method whose contract you want to test with `@AsProperty`, and anno
 
 ```java
 import org.strata.jverify.AsProperty;
-import org.strata.jverify.Pure;
 import net.jqwik.api.ForAll;
 
 import static org.strata.jverify.JVerify.*;
 
 @AsProperty
-@Pure
 int abs(@ForAll int x) {
     precondition(x != Integer.MIN_VALUE);
     postcondition((Integer r) -> r >= 0 && (r == x || r == -x));
@@ -31,13 +29,10 @@ The postcondition is a genuine property — the result is non-negative *and* has
 > so the tool skips clauses containing `forall`/`exists` and you should express
 > testable properties in plain Java instead.
 
-> **Why `@Pure`?** A generated property test checks the postcondition but never
-> the frame, so dropping a `modifies` clause is only provably sound when the
-> method is `@Pure` or its frame is `modifies(everything())` (see
+> **Frame warning.** A generated property test checks the postcondition but never
+> the frame, so `contracts2jqwik` prints a frame soundness warning for `abs` (see
 > [Frame clauses and soundness](#frame-clauses-and-soundness)). `abs` modifies
-> nothing and has no loop, so we mark it `@Pure`; JVerify then guarantees it is
-> side-effect-free, which is what makes testing its postcondition sound and
-> keeps the translation warning-free.
+> nothing, so the warning is only a reminder; the property runs as usual.
 
 ## Generating the jqwik property
 
@@ -118,14 +113,6 @@ Arbitrary<int[]> sortedArrays() {
 
 Annotate the parameter with the generator's name, `@ForAll("sortedArrays") int[] arr`; `contracts2jqwik` carries that annotation through to the generated `@Property`. Now every generated array is already sorted, the `Assume.that(isSorted(arr))` is always satisfied, and nothing is discarded.
 
-### When a contract method cannot be `@Pure`
-
-`binarySearch` uses a loop, so it cannot be `@Pure` (pure methods may not loop or reassign variables). It still modifies no objects, but `contracts2jqwik` cannot confirm that, so it translates the method and prints a frame soundness warning recording that the generated test does not check the frame (see [Frame clauses and soundness](#frame-clauses-and-soundness)). Since the method is frame-clean by inspection, the warning is the only signal you need — the property runs as usual:
-
-```
-contracts2jqwik path/to/BinarySearchProperty.java
-```
-
 ## Translation rules
 
 | Contract construct | Generated jqwik code |
@@ -137,7 +124,7 @@ contracts2jqwik path/to/BinarySearchProperty.java
 | `@ForAll` / `@ForAll("provider")` on a parameter | Carried through verbatim, so custom `@Provide` generators keep working |
 | `old(e)` where `e` refers only to the method's parameters | Snapshotted before the call into a pre-state temporary (`var __old0 = e;`) and the `old(e)` reference is replaced by that temporary |
 | Frame clause `reads(...)` | Dropped — a verifier-only read effect with no runtime meaning |
-| Frame clause `modifies(...)` | Always dropped, since the generated test cannot check it. If dropping it is provably sound (`@Pure`, or `modifies(everything())`) the method translates silently; otherwise it still translates but with a frame soundness warning. See [Frame clauses and soundness](#frame-clauses-and-soundness) |
+| Frame clause `modifies(...)` | Always dropped, since the generated test cannot check it. If dropping it is provably sound (`modifies(everything())`) the method translates silently; otherwise it still translates but with a frame soundness warning. See [Frame clauses and soundness](#frame-clauses-and-soundness) |
 | Quantifiers `forall(...)` / `exists(...)` | Skipped with a warning — they range over infinite domains and have no runtime semantics |
 | `old(e)` where `e` refers to a local declared inside the contract body | Skipped with a warning — the captured expression would not be in scope in the generated test |
 
@@ -149,7 +136,6 @@ The translation is otherwise verbatim: clauses are emitted as written, except th
 
 ```java
 @AsProperty
-@Pure
 public static int increment(@ForAll int n) {
     postcondition((Integer r) -> r == old(n) + 1);
     return n + 1;
@@ -182,34 +168,31 @@ sound stand-in for verifying it, and silently ignoring the frame breaks that.
 
 To make this explicit, `contracts2jqwik` always translates the method (the
 frame is dropped either way), but it stays **silent** only when dropping the
-frame loses nothing — that is, when **either**:
-
-- the method is **`@Pure`** — JVerify independently guarantees a pure method
-  modifies nothing, so there is no frame obligation left for the test to check; **or**
-- its frame is exactly **`modifies(everything())`** — an unconstraining frame
-  with nothing to violate.
+frame loses nothing — that is, when its frame is exactly
+**`modifies(everything())`**, an unconstraining frame with nothing to violate.
 
 For any other method it translates but emits a **frame soundness warning**:
 
-- a non-`@Pure` method with a *narrower* `modifies(...)` clause, or
-- a non-`@Pure` method with *no* `modifies` clause — JVerify's default frame is
-  empty (the method may modify nothing), which is itself a promise the test
-  cannot check.
+- a method with a *narrower* `modifies(...)` clause, or
+- a method with *no* `modifies` clause — JVerify infers its frame from the body
+  (empty, or everything if the body may write the heap), and the test cannot
+  check that either.
+
+This applies to `@Transparent` methods too: `contracts2jqwik` does not exempt
+them from the frame check.
 
 The warning records that the generated test does not check the frame, so the
-result is only guaranteed sound when the method is `@Pure` or its frame is
-`modifies(everything())`. If a method genuinely mutates nothing, mark it
-`@Pure` (as `abs` is above) to silence the warning. If it cannot be `@Pure` but
-you can see it is frame-clean — like the looping `binarySearch` above — the
-warning is just a reminder; the property still runs.
+result is only guaranteed sound when the frame is `modifies(everything())`. If
+you can see the method is frame-clean — like `abs` and the looping
+`binarySearch` above — the warning is just a reminder; the property still runs.
 
 A fully sound treatment of arbitrary frames would require checking the
 `modifies` clause at runtime (instrumenting each field write in the method, and
 propagating each callee's frame into its caller's). That is not yet implemented;
 the warning marks exactly where that gap remains.
 
-`reads(...)` clauses, by contrast, constrain only what a `@Pure` method may
-read and have no runtime effect, so they are simply dropped.
+`reads(...)` clauses, by contrast, have no runtime effect, so they are simply
+dropped.
 
 Warnings for skipped clauses and methods are printed to stderr so you can see
 exactly what was and wasn't translated.

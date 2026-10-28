@@ -1,25 +1,25 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR, Blocker.FRONTEND_OTHER}, exitCode = 4)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, exitCode = 4)
 class Adler32Invalid {
     static final int MOD = 65521;
 
-    @Pure
+    @Transparent
     @Erased
     static boolean bytes(int[] data) {
         reads(data);
         return forall((int k) -> implies(0 <= k && k < data.length, 0 <= data[k] && data[k] <= 255));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static int sumA(int[] data, @Unbounded int n) {
         reads(data);
@@ -30,7 +30,7 @@ class Adler32Invalid {
         return (sumA(data, n - 1) + data[n - 1]) % MOD;
     }
 
-    @Pure
+    @Transparent
     @Erased
     static int sumB(int[] data, @Unbounded int n) {
         reads(data);

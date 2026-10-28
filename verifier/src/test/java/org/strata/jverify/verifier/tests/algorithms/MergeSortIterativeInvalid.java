@@ -1,23 +1,23 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR, Blocker.FRONTEND_OTHER}, exitCode = 4)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, exitCode = 4)
 class MergeSortIterativeInvalid {
-    @Pure
+    @Transparent
     @Erased
     static boolean sortedBetween(int[] a, int lo, int hi) {
         reads(a);
         return forall((int i, int j) -> implies(lo <= i && i <= j && j < hi, a[i] <= a[j]));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean blocksSorted(int[] a, int w, int lo) {
         reads(a);
@@ -26,7 +26,7 @@ class MergeSortIterativeInvalid {
                 a[i] <= a[j]));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static @Unbounded int count(int[] a, int v, @Unbounded int hi) {
         reads(a);
@@ -37,7 +37,7 @@ class MergeSortIterativeInvalid {
         return count(a, v, hi - 1) + (a[hi - 1] == v ? 1 : 0);
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean permutation(int[] a, int[] orig) {
         reads(a);

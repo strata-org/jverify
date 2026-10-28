@@ -18,7 +18,7 @@ public class Lambdas {
         }
     };
     
-    @Pure
+    @Transparent
     static int staticDoSomething(int x, int y) {
         return 3;
     }
@@ -127,18 +127,18 @@ public class Lambdas {
         pureFunctionUser((Integer x) -> x);
     }
 
-    @Pure
+    @Transparent
     static int doSomethingTwiceStatic(SomethingDoer doer) {
         var y = doer.doSomething(1, 2);
         return doer.doSomething(2, y);
     }
 
-    @Pure
+    @Transparent
     int doSomethingTwice(SomethingDoer doer) {
         var y = doer.doSomething(1, 2);
         return doer.doSomething(2, y);
     }
-    @Pure
+    @Transparent
     int doSomethingTwiceWithLambdas(SomethingDoerWithLambdas doer) {
         var y = doer.doSomething(this, 1, 2);
         return doer.doSomething(this, 2, y);
@@ -150,18 +150,18 @@ public class Lambdas {
         var z = doer.doSomething(2, y);
     }
 
-    @Pure
+    @Transparent
     public boolean instancePredicate() {
         return true;
     }
 
-    @Pure
+    @Transparent
     public int add(int x, int y) {
         assume(false);
         return x + y;
     }
 
-    @Pure
+    @Transparent
     public static int staticAdd(int x, int y) {
         assume(false);
         return x + y;
@@ -219,13 +219,13 @@ interface SomeClassMaker {
 }
 
 interface SomethingDoerWithLambdas {
-    @Pure
+    @Transparent
     @EmptyContract
     int doSomething(Lambdas lambdas, int x, int y);
 }
 
 interface SomethingDoer {
-    @Pure
+    @Transparent
     @EmptyContract
     int doSomething(int x, int y);
 }
@@ -261,6 +261,6 @@ interface SomethingDoerWithSpec {
 }
 
 interface PureFunction<I, O> {
-    @Pure
+    @Transparent
     O apply(I input);
 }

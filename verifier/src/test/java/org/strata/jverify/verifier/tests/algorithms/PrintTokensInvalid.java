@@ -1,30 +1,30 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR, Blocker.FRONTEND_OTHER}, exitCode = 4)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, exitCode = 4)
 class PrintTokensInvalid {
     static final int SPACE = 0;
     static final int IDENTIFIER = 1;
     static final int NUMBER = 2;
     static final int SPECIAL = 3;
 
-    @Pure
+    @Transparent
     static boolean isLetter(int c) {
         return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || c == '_';
     }
 
-    @Pure
+    @Transparent
     static boolean isDigit(int c) {
         return '0' <= c && c <= '9';
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean spansCover(int[] start, int[] end, int count, int upTo) {
         reads(start);
@@ -33,7 +33,7 @@ class PrintTokensInvalid {
                 && forall((int t) -> implies(0 < t && t < count, end[t - 1] <= start[t]));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean kindsMatch(int[] in, int[] start, int[] end, int[] kind, int count) {
         reads(in);

@@ -12,14 +12,12 @@ Here's an example of how to add a contract to the `intValue` and `add` methods o
 class BigIntegerContract  {
     @Unbounded int value;
 
-    @Pure
     int intValue() {
         precondition(value >= Integer.MIN_VALUE && value <= Integer.MAX_VALUE);
         postcondition((Integer b) -> b == value);
         throw new ContractException();
     }
 
-    @Pure
     BigIntegerContract add(BigIntegerContract v) {
         postcondition((BigIntegerContract b) -> b.value == this.value + v.value);
         throw new ContractException();

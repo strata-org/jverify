@@ -95,9 +95,9 @@ final class TranslationContext {
          */
         boolean arrayModelMember;
         /**
-         * Translating a {@code @Pure} program method: array allocations and writes
-         * refuse, and implicit runtime exceptions stay assertions (its body may
-         * become a transparent function, which cannot throw).
+         * Translating a {@code @Transparent} program method: implicit runtime
+         * exceptions stay assertions (its body becomes a transparent function,
+         * which cannot throw).
          */
         boolean pure;
         /** Declared exceptional join class (fqn) from the throws clause, or null. */
@@ -106,8 +106,6 @@ final class TranslationContext {
         final Deque<List<String>> enclosingCatchTypes = new ArrayDeque<>();
         /** The current method's class-typed return sort, or null. */
         String returnSort;
-        boolean pureBody;
-        boolean shapeErrorReported;
         /**
          * Translating a relocated source-contract method as its contractee's (see
          * Declarations.sourceContracts). Its body is the contract header followed by

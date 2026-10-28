@@ -1,23 +1,23 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR, Blocker.FRONTEND_OTHER}, exitCode = 4)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER}, exitCode = 4)
 class HeapSortInvalid {
-    @Pure
+    @Transparent
     @Erased
     static boolean sortedBetween(int[] a, int lo, int hi) {
         reads(a);
         return forall((int i, int j) -> implies(lo <= i && i <= j && j < hi, a[i] <= a[j]));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean heapBetween(int[] a, int lo, int hi) {
         reads(a);
@@ -25,7 +25,7 @@ class HeapSortInvalid {
                 (2 * k + 1 >= hi || a[k] >= a[2 * k + 1]) && (2 * k + 2 >= hi || a[k] >= a[2 * k + 2])));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean heapExceptAt(int[] a, int lo, int hi, int root) {
         reads(a);
@@ -36,14 +36,14 @@ class HeapSortInvalid {
                     && (2 * root + 2 >= hi || a[(root - 1) / 2] >= a[2 * root + 2]));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean prefixBelowSuffix(int[] a, int end) {
         reads(a);
         return forall((int k, int m) -> implies(0 <= k && k < end && end <= m && m < a.length, a[k] <= a[m]));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static @Unbounded int count(int[] a, int v, @Unbounded int hi) {
         reads(a);
@@ -54,7 +54,7 @@ class HeapSortInvalid {
         return count(a, v, hi - 1) + (a[hi - 1] == v ? 1 : 0);
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean permutation(int[] a, int[] orig) {
         reads(a);

@@ -1,16 +1,16 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR}, exitCode = 0)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_OTHER}, exitCode = 0)
 class MinSubarrayLen {
-    @Pure
+    @Transparent
     @Erased
     static @Unbounded int sumRange(int[] a, @Unbounded int lo, @Unbounded int hi) {
         reads(a);
@@ -21,7 +21,7 @@ class MinSubarrayLen {
         return sumRange(a, lo, hi - 1) + a[hi - 1];
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean noWindowShorterThan(int[] a, int target, int len, int endBefore) {
         reads(a);
@@ -29,7 +29,7 @@ class MinSubarrayLen {
                 sumRange(a, lo, hi) < target));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean someWindowOfLength(int[] a, int target, int len) {
         reads(a);

@@ -810,7 +810,7 @@ final class ClassResolver {
      * COUNT still spans library supertypes, so a user {@code toString(int)} alongside
      * {@code Object.toString()} is caught.
      *
-     * <p>Opted-out methods COUNT: a skipped {@code @Pure} method keeps an opaque
+     * <p>Opted-out methods COUNT: a skipped {@code @Transparent} method keeps an opaque
      * declaration, so it is emitted under this same name and would collide.
      */
     boolean isOverloaded(String declaringFqn, java.lang.classfile.MethodModel m) {

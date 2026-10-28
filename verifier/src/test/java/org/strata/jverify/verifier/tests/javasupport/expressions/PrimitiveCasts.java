@@ -1,7 +1,7 @@
 package org.strata.jverify.verifier.tests.javasupport.expressions;
 
 import org.strata.jverify.Nat;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.JVerifyTest;
 
@@ -297,19 +297,19 @@ class PrimitiveCasts {
     // Casts in argument and if positions.
     // ============================================================
 
-    @Pure
+    @Transparent
     static int identity(int v) { return v; }
 
     static void narrowInMethodArgument(int x) {
         int r = identity((short) x);
 //                       ^^^^^^^^^ Error: cast from int32 to int16 does not hold
         check(r == x);  // proves: the narrowing cast is reported above and then assumed
-                        // to have held, and `identity` is @Pure with no postcondition so
+                        // to have held, and `identity` is @Transparent with no postcondition so
                         // its body is visible here — same reason as widenInMethodArgument
     }
 
     static void widenInMethodArgument(short s) {
-        int r = identity(s);  // implicit widening; identity is @Pure with no
+        int r = identity(s);  // implicit widening; identity is @Transparent with no
         check(r == s);        // postcondition, so its body is visible here
     }
 

@@ -1,12 +1,10 @@
 ## Reading and Modifying Objects
 
-When defining pure methods, JVerify requires explicitly stating which objects are read by that functions. When defining impure methods, JVerify requires explicitly stating which objects are modified by that method.
-
-Having these two pieces of information allows JVerify to determine which impure method calls can change the result of which pure methods calls, which turns out is often useful when thinking about programs.
+A method can state which objects it reads with `reads` calls, and which objects it modifies with `modifies` calls.
 
 #### Reads
 
-JVerify requires that a method marked with `@Pure` is explicit about which objects it reads non-final fields from. This can be specified using `reads` calls. The `reads` method takes one or multiple Object arguments. Example:
+The `reads` method takes one object; call it once per object. Example:
 
 ```java
 class Engine {
@@ -15,17 +13,20 @@ class Engine {
 class Car {
     Engine engine;
     
-    @Pure
+    @Transparent
     public int readHorsePower() {
-        reads(this, engine); // without this line, the next line would emit an error
+        reads(this);
+        reads(engine);
         return this.engine.horsePower;
     }
 }
 ``` 
 
+JVerify currently accepts `reads` clauses but does not use them yet.
+
 #### Modifies
 
-Methods without `@Pure` should be explicit about which objects they modify, which can be specified using `modifies` calls. The `modifies` method takes one or multiple objects, and allows the remainder of the calling method to modify these.
+Methods should be explicit about which objects they modify, which can be specified using `modifies` calls. The `modifies` method takes one object, call it once per object, and allows the remainder of the calling method to modify these.
 
 If you omit `modifies` from a method that does modify the heap, JVerify does not reject it: it infers `modifies` on *everything* instead. That is always sound, but it is coarse — at every call site, callers must assume any field of any object may have changed, so facts they established before the call are lost. Write an explicit `modifies(...)` whenever you want callers to keep that information.
 

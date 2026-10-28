@@ -1,6 +1,6 @@
 package org.strata.jverify.verifier.tests.javasupport.generics;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.check;
@@ -12,11 +12,11 @@ import static org.strata.jverify.JVerify.precondition;
  * procedure's typeArgs) and it reaches Strata, producing real verification errors
  * rather than "Unsupported type: T2".
  *
- * <p>What remains is that {@code someStatic} is {@code @Pure} yet its body is not
+ * <p>What remains is that {@code someStatic} is {@code @Transparent} yet its body is not
  * visible to {@code user}, so {@code check(x == 3)} cannot be proved. That is the
  * CONSTRAINED-OUTPUT transparency gap, not a generics gap -- {@code someStatic}
  * returns a plain {@code int}, i.e. Laurel {@code int32}. Measured with four
- * {@code @Pure} statics each returning a literal:
+ * {@code @Transparent} statics each returning a literal:
  *
  * <ul>
  * <li>{@code <T> boolean genBool(T)} -- generic, unconstrained -- caller VERIFIES
@@ -35,7 +35,7 @@ public class PolymorphicStaticsVerification {
         // TODO add when we support static fields
         //static int staticFieldsAreNeverGeneric = 3;
         
-        @Pure
+        @Transparent
         public static <T2> int someStatic(T2 value, boolean valid) {
             precondition(valid);
             return 3;  

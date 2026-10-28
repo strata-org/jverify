@@ -2,7 +2,7 @@ package org.strata.jverify.verifier.tests.javasupport.wildcards;
 
 import org.strata.jverify.Contract;
 import org.strata.jverify.ContractException;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Verify;
 import org.strata.jverify.testengine.JVerifyTest;
 import org.strata.jverify.testengine.Blocker;
@@ -52,7 +52,7 @@ public class WildcardsResolution {
     static class Container<T> {
         T value;
 
-        @Pure
+        @Transparent
         public T get() {
             return value;
         }

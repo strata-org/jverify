@@ -1,4 +1,4 @@
-// Which user contract bodies a caller may assume: a verified @Pure member's
+// Which user contract bodies a caller may assume: a verified @Transparent member's
 // body is its definition; an opted-out member's body is not assumed; an impure
 // member with a body is refused, and so is a body returning a range-constrained
 // value (an int), so their callers are not verified.

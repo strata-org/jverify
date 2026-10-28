@@ -2,13 +2,13 @@ package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
 import org.strata.jverify.Nullable;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR, Blocker.FRONTEND_ARRAYS}, exitCode = 4)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_ARRAYS}, exitCode = 4)
 class SchorrWaiteInvalid {
     static class Node {
         boolean marked;
@@ -17,14 +17,14 @@ class SchorrWaiteInvalid {
         @Nullable Node right;
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean member(Node[] all, @Nullable Node n) {
         reads(all);
         return n == null || exists((int i) -> 0 <= i && i < all.length && all[i] == n);
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean closedWorld(Node[] all) {
         reads(everything());
@@ -32,7 +32,7 @@ class SchorrWaiteInvalid {
                 all[i] != null && member(all, all[i].left) && member(all, all[i].right)));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean markClosed(Node[] all) {
         reads(everything());

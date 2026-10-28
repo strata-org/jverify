@@ -15,7 +15,7 @@ import java.util.Set;
 /**
  * The program's type declarations, recovered from the classfiles: the
  * re-nested {@link TypeNode} tree of every compilation unit, the source-order
- * method sets, and the @Contract/@Pure markers the later passes consume.
+ * method sets, and the @Contract/@Transparent markers the later passes consume.
  */
 final class Declarations {
 
@@ -50,7 +50,7 @@ final class Declarations {
     /** @Contract declarations in compilation order. */
     final List<ContractDecl> contractDecls = new ArrayList<>();
     /**
-     * {@link #purityKey} -> is annotated @Pure (for the heap-write fallback). Keyed
+     * {@link #purityKey} -> is annotated @Transparent (for the heap-write fallback). Keyed
      * per OVERLOAD: keyed by name alone, same-named siblings overwrote each other and
      * an impure overload could read as pure, so its caller lost the heap frame it
      * needs (OverloadPurityKey).
@@ -62,12 +62,12 @@ final class Declarations {
         return fqn + "_" + m.methodName().stringValue() + m.methodTypeSymbol().descriptorString();
     }
 
-    /** True iff the method behind {@link #purityKey} is annotated @Pure. */
-    boolean isPure(String key) {
+    /** True iff the method behind {@link #purityKey} is annotated @Transparent. */
+    boolean isTransparent(String key) {
         return pureMethods.getOrDefault(key, false);
     }
 
-    /** Record {@code node}'s tree: types, @Contract markers, @Pure markers. */
+    /** Record {@code node}'s tree: types, @Contract markers, @Transparent markers. */
     void collect(TypeNode node, URI uri) {
         programTypes.put(node.fqn(), node);
         if (hasAnnotation(node.cm(), "Contract")) {
@@ -75,7 +75,7 @@ final class Declarations {
             contractDecls.add(new ContractDecl(node.fqn(), node, uri));
         }
         for (var m : declaredMethodsOf(node.cm())) {
-            pureMethods.put(purityKey(node.fqn(), m), hasAnnotation(m, "Pure"));
+            pureMethods.put(purityKey(node.fqn(), m), hasAnnotation(m, "Transparent"));
         }
         for (var child : node.nested()) {
             collect(child, uri);

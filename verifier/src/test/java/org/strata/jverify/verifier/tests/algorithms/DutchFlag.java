@@ -1,29 +1,29 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR}, exitCode = 0)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_OTHER}, exitCode = 0)
 class DutchFlag {
-    @Pure
+    @Transparent
     @Erased
     static int rank(int x, int p) {
         return x < p ? 0 : (x == p ? 1 : 2);
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean classified(int[] a, int p) {
         reads(a);
         return forall((int i, int j) -> implies(0 <= i && i <= j && j < a.length, rank(a[i], p) <= rank(a[j], p)));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean regions(int[] a, int p, int lt, int i, int gt) {
         reads(a);
@@ -32,7 +32,7 @@ class DutchFlag {
                 && forall((int k) -> implies(gt <= k && k < a.length, a[k] > p));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static @Unbounded int count(int[] a, int v, @Unbounded int hi) {
         reads(a);
@@ -43,7 +43,7 @@ class DutchFlag {
         return count(a, v, hi - 1) + (a[hi - 1] == v ? 1 : 0);
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean permutation(int[] a, int[] orig) {
         reads(a);

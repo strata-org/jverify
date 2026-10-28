@@ -4,7 +4,7 @@ When working with abstract methods, you might not yet be sure what the contract 
 ```java
 @Contract(IntPredicate.class)
 class IntPredicateContract implements IntPredicate {
-    @Pure
+    @Transparent
     public boolean test(int value) {
         // Having the following line is different from not calling 'precondition' at all,
         // because that would mean there is a precondition, equivalent to 'precondition(true)'

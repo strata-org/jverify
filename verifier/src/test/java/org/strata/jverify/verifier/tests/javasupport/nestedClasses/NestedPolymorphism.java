@@ -1,6 +1,6 @@
 package org.strata.jverify.verifier.tests.javasupport.nestedClasses;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Impure;
 import org.strata.jverify.testengine.JVerifyTest;
 
@@ -36,7 +36,7 @@ public class NestedPolymorphism {
                 this.value = value;
             }
 
-            @Pure
+            @Transparent
             public U getValue() {
                 reads(this);
                 return value;

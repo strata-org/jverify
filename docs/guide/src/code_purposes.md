@@ -47,7 +47,7 @@ class BinarySearch {
   }
 
   // specification
-  @Pure
+  @Transparent
   @Erased
   boolean sorted(int[] arr)
   { 

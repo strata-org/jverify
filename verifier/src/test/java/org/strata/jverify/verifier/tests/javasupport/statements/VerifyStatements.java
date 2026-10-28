@@ -1,6 +1,6 @@
 package org.strata.jverify.verifier.tests.javasupport.statements;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
@@ -9,9 +9,9 @@ import static org.strata.jverify.JVerify.*;
 // Three methods are skipped -- P2, P and ignoreCallResult (each caret-pinned below).
 // Every one calls an instance method on implicit `this`, and since neither the callee
 // nor this class is final, a subclass could override it: a possibly-polymorphic call,
-// which the translator refuses. @Pure is irrelevant here -- ignoreCallResult is not
-// @Pure and its callee methodWithResult is a plain instance method -- and so is being
-// called: @Pure P3 calls nothing and verifies. Making a callee (or the class) final,
+// which the translator refuses. @Transparent is irrelevant here -- ignoreCallResult is not
+// @Transparent and its callee methodWithResult is a plain instance method -- and so is being
+// called: @Transparent P3 calls nothing and verifies. Making a callee (or the class) final,
 // or static, would translate these three, at the cost of the coverage.
 @JVerifyTest(methodsVerified = 13, errorCount = 0)
 class VerifyStatements {
@@ -77,17 +77,17 @@ class VerifyStatements {
     }
 
 
-    @Pure
+    @Transparent
     boolean P3(int x, int y, int z) {
         return x > (y+z);
     }
 
-    @Pure
+    @Transparent
     boolean P2(int x, int y) {
         return P3(x,y,0);
     }
 
-    @Pure
+    @Transparent
     boolean P(int x) {
         return P2(x,10);
     }

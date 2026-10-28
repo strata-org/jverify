@@ -1,6 +1,6 @@
 package org.strata.jverify.verifier.tests.javasupport;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
@@ -43,13 +43,13 @@ class OverloadsTest {
         this.h = other.h;
     }
 
-    @Pure
+    @Transparent
     public int f() { reads(this); return f; }
-    @Pure
+    @Transparent
     public int g() { reads(this); return g; }
-    @Pure
+    @Transparent
     public int h() { reads(this); return h; }
-    @Pure
+    @Transparent
     public int h(int x) {precondition(x<=100);return x+1;}
 
     public static void foo() {

@@ -12,7 +12,7 @@ import static org.strata.jverify.JVerify.precondition;
  * What {@code JVerify.IntMap} buys, and the one thing it does not.
  *
  * <p>A specification over a string needs an indexed read that is a FUNCTION of its index. Nothing
- * else available gives one: array types do not translate, and a call to an opaque {@code @Pure}
+ * else available gives one: array types do not translate, and a call to an opaque {@code @Transparent}
  * method is re-havoc'd at every use, so even a fact stated about one element does not survive into
  * an obligation. {@code IntMap} lowers to Laurel's total map and {@code get} to {@code select},
  * whose body is transparent, so reads are stable -- {@link #readIsFunctional} and

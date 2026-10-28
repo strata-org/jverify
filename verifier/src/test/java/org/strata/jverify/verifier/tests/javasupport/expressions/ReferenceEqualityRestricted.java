@@ -1,7 +1,7 @@
 package org.strata.jverify.verifier.tests.javasupport.expressions;
 
 import org.strata.jverify.Impure;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Verify;
 import org.strata.jverify.testengine.JVerifyTest;
 
@@ -24,35 +24,35 @@ class ReferenceEqualityRestricted {
         int v;
     }
 
-    @Pure
+    @Transparent
     static boolean strings(String a, String b) {
         return a == b;
 //               ^ error: '==' is only allowed when at least one operand's type is impure
     }
 
-    @Pure
+    @Transparent
     static boolean records(Point a, Point b) {
         return a != b;
 //               ^ error: '!=' is only allowed when at least one operand's type is impure
     }
 
-    @Pure
+    @Transparent
     static boolean supertypeOfString(CharSequence a, String b) {
         return a == b;
 //               ^ error: '==' is only allowed when at least one operand's type is impure
     }
 
-    @Pure
+    @Transparent
     static boolean plainClass(Holder a, Object b) {
         return a == b;
     }
 
-    @Pure
+    @Transparent
     static boolean impureObject(@Impure Object a, Object b) {
         return a == b;
     }
 
-    @Pure
+    @Transparent
     static <T extends @Impure Object> boolean impureBound(T a, T b) {
         return a == b;
     }

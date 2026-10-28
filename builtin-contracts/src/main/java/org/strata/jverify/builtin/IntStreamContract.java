@@ -11,10 +11,9 @@ import static org.strata.jverify.JVerify.*;
 abstract class IntStreamContract implements IntStream {
     @Erased
     @EmptyContract
-    @Pure
+    @Transparent
     public abstract IntSequence values(); // final fields not well supported yet
     
-    @Pure
     public boolean allMatch(IntPredicate predicate) {
         precondition(JVerify.forall((int i) ->
                 implies(values().contains(i),
@@ -27,7 +26,6 @@ abstract class IntStreamContract implements IntStream {
         throw new ContractException();
     }
 
-    @Pure
     public <U> Stream<U> mapToObj(IntFunction<? extends U> mapper) {
         precondition(JVerify.forall((int i) ->
                 implies(values().contains(i),
@@ -41,7 +39,6 @@ abstract class IntStreamContract implements IntStream {
         throw new ContractException();
     }
 
-    @Pure
     public static IntStream range(int startInclusive, int endExclusive) {
         precondition(startInclusive <= endExclusive);
         postcondition((IntStreamContract c) -> jequals(c.values(), JVerify.range(startInclusive, endExclusive)));

@@ -6,14 +6,14 @@ import org.strata.jverify.Nat;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.JVerify;
 import org.strata.jverify.Verify;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.ContractException;
 
 @Contract(Object.class)
 class ObjectContract {
     public ObjectContract() {}
 
-    @Pure
+    @Transparent
     public boolean equals(Object obj) {
         throw new ContractException();
     }
@@ -21,7 +21,7 @@ class ObjectContract {
 
 @Contract(value = Record.class, pure = true)
 class RecordContract {
-    @Pure
+    @Transparent
     public boolean equals(Object obj) {
         return jequals(this, obj);
     }
@@ -31,7 +31,7 @@ class RecordContract {
 class StringContract {
     JVerify.CharJSequence chars;
 
-    @Pure
+    @Transparent
     @Override
     public boolean equals(Object obj) {
         return obj instanceof StringContract
@@ -39,13 +39,11 @@ class StringContract {
                 : false;
     }
 
-    @Pure
     public StringContract concat(StringContract str) {
         postcondition((StringContract r) -> jequals(r.chars, chars.concat(str.chars)));
         throw new ContractException();
     }
 
-    @Pure
     public int indexOf(int ch) {
         postcondition((int result) -> -1 <= result && result < this.chars.size());
         postcondition((int result) -> result == -1
@@ -55,24 +53,22 @@ class StringContract {
         throw new ContractException();
     }
 
-    @Pure
     public int length() {
         postcondition((int result) -> result == chars.size());
         throw new ContractException();
     }
 
-    @Pure
+    @Transparent
     public char charAt(int index) {
         precondition(0 <= index && index < chars.size());
         return chars.get(index);
     }
 
-    @Pure
+    @Transparent
     public boolean isEmpty() {
         return chars.size() == 0;
     }
 
-    @Pure
     public StringContract substring(int beginIndex) {
 
         precondition(beginIndex >= 0 && beginIndex <= chars.size());
@@ -80,19 +76,17 @@ class StringContract {
         throw new ContractException();
     }
 
-    @Pure
     public String substring(int beginIndex, int endIndex) {
         precondition(beginIndex >= 0 && beginIndex <= endIndex && endIndex <= chars.size());
         postcondition((StringContract r) -> JVerify.jequals(r.chars, chars.subsequence(beginIndex, endIndex)));
         throw new ContractException();
     }
 
-    @Pure
+    @Transparent
     public boolean startsWith(StringContract prefix) {
         return startsWith(prefix, 0);
     }
 
-    @Pure
     public boolean startsWith(StringContract prefix, int toffset) {
         postcondition((boolean r) -> r == (toffset >= 0 &&
                 prefix.chars.size() + toffset <= chars.size() &&
@@ -125,14 +119,14 @@ class JArray<TArrayElement> {
      * The clamp makes it a valid Java length (0..Integer.MAX_VALUE) by definition.
      */
     @Verify
-    @Pure
+    @Transparent
     public @Unbounded int length() {
         //noinspection ConstantValue
         return lengthOf(this) < 0 ? 0 : (lengthOf(this) > 2147483647 ? 0 : lengthOf(this));
     }
 
     @Verify
-    @Pure
+    @Transparent
     public TArrayElement get(@Nat int index) {
         reads(this);
         precondition(index < length());
@@ -147,12 +141,12 @@ class JArray<TArrayElement> {
                 (int i) -> implies(i != index && 0 <= i && i < length(), old(get(i)) == get(i))));
     }
 
-    @Pure
+    @Transparent
     private static <E> @Unbounded int lengthOf(JArray<E> array) {
         throw new ContractException();
     }
 
-    @Pure
+    @Transparent
     private static <E> E elementAt(JArray<E> array, @Unbounded int contentsVersion, @Nat int index) {
         throw new ContractException();
     }
@@ -160,7 +154,7 @@ class JArray<TArrayElement> {
 
 @Contract(java.util.Objects.class)
 class ObjectsContract {
-    @Pure
+    @Transparent
     public static <T> T requireNonNull(T obj) {
         return obj;
     }

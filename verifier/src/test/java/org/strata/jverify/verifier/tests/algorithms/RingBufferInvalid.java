@@ -1,7 +1,7 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Invariant;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
@@ -20,7 +20,7 @@ class RingBufferInvalid {
         this.count = 0;
     }
 
-    @Pure
+    @Transparent
     @Invariant
     private boolean inRange() {
         reads(this);
@@ -28,19 +28,19 @@ class RingBufferInvalid {
                 && 0 <= head && head < buf.length && 0 <= count && count <= buf.length;
     }
 
-    @Pure
+    @Transparent
     public int length() {
         reads(this);
         return count;
     }
 
-    @Pure
+    @Transparent
     public int capacity() {
         reads(this);
         return buf.length;
     }
 
-    @Pure
+    @Transparent
     public int elementAt(int k) {
         reads(this);
         reads(buf);

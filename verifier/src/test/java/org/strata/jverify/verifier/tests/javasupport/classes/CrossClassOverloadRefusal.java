@@ -1,6 +1,6 @@
 package org.strata.jverify.verifier.tests.javasupport.classes;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.JVerifyTest;
 
@@ -34,11 +34,11 @@ public class CrossClassOverloadRefusal {
     static class B extends A {}
 
     static class BaseX {
-        @Pure @Unbounded int val(B b) { return 0; }
+        @Transparent @Unbounded int val(B b) { return 0; }
     }
 
     static final class SubX extends BaseX {
-        @Pure @Unbounded int val(A a) { postcondition((int r) -> r == 42); return 42; }
+        @Unbounded int val(A a) { postcondition((int r) -> r == 42); return 42; }
     }
 
     static void root(SubX s, B b) {

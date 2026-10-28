@@ -2,7 +2,7 @@ package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
 import org.strata.jverify.Nullable;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
@@ -17,7 +17,7 @@ class DoublyLinkedListInvalid {
         @Nullable Node next;
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean linkedFrom(@Nullable Node prev, @Nullable Node n, @Unbounded int len) {
         reads(everything());
@@ -28,7 +28,7 @@ class DoublyLinkedListInvalid {
         return len > 0 && n.prev == prev && linkedFrom(n, n.next, len - 1);
     }
 
-    @Pure
+    @Transparent
     @Erased
     static int valueAt(@Nullable Node n, @Unbounded int k) {
         reads(everything());
@@ -42,7 +42,7 @@ class DoublyLinkedListInvalid {
         return valueAt(n.next, k - 1);
     }
 
-    @Pure
+    @Transparent
     @Erased
     static @Nullable Node nodeAt(@Nullable Node n, @Unbounded int k) {
         reads(everything());

@@ -2,7 +2,7 @@ package org.strata.jverify.verifier.tests.verification.pure;
 
 import org.strata.jverify.Contract;
 import org.strata.jverify.ContractException;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Verify;
 import org.strata.jverify.testengine.JVerifyTest;
 
@@ -12,12 +12,12 @@ import static org.strata.jverify.JVerify.*;
 public class PureMethodVerification {
 
     @Verify(false)
-    @Pure
+    @Transparent
     public int unverifiedWithContractException() {
         throw new ContractException();
     }
     
-    @Pure
+    @Transparent
     int pureMethodWithAssumeAndCheck(int x) {
         assume(x > 3);
         check(x > 2);
@@ -26,14 +26,14 @@ public class PureMethodVerification {
         return x;
     }
     
-    @Pure
+    @Transparent
     int pureMethodWithAssignments() {
         var x = 3;
         var y = 2;
         return x + y;
     }
 
-    @Pure
+    @Transparent
     int pureMethodWithEndingIf(int x) {
         var y = 2;
         if (x > 1) {
@@ -44,7 +44,7 @@ public class PureMethodVerification {
         }
     }
     
-    @Pure
+    @Transparent
     int pureMethodWithEarlyExits(int x) {
         if (x > 10) {
             return 3;
@@ -57,7 +57,7 @@ public class PureMethodVerification {
     }
     
     @SuppressWarnings("UnnecessaryLocalVariable")
-    @Pure
+    @Transparent
     int nesting(int a) {
         precondition(a > 0 && a < 100);
         var b = a + 2;
@@ -74,13 +74,13 @@ public class PureMethodVerification {
     }
     
     interface Base {
-        @Pure
+        @Transparent
         int pureIsInherited();
         
         @Contract
         class ContractClass implements Base {
 
-            @Pure
+            @Transparent
             @Override
             public int pureIsInherited() {
                 throw new ContractException();
@@ -94,7 +94,7 @@ public class PureMethodVerification {
             return 4;
         }
         
-        @Pure
+        @Transparent
         int callsPure() {
             return pureIsInherited();
         }

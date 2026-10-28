@@ -2,7 +2,7 @@ package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
 import org.strata.jverify.Nullable;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
@@ -19,20 +19,20 @@ class RedBlackTree {
         @Nullable Node right;
     }
 
-    @Pure
+    @Transparent
     static int size(@Nullable Node n) {
         reads(everything());
         return n == null ? 0 : n.size;
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean isRed(@Nullable Node n) {
         reads(everything());
         return n != null && n.red;
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean orderedN(@Nullable Node n, @Unbounded int lo, @Unbounded int hi) {
         reads(everything());
@@ -45,7 +45,7 @@ class RedBlackTree {
                 && orderedN(n.left, lo, n.key) && orderedN(n.right, n.key, hi);
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean leftLeaningBalanced(@Nullable Node n, @Unbounded int blacks, @Unbounded int height) {
         reads(everything());
@@ -60,7 +60,7 @@ class RedBlackTree {
         return leftLeaningBalanced(n.left, below, height - 1) && leftLeaningBalanced(n.right, below, height - 1);
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean inTree(@Nullable Node n, int key, @Unbounded int height) {
         reads(everything());

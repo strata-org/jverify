@@ -1,6 +1,6 @@
 package org.strata.jverify.verifier.tests.javasupport.classes;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.JVerifyTest;
 
@@ -17,9 +17,8 @@ import static org.strata.jverify.JVerify.*;
 @JVerifyTest(methodsVerified = 4, errorCount = 0)
 final class InstanceMethodVerifies {
 
-    // @Pure instance method proving its own postcondition. @Pure + postcondition
+    // @Transparent instance method proving its own postcondition. @Transparent + postcondition
     // emits an opaque procedure taking `self` first.
-    @Pure
     @Unbounded
     int addOne(@Unbounded int x) {
         postcondition((int r) -> r == x + 1);

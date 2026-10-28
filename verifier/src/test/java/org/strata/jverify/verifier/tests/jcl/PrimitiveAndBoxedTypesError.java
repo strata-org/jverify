@@ -1,6 +1,6 @@
 package org.strata.jverify.verifier.tests.jcl;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.check;

@@ -1,6 +1,6 @@
 package org.strata.jverify.verifier.tests.javasupport.expressions;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Verify;
 import org.strata.jverify.testengine.JVerifyTest;
 
@@ -8,7 +8,7 @@ import org.strata.jverify.testengine.JVerifyTest;
 public class FlowTyping {
     interface I {}
     interface J extends I {
-        @Pure
+        @Transparent
         @Verify(false)
         default I anotherI() {
             throw new RuntimeException("Not implemented");

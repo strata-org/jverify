@@ -401,17 +401,18 @@ class ArrayTranslationTest {
     }
 
     @Test
-    void allocationInAPureMethodRefusesPureWrite(@TempDir Path tmp) throws Exception {
+    void allocationInATransparentMethodIsLeftToLaurel(@TempDir Path tmp) throws Exception {
         var t = translate(tmp, "PureAlloc", """
-                import org.strata.jverify.Pure;
+                import org.strata.jverify.Transparent;
                 public class PureAlloc {
-                    @Pure static int p() {
+                    @Transparent static int p() {
                         int[] a = new int[2];
                         return a.length;
                     }
                 }
                 """);
-        assertEquals(List.of("error: " + ArrayModel.PURE_WRITE), t.messages());
+        assertEquals(List.of(), t.messages());
+        assertTrue(procedure(t.program(), "PureAlloc_p").body() instanceof Body.Transparent);
     }
 
     // --- Out-of-scope constructs: one per-method refusal each (design §6) ---
@@ -622,10 +623,10 @@ class ArrayTranslationTest {
         Files.writeString(tmp.resolve("contracts/q/MathContract.java"), """
                 package q;
                 import org.strata.jverify.Contract;
-                import org.strata.jverify.Pure;
+                import org.strata.jverify.Transparent;
                 @Contract(Math.class)
                 class MathContract {
-                    @Pure
+                    @Transparent
                     public static int abs(int a) {
                         int[] t = new int[1];
                         return a < 0 ? -a : a;

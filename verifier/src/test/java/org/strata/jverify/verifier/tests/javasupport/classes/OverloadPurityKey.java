@@ -1,12 +1,12 @@
 package org.strata.jverify.verifier.tests.javasupport.classes;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
 
 /**
  * Purity is a property of one OVERLOAD, not of a name.
  *
- * <p>{@code Box.set(int)} writes the heap; {@code Box.set(boolean)} is {@code @Pure}.
+ * <p>{@code Box.set(int)} writes the heap; {@code Box.set(boolean)} is {@code @Transparent}.
  * A frontend that records purity per name keeps whichever declaration it saw last --
  * here the pure one, which is declared second on purpose -- and then treats the
  * impure call in {@code caller} as pure. {@code caller} is then given no heap frame
@@ -25,7 +25,7 @@ class OverloadPurityKey {
             this.v = x;
         }
 
-        @Pure
+        @Transparent
         int set(boolean b) {
             return b ? 1 : 0;
         }

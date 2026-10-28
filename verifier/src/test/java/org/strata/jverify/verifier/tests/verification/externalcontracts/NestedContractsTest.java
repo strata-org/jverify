@@ -61,7 +61,6 @@ class NestedContractsTest {
             postcondition(this.value == x);
             throw new ContractException();
         }
-        @Pure
         public int getY() {
             reads(this);
             postcondition((int i) -> i == value);
@@ -76,7 +75,6 @@ class NestedContractsTest {
             postcondition(this.value == x);
             throw new ContractException();
         }
-        @Pure
         public int getY() {
             reads(this);
             postcondition((int i) -> i == value+1);
@@ -91,7 +89,6 @@ class NestedContractsTest {
             postcondition(this.value == x);
             throw new ContractException();
         }
-        @Pure
         public int getV() {
             reads(this);
             postcondition((int i) -> i == value);

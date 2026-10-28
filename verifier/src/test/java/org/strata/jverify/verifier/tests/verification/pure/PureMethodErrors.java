@@ -1,30 +1,30 @@
 package org.strata.jverify.verifier.tests.verification.pure;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(exitCode = 2)
+/**
+ * Body shapes the deleted Dafny-era shape rules used to reject. Laurel accepts them
+ * in a transparent body, so the front end passes them through.
+ */
+@JVerifyTest(errorCount = 0)
 public class PureMethodErrors {
 
-    @Pure
+    @Transparent
     int pureWithMultipleStatements() {
         foo();
-//      ^ error: except for the last statement, a pure block may only contain variable declarations
         return 3;
     }
 
-    @Pure
+    @Transparent
     void pureWithoutReturn() {
-//       ^ error: pure method should have a return type
         var x = 3;
-//          ^ error: a pure block must end in a return or if-else statement
     }
 
-    @Pure
+    @Transparent
     int pureEndingWithIfNotElse(int x) {
         if (x > 2) {
             if (x > 3) {
-//          ^ error: a pure block may not end in an if statement without an else block    
                 return 3;
             }
         }

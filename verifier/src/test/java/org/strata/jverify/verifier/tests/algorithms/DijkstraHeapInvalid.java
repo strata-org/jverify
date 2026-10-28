@@ -1,17 +1,17 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR, Blocker.FRONTEND_ARRAYS, Blocker.FRONTEND_OTHER}, exitCode = 4)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_ARRAYS, Blocker.FRONTEND_OTHER}, exitCode = 4)
 class DijkstraHeapInvalid {
     static final int INF = 2000000000;
 
-    @Pure
+    @Transparent
     @Erased
     static boolean weights(int[][] w, int n) {
         reads(everything());
@@ -19,7 +19,7 @@ class DijkstraHeapInvalid {
                 w[u].length == n && -1 <= w[u][v] && w[u][v] <= 1000));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean relaxed(int[][] w, int[] dist, int n) {
         reads(everything());
@@ -27,14 +27,14 @@ class DijkstraHeapInvalid {
                 dist[v] <= dist[u] + w[u][v]));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean heapOrdered(int[] key, int size) {
         reads(key);
         return forall((int k) -> implies(0 < k && k < size, key[(k - 1) / 2] <= key[k]));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean pendingCovered(int[][] w, int[] dist, boolean[] done, int[] key, int[] vert, int size, int n) {
         reads(everything());

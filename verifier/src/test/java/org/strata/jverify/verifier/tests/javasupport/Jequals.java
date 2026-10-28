@@ -15,7 +15,7 @@ import static org.strata.jverify.JVerify.*;
  * <p>Three usage positions are covered, since they take different routes through
  * the translator. In rough order of how much they matter:
  * <ol>
- *   <li>a {@code @Pure} method's return expression, which becomes a Laurel
+ *   <li>a {@code @Transparent} method's return expression, which becomes a Laurel
  *       function body — the form {@code RecordContract.equals} and
  *       {@code StringContract.equals} use in {@code object-contract.java};</li>
  *   <li>{@code postcondition(...)}, which becomes an ensures clause — the form
@@ -46,9 +46,9 @@ class Jequals {
 
     record Point(int x, int y) {}
 
-    // ---- 1. @Pure return expression (what object-contract.java's equals uses) ----
+    // ---- 1. @Transparent return expression (what object-contract.java's equals uses) ----
 
-    @Pure
+    @Transparent
     static boolean sameAs(Point a, Point b) {
         return jequals(a, b);
     }
@@ -61,7 +61,6 @@ class Jequals {
     // ---- 2. postcondition / ensures path ----
 
     /** The postcondition is the obligation: `jequals(p, p)` must prove from `return p`. */
-    @Pure
     static Point identity(Point p) {
         postcondition((Point r) -> jequals(r, p));
         return p;
@@ -71,7 +70,6 @@ class Jequals {
      * A freshly constructed record with the same components cannot be shown
      * `jequals` to the input, because equality is still reference equality.
      */
-    @Pure
     static Point rebuild(Point p) {
         postcondition((Point r) -> jequals(r, p));
 //                                 ^^^^^^^^^^^^^ Error: postcondition does not hold
@@ -83,7 +81,7 @@ class Jequals {
     // Note: this position is a translator-level probe, not idiomatic usage.
     // `check` takes a `boolean`, so its argument is evaluated eagerly, and
     // `jequals` has a throwing body (`VerificationMethodExecutedException`).
-    // Real code puts `jequals` in a contract lambda or a @Pure body, neither of
+    // Real code puts `jequals` in a contract lambda or a @Transparent body, neither of
     // which is invoked at runtime.
     static void reflexiveUnderCheck(Point p) {
         check(jequals(p, p));

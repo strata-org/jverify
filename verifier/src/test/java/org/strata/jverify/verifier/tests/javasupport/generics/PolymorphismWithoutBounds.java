@@ -1,6 +1,6 @@
 package org.strata.jverify.verifier.tests.javasupport.generics;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
 import org.strata.jverify.testengine.Blocker;
 
@@ -42,7 +42,7 @@ public class PolymorphismWithoutBounds {
         check(obj == obj3);
     }
 
-    @Pure
+    @Transparent
     public static <T> T genericIdentity(T a) {
         return a;
     }
@@ -58,7 +58,7 @@ public class PolymorphismWithoutBounds {
             this.value = value;
         }
 
-        @Pure
+        @Transparent
         public T getValue() {
             reads(this);
             return value;

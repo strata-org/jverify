@@ -2,7 +2,7 @@ package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
 import org.strata.jverify.Nullable;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
@@ -22,7 +22,7 @@ class PersistentList {
         }
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean hasLength(@Nullable Cell c, @Unbounded int len) {
         reads(everything());
@@ -33,7 +33,7 @@ class PersistentList {
         return len > 0 && hasLength(c.tail, len - 1);
     }
 
-    @Pure
+    @Transparent
     @Erased
     static int valueAt(@Nullable Cell c, @Unbounded int k) {
         reads(everything());
@@ -44,7 +44,7 @@ class PersistentList {
         return k == 0 ? c.head : valueAt(c.tail, k - 1);
     }
 
-    @Pure
+    @Transparent
     @Erased
     static @Nullable Cell cellAt(@Nullable Cell c, @Unbounded int k) {
         reads(everything());

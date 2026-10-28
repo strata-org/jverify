@@ -1,17 +1,17 @@
 package org.strata.jverify.verifier.tests.algorithms;
 
 import org.strata.jverify.Erased;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_PURE_VALIDATOR}, exitCode = 4)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_OTHER}, exitCode = 4)
 class BellmanFordInvalid {
     static final int INF = 2000000000;
 
-    @Pure
+    @Transparent
     @Erased
     static boolean wellFormed(int n, int[] eu, int[] ev, int[] ew) {
         reads(eu);
@@ -22,7 +22,7 @@ class BellmanFordInvalid {
                     0 <= eu[e] && eu[e] < n && -1000 <= ew[e] && ew[e] <= 1000));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean distBounded(int[] dist, int steps) {
         reads(dist);
@@ -30,7 +30,7 @@ class BellmanFordInvalid {
                 dist[x] == INF || (-1000 * steps <= dist[x] && dist[x] <= 1000 * steps)));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean relaxedBelow(int[] dist, int[] eu, int[] ev, int[] ew, int hi) {
         reads(dist);
@@ -41,7 +41,7 @@ class BellmanFordInvalid {
                 dist[eu[e]] == INF || dist[ev[e]] <= dist[eu[e]] + ew[e]));
     }
 
-    @Pure
+    @Transparent
     @Erased
     static boolean infiniteBelow(int[] dist, int hi) {
         reads(dist);

@@ -1,7 +1,7 @@
 package org.strata.jverify.verifier.tests.javasupport.expressions;
 
 import org.strata.jverify.Impure;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
 
 /**
@@ -32,24 +32,24 @@ class TypeVariableEqualityRestricted {
         int v;
     }
 
-    @Pure
+    @Transparent
     static <T> boolean unbounded(T a, T b) {
         return a == b;
 //               ^ error: '==' is only allowed when at least one operand's type is impure
     }
 
-    @Pure
+    @Transparent
     static <T extends Object> boolean boundedByObject(T a, T b) {
         return a == b;
 //               ^ error: '==' is only allowed when at least one operand's type is impure
     }
 
-    @Pure
+    @Transparent
     static <T extends Holder> boolean boundedByPlainClass(T a, T b) {
         return a == b;
     }
 
-    @Pure
+    @Transparent
     static <T extends Tracked> boolean boundedByImpure(T a, T b) {
         return a == b;
     }

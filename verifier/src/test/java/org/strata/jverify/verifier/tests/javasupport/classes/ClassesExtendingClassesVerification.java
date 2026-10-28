@@ -1,7 +1,7 @@
 package org.strata.jverify.verifier.tests.javasupport.classes;
 
 import org.strata.jverify.EmptyContract;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
@@ -56,7 +56,7 @@ class Extender extends Base {
         z = 2;
     }
 
-    @Pure
+    @Transparent
     @Override
     public int computeX(int input) {
         return 3;
@@ -80,13 +80,13 @@ abstract class Base {
         this.y = 3;
     }
 
-    @Pure
+    @Transparent
     public int getX() {
         reads(this);
         return x;
     }
 
-    @Pure
+    @Transparent
     @EmptyContract
     public abstract int computeX(int input);
     
