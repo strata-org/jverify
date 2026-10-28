@@ -1210,8 +1210,9 @@ final class BodyTranslator {
 
     /**
      * Laurel lets an exception leave this method only if it declares no
-     * {@code throws} (the escape is then asserted not to happen) or a covering
-     * one; otherwise an enclosing {@code catch} must cover it.
+     * {@code throws} (the escape is then asserted not to happen), a covering
+     * one, or an inferred one (widened to cover it); otherwise an enclosing
+     * {@code catch} must cover it.
      *
      * <p>An enclosing {@code catch} arm unrelated to the exception (an
      * {@code IllegalStateException} arm around a division) is no obstacle: Laurel
@@ -1226,7 +1227,7 @@ final class BodyTranslator {
             return true;
         }
         String join = ctx.method.throwsJoin;
-        return join == null || ctx.resolver.isSubclassOf(exceptionFqn, join);
+        return join == null || ctx.method.throwsInferred || ctx.resolver.isSubclassOf(exceptionFqn, join);
     }
 
     /**
@@ -2419,7 +2420,7 @@ final class BodyTranslator {
         }
         boolean caughtLocally = ctx.method.enclosingCatchTypes.stream().anyMatch(arms ->
                 arms.stream().anyMatch(c -> ctx.resolver.isSubclassOf(thrownFqn, c)));
-        if (caughtLocally || ctx.method.throwsJoin == null) {
+        if (caughtLocally || ctx.method.throwsJoin == null || ctx.method.throwsInferred) {
             return;
         }
         if (!ctx.resolver.isSubclassOf(thrownFqn, ctx.method.throwsJoin)) {

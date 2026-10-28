@@ -410,12 +410,21 @@ final class ClassResolver {
     /** The {@code @Verify} annotation on an element's RuntimeInvisibleAnnotations, or null. */
     static java.lang.classfile.Annotation verifyAnnotation(
             java.lang.classfile.AttributedElement element) {
+        return invisibleAnnotation(element, "Lorg/strata/jverify/Verify;");
+    }
+
+    /**
+     * The annotation with the given descriptor on an element's
+     * RuntimeInvisibleAnnotations, or null.
+     */
+    static java.lang.classfile.Annotation invisibleAnnotation(
+            java.lang.classfile.AttributedElement element, String descriptor) {
         var annos = element
                 .findAttribute(java.lang.classfile.Attributes.runtimeInvisibleAnnotations())
                 .map(java.lang.classfile.attribute.RuntimeInvisibleAnnotationsAttribute::annotations)
                 .orElse(List.of());
         for (var a : annos) {
-            if (a.className().stringValue().equals("Lorg/strata/jverify/Verify;")) {
+            if (a.className().stringValue().equals(descriptor)) {
                 return a;
             }
         }
@@ -769,7 +778,26 @@ final class ClassResolver {
         return scope;
     }
 
-    private List<String> forwardingBridgeParams(String declaringFqn, java.lang.classfile.MethodModel m) {
+    /** {@code fqn} and every supertype, superclasses and interfaces, program and library. */
+    java.util.Set<String> supertypeClosure(String fqn) {
+        return typeClosure(fqn);
+    }
+
+    /**
+     * Whether {@code fqn} declares an overridable method {@code name} whose erased
+     * parameter signature is one of {@code params}.
+     */
+    boolean declaresOverridable(String fqn, String name, java.util.Set<String> params) {
+        return declaredMembers(fqn, name).stream()
+                .anyMatch(x -> x.inheritable() && params.contains(x.params()));
+    }
+
+    /**
+     * The {@linkplain #paramDescriptors erased parameter signatures} of the bridge
+     * methods in {@code declaringFqn} that forward to {@code m}: the signatures under
+     * which a generic override of {@code m} overrides its base methods.
+     */
+    List<String> forwardingBridgeParams(String declaringFqn, java.lang.classfile.MethodModel m) {
         var out = new java.util.ArrayList<String>();
         var cm = programClassModels.get(declaringFqn);
         if (cm == null) {
@@ -842,7 +870,7 @@ final class ClassResolver {
     // sound. PolyDispatchSoundness pins both halves.
 
     /** Canonical erased-parameter signature of a classfile method (JVM descriptors). */
-    private static String paramDescriptors(java.lang.classfile.MethodModel m) {
+    static String paramDescriptors(java.lang.classfile.MethodModel m) {
         return m.methodTypeSymbol().parameterList().stream()
                 .map(java.lang.constant.ClassDesc::descriptorString)
                 .toList().toString();

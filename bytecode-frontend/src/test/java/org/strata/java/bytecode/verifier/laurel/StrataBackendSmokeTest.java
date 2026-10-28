@@ -72,6 +72,7 @@ class StrataBackendSmokeTest {
                 List.of(),                                     // axioms
                 Optional.empty(),                              // throwsType
                 Optional.empty(),                              // throwsBinding
+                false,                                         // throwsInferred
                 List.of(),                                     // throwsOn
                 List.of(),                                     // readsGlobals
                 List.of());                                    // writesGlobals

@@ -34,6 +34,8 @@ import java.util.function.Supplier;
  *        constant folding where possible (:bytecode-unfolding), so their
  *        operations on constants reach the translation. Library contracts
  *        are compiled as usual.
+ * @param allowUncheckedExceptions the project-level {@code @AllowUncheckedExceptions}
+ *        default, which package, class and method annotations refine.
  */
 public record VerifierOptions(PrintWriter outWriter,
                               Path workingDirectory,
@@ -53,7 +55,22 @@ public record VerifierOptions(PrintWriter outWriter,
                               boolean jvmVerifyClassfiles,
                               @Nullable String interpreter,
                               @Nullable Path strataProjectDir,
-                              boolean noConstantFolding) {
+                              boolean noConstantFolding,
+                              boolean allowUncheckedExceptions) {
+
+    /** Options without the project-level {@code @AllowUncheckedExceptions} default. */
+    public VerifierOptions(PrintWriter outWriter, Path workingDirectory, Collection<Path> classPathEntries,
+                           @Nullable Path printSerializedOutputProgram, boolean emitLaurelOnly,
+                           boolean showRanges, Collection<Path> contractSourcePath, boolean showFilepaths,
+                           boolean verifyByDefault, boolean continueOnErrors, boolean verbose,
+                           boolean shouldTrackTime, boolean interpret, @Nullable String entry,
+                           @Nullable Integer fuel, boolean jvmVerifyClassfiles, @Nullable String interpreter,
+                           @Nullable Path strataProjectDir, boolean noConstantFolding) {
+        this(outWriter, workingDirectory, classPathEntries, printSerializedOutputProgram, emitLaurelOnly,
+                showRanges, contractSourcePath, showFilepaths, verifyByDefault, continueOnErrors, verbose,
+                shouldTrackTime, interpret, entry, fuel, jvmVerifyClassfiles, interpreter, strataProjectDir,
+                noConstantFolding, false);
+    }
 
     /** Options with Strata's default interpreter, running {@code strataLaurel} from PATH. */
     public VerifierOptions(PrintWriter outWriter, Path workingDirectory, Collection<Path> classPathEntries,
@@ -64,7 +81,15 @@ public record VerifierOptions(PrintWriter outWriter,
                            @Nullable Integer fuel, boolean jvmVerifyClassfiles) {
         this(outWriter, workingDirectory, classPathEntries, printSerializedOutputProgram, emitLaurelOnly,
                 showRanges, contractSourcePath, showFilepaths, verifyByDefault, continueOnErrors, verbose,
-                shouldTrackTime, interpret, entry, fuel, jvmVerifyClassfiles, null, null, false);
+                shouldTrackTime, interpret, entry, fuel, jvmVerifyClassfiles, null, null, false, false);
+    }
+
+    /** These options with the project-level {@code @AllowUncheckedExceptions} default set. */
+    public VerifierOptions withAllowUncheckedExceptions(boolean allow) {
+        return new VerifierOptions(outWriter, workingDirectory, classPathEntries, printSerializedOutputProgram,
+                emitLaurelOnly, showRanges, contractSourcePath, showFilepaths, verifyByDefault, continueOnErrors,
+                verbose, shouldTrackTime, interpret, entry, fuel, jvmVerifyClassfiles, interpreter,
+                strataProjectDir, noConstantFolding, allow);
     }
 
     public <T> T time(String name, Supplier<T> supply) {

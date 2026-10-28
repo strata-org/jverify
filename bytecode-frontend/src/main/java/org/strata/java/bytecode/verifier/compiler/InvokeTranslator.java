@@ -421,7 +421,7 @@ final class InvokeTranslator {
                             d.returnType().descriptorString().equals("V")
                                     ? LaurelFactory.unguardedModifies(List.of(LaurelFactory.noRange(new StmtExpr.All())))
                                     : List.of()),
-                    Optional.empty(), false, List.of(), Optional.empty(), Optional.empty(), List.of(),
+                    Optional.empty(), false, List.of(), Optional.empty(), Optional.empty(), false, List.of(),
                     List.of(), List.of()));
             if (!ctx.method.info.quiet) {
                 ctx.reporter.reportWarning(ctx.src.uri, ctx.src.positionRange(b.stmtRange(b.pos, false)),
@@ -630,7 +630,7 @@ final class InvokeTranslator {
                                 LaurelFactory.node(new HighType.TBool()))),
                         List.of(), new org.strata.jverify.laurel.CoroutineContracts.Regular(), Optional.empty(),
                         new org.strata.jverify.laurel.Body.Opaque(List.of(), Optional.empty(), List.of()),
-                        Optional.empty(), false, List.of(), Optional.empty(), Optional.empty(), List.of(),
+                        Optional.empty(), false, List.of(), Optional.empty(), Optional.empty(), false, List.of(),
                         List.of(), List.of()));
             }
             AstNode<StmtExpr> call = b.e(new StmtExpr.InstanceCall(recv, LaurelFactory.ident("equals"), args));

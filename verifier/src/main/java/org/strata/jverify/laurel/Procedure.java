@@ -1,6 +1,6 @@
 package org.strata.jverify.laurel;
 
-public record Procedure(Identifier name, java.util.List<Identifier> typeArgs, java.util.List<Parameter> inputs, java.util.List<Parameter> outputs, java.util.List<Condition> preconditions, CoroutineContracts contracts, java.util.Optional<AstNode<StmtExpr>> decreases, Body body, java.util.Optional<AstNode<StmtExpr>> invokeOn, boolean isInterpretEntry, java.util.List<AstNode<StmtExpr>> axioms, java.util.Optional<AstNode<HighType>> throwsType, java.util.Optional<Identifier> throwsBinding, java.util.List<ThrowsOnBlock> throwsOn, java.util.List<Identifier> readsGlobals, java.util.List<Identifier> writesGlobals) implements ToIon {
+public record Procedure(Identifier name, java.util.List<Identifier> typeArgs, java.util.List<Parameter> inputs, java.util.List<Parameter> outputs, java.util.List<Condition> preconditions, CoroutineContracts contracts, java.util.Optional<AstNode<StmtExpr>> decreases, Body body, java.util.Optional<AstNode<StmtExpr>> invokeOn, boolean isInterpretEntry, java.util.List<AstNode<StmtExpr>> axioms, java.util.Optional<AstNode<HighType>> throwsType, java.util.Optional<Identifier> throwsBinding, boolean throwsInferred, java.util.List<ThrowsOnBlock> throwsOn, java.util.List<Identifier> readsGlobals, java.util.List<Identifier> writesGlobals) implements ToIon {
     public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var s = ion.newEmptyStruct();
         s.put("name", name().toIon(ion));
@@ -26,6 +26,7 @@ public record Procedure(Identifier name, java.util.List<Identifier> typeArgs, ja
         s.put("axioms", _l_axioms);
         s.put("throwsType", (throwsType().isPresent() ? throwsType().get().toIon(ion) : ion.newNull()));
         s.put("throwsBinding", (throwsBinding().isPresent() ? throwsBinding().get().toIon(ion) : ion.newNull()));
+        s.put("throwsInferred", ion.newBool(throwsInferred()));
         var _l_throwsOn = ion.newEmptyList();
         for (var e : throwsOn()) _l_throwsOn.add(e.toIon(ion));
         s.put("throwsOn", _l_throwsOn);

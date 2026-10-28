@@ -346,7 +346,7 @@ final class LaurelFactory {
                 Optional.empty(),
                 new Body.Opaque(postconditions, Optional.empty(), unguardedModifies(List.of())),
                 Optional.empty(), false, List.of(),
-                Optional.empty(), Optional.empty(), List.of(),
+                Optional.empty(), Optional.empty(), /*throwsInferred=*/false, List.of(),
                 /*readsGlobals=*/List.of(), /*writesGlobals=*/List.of());
         castHelpers.put(helperName, proc);
     }
@@ -471,7 +471,7 @@ final class LaurelFactory {
         return new Procedure(ident(name), typeArgs, inputs,
                 List.of(new org.strata.jverify.laurel.Parameter(reservedIdent(LAUREL_RESULT_BINDING), node(result))),
                 preconditions, new CoroutineContracts.Regular(), Optional.empty(), body, Optional.empty(), false, List.of(),
-                Optional.empty(), Optional.empty(), List.of(),
+                Optional.empty(), Optional.empty(), /*throwsInferred=*/false, List.of(),
                 /*readsGlobals=*/List.of(), /*writesGlobals=*/List.of());
     }
 }

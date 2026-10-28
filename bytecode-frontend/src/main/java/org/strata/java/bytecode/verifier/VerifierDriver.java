@@ -210,6 +210,7 @@ public class VerifierDriver {
                             List.copyOf(options.classPathEntries()), tierIsSelfInflicted,
                             options.jvmVerifyClassfiles(), contracts)
                             .withJavacTypes(javacTypes)
+                            .withAllowUncheckedExceptionsByDefault(options.allowUncheckedExceptions())
                             .analyze(sourceUris, classes));
         } catch (org.strata.java.bytecode.verifier.compiler.RefusedInputException e) {
             // The input was refused before translation -- either it carries

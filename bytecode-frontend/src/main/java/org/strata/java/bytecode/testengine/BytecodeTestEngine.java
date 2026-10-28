@@ -528,7 +528,7 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
                 annotation.interpreter().isEmpty() ? null : annotation.interpreter(),
                 null,
                 annotation.interpret()
-        );
+        ).withAllowUncheckedExceptions(annotation.allowUncheckedExceptions());
     }
 
     private static Path codeSourceOf(Class<?> clazz) {

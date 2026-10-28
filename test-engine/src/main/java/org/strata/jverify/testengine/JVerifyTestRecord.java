@@ -11,6 +11,11 @@ public record JVerifyTestRecord(String skip, boolean verifyByDefault, boolean us
                                 boolean interpret, String entry, int fuel,
                                 String interpreter) implements JVerifyTest {
     @Override
+    public boolean allowUncheckedExceptions() {
+        return false;
+    }
+
+    @Override
     public Class<? extends Annotation> annotationType() {
         return JVerifyTest.class;
     }

@@ -109,4 +109,10 @@ public @interface JVerifyTest {
      */
     int fuel() default -1;
     String interpreter() default "";
+
+    /**
+     * What to pass for the bytecode verifier's --allow-unchecked-exceptions
+     * option: the project-level {@code @AllowUncheckedExceptions} default.
+     */
+    boolean allowUncheckedExceptions() default false;
 }

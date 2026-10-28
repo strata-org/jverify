@@ -163,6 +163,17 @@ public class BytecodeToLaurelCompiler {
         this.composites = new CompositeModel(resolver, contracts);
         this.graph = new MethodGraph(reporter);
         shouldVerifies.push(verifyByDefault ? ShouldVerifyMode.DefaultYes : ShouldVerifyMode.DefaultNo);
+        allowUncheckedExceptions.push(ShouldVerifyMode.DefaultNo);
+    }
+
+    /**
+     * Set the project-level {@code @AllowUncheckedExceptions} default, which
+     * package, class and method annotations refine. Off unless set.
+     */
+    public BytecodeToLaurelCompiler withAllowUncheckedExceptionsByDefault(boolean allow) {
+        allowUncheckedExceptions.clear();
+        allowUncheckedExceptions.push(allow ? ShouldVerifyMode.DefaultYes : ShouldVerifyMode.DefaultNo);
+        return this;
     }
 
     /** javac's account of the classes the input's classfiles mention, which the hierarchy walks take first. */
@@ -283,6 +294,7 @@ public class BytecodeToLaurelCompiler {
         }
         checkContractLoad();
 
+        collectInferredThrows(classes, typeTrees);
         for (var cls : classes) {
             src.uri = sourceUriFor(cls, sourceUris);
             compileUnit(cls, typeTrees.get(cls.internalName()));
@@ -599,7 +611,7 @@ public class BytecodeToLaurelCompiler {
                 signature.inputs(), signature.outputs(), List.of(), new CoroutineContracts.Regular(),
                 Optional.empty(), new Body.Opaque(List.of(), Optional.empty(), unguardedModifies(List.of())),
                 Optional.empty(), false, List.of(),
-                Optional.empty(), Optional.empty(), List.of(),
+                Optional.empty(), Optional.empty(), /*throwsInferred=*/false, List.of(),
                 /*readsGlobals=*/List.of(), /*writesGlobals=*/List.of());
         if (m.isStatic()) {
             procedures.add(proc);
@@ -1044,12 +1056,32 @@ public class BytecodeToLaurelCompiler {
 
     // --- @Verify stack (per-scope verification modes) ---
 
+    /**
+     * One level's setting of a boolean policy annotation ({@code @Verify},
+     * {@code @AllowUncheckedExceptions}): Always* also overrides nested levels.
+     */
     private enum ShouldVerifyMode { AlwaysYes, DefaultYes, AlwaysNo, DefaultNo, Inherit }
 
     private final Deque<ShouldVerifyMode> shouldVerifies = new ArrayDeque<>();
 
+    /**
+     * The {@code @AllowUncheckedExceptions} stack, pushed and popped alongside
+     * {@link #shouldVerifies} at the package and class levels; the method level is
+     * read in {@link #allowsUncheckedExceptions}. Its base is the project default.
+     */
+    private final Deque<ShouldVerifyMode> allowUncheckedExceptions = new ArrayDeque<>();
+
     private boolean shouldVerify() {
-        for (var mode : shouldVerifies) { // Deque iterates newest-first
+        return decided(shouldVerifies);
+    }
+
+    private void pushShouldVerify(ShouldVerifyMode mode) {
+        pushMode(shouldVerifies, mode);
+    }
+
+    /** The innermost decided setting of a policy stack. */
+    private static boolean decided(Deque<ShouldVerifyMode> stack) {
+        for (var mode : stack) { // Deque iterates newest-first
             if (mode == ShouldVerifyMode.AlwaysYes || mode == ShouldVerifyMode.DefaultYes) {
                 return true;
             }
@@ -1057,17 +1089,261 @@ public class BytecodeToLaurelCompiler {
                 return false;
             }
         }
-        throw new IllegalStateException("shouldVerify stack must have a decided base");
+        throw new IllegalStateException("policy stack must have a decided base");
     }
 
-    private void pushShouldVerify(ShouldVerifyMode mode) {
-        var top = shouldVerifies.peek();
+    /** Push a level's setting; an enclosing Always* setting wins over it. */
+    private static void pushMode(Deque<ShouldVerifyMode> stack, ShouldVerifyMode mode) {
+        var top = stack.peek();
         if (top == ShouldVerifyMode.AlwaysYes || top == ShouldVerifyMode.AlwaysNo) {
-            shouldVerifies.push(top);
+            stack.push(top);
         } else if (mode == ShouldVerifyMode.Inherit) {
-            shouldVerifies.push(top != null ? top : ShouldVerifyMode.Inherit);
+            stack.push(top != null ? top : ShouldVerifyMode.Inherit);
         } else {
-            shouldVerifies.push(mode);
+            stack.push(mode);
+        }
+    }
+
+    private void pushPolicies(java.lang.classfile.AttributedElement el) {
+        pushShouldVerify(verifyModeOf(el));
+        pushMode(allowUncheckedExceptions, allowUncheckedModeOf(el));
+    }
+
+    private void popPolicies() {
+        shouldVerifies.pop();
+        allowUncheckedExceptions.pop();
+    }
+
+    /**
+     * Whether method {@code m}, inside the levels currently pushed, may let
+     * undeclared unchecked exceptions escape (its {@code throws} is then inferred).
+     */
+    private boolean allowsUncheckedExceptions(java.lang.classfile.MethodModel m) {
+        pushMode(allowUncheckedExceptions, allowUncheckedModeOf(m));
+        try {
+            return decided(allowUncheckedExceptions);
+        } finally {
+            allowUncheckedExceptions.pop();
+        }
+    }
+
+    /**
+     * Methods that {@code @AllowUncheckedExceptions} covers, by {@link #methodKey}: a
+     * method with a body gets an inferred Laurel {@code throws}, one without a body
+     * {@code throws RuntimeException}. Filled by {@link #collectInferredThrows} before
+     * any method is translated.
+     */
+    private final Set<String> inferredThrowsMethods = new java.util.HashSet<>();
+
+    private static String methodKey(String classFqn, java.lang.classfile.MethodModel m) {
+        return classFqn + "#" + m.methodName().stringValue() + m.methodTypeSymbol().descriptorString();
+    }
+
+    /** Whether {@code m} declared in {@code classFqn} gets an inferred {@code throws}. */
+    private boolean inferredThrows(String classFqn, java.lang.classfile.MethodModel m) {
+        return inferredThrowsMethods.contains(methodKey(classFqn, m));
+    }
+
+    /**
+     * The {@code throws} type of a method without a body: the join of the types in
+     * its Java {@code throws} clause, joined with {@code RuntimeException} when
+     * undeclared unchecked exceptions are allowed ({@code allowUnchecked}). Empty when
+     * it declares none and they are not allowed.
+     */
+    private Optional<String> bodilessThrowsType(java.lang.classfile.MethodModel m, boolean allowUnchecked) {
+        var thrown = new ArrayList<String>();
+        m.findAttribute(java.lang.classfile.Attributes.exceptions()).ifPresent(a -> {
+            for (var ce : a.exceptions()) {
+                thrown.add(JavaNames.dottedFqn(ce.asInternalName()));
+            }
+        });
+        if (allowUnchecked) {
+            thrown.add("java.lang.RuntimeException");
+        }
+        if (thrown.isEmpty()) {
+            return Optional.empty();
+        }
+        String join = thrown.get(0);
+        for (var cls : thrown.subList(1, thrown.size())) {
+            join = leastCommonAncestor(cls, join);
+        }
+        for (var cls : thrown) {
+            registerHierarchyUpToThrowable(cls);
+        }
+        composites.referencedCompositeTypes.add(join);
+        return Optional.of(join);
+    }
+
+    /**
+     * Decide which methods {@code @AllowUncheckedExceptions} covers: those it allows,
+     * that are not constructors or class initializers (an allocation site cannot yet
+     * call a constructor that throws), not {@code @Transparent} (the body becomes a
+     * transparent function, which cannot throw), and without {@code throwsOn} cases
+     * (they are stated for the declared type). Laurel infers each method's type from
+     * its own body and caps an override at the type of the method it overrides, so a
+     * call through a base never sees more than the base's type. Not covered either:
+     * an override of a library method, and a method that a subclass inherits as the
+     * implementation of an interface method, since Laurel's dispatch family of the
+     * library or interface method does not contain them.
+     */
+    private void collectInferredThrows(List<ClassSource> units,
+                                       Map<String, Declarations.TypeNode> typeTrees) {
+        var allowed = new HashMap<String, Boolean>();
+        var instanceMethods = new java.util.ArrayList<String[]>(); // {classFqn, key}
+        for (var cls : units) {
+            var packageInfo = packageInfos.get(packageOf(cls.internalName()));
+            if (packageInfo != null) {
+                pushPolicies(packageInfo);
+            }
+            try {
+                collectAllowance(typeTrees.get(cls.internalName()), allowed, instanceMethods);
+            } finally {
+                if (packageInfo != null) {
+                    popPolicies();
+                }
+            }
+        }
+        for (var entry : instanceMethods) {
+            var cm = resolver.programClassModels.get(entry[0]);
+            var m = cm == null ? null : findMethodByKey(cm, entry[0], entry[1]);
+            if (m == null) {
+                continue;
+            }
+            // A call through the library method has no `throws` in Laurel, so an
+            // inferred override could let an exception escape it.
+            if (overridesLibraryMethod(entry[0], m)) {
+                allowed.put(entry[1], false);
+            }
+        }
+        for (var c : resolver.programClassModels.entrySet()) {
+            excludeInterfaceImplementationsInherited(c.getKey(), c.getValue(), allowed);
+        }
+        for (var e : allowed.entrySet()) {
+            if (e.getValue()) {
+                inferredThrowsMethods.add(e.getKey());
+            }
+        }
+    }
+
+    private void collectAllowance(Declarations.TypeNode node, Map<String, Boolean> allowed,
+                                  List<String[]> instanceMethods) {
+        if (node == null || decls.contractClasses.contains(node.fqn())) {
+            return;
+        }
+        pushPolicies(node.cm());
+        try {
+            for (var m : node.cm().methods()) {
+                if ((m.flags().flagsMask() & java.lang.classfile.ClassFile.ACC_SYNTHETIC) != 0) {
+                    continue;
+                }
+                String name = m.methodName().stringValue();
+                String key = methodKey(node.fqn(), m);
+                allowed.put(key, !name.startsWith("<") && !hasAnnotation(m, "Transparent")
+                        && !invokesThrowsOn(m) && allowsUncheckedExceptions(m));
+                if (!name.startsWith("<") && !m.flags().has(java.lang.reflect.AccessFlag.STATIC)
+                        && !m.flags().has(java.lang.reflect.AccessFlag.PRIVATE)) {
+                    instanceMethods.add(new String[] {node.fqn(), key});
+                }
+            }
+            for (var nested : node.nested()) {
+                collectAllowance(nested, allowed, instanceMethods);
+            }
+        } finally {
+            popPolicies();
+        }
+    }
+
+    private static java.lang.classfile.MethodModel findMethodByKey(
+            java.lang.classfile.ClassModel cm, String classFqn, String key) {
+        for (var m : cm.methods()) {
+            if (methodKey(classFqn, m).equals(key)) {
+                return m;
+            }
+        }
+        return null;
+    }
+
+    /** The signatures under which {@code m} overrides: its own and its forwarding bridges'. */
+    private java.util.Set<String> overrideParams(String classFqn, java.lang.classfile.MethodModel m) {
+        var params = new java.util.HashSet<String>();
+        params.add(ClassResolver.paramDescriptors(m));
+        params.addAll(resolver.forwardingBridgeParams(classFqn, m));
+        return params;
+    }
+
+    /** Whether {@code m} of {@code classFqn} overrides a method of a library supertype. */
+    private boolean overridesLibraryMethod(String classFqn, java.lang.classfile.MethodModel m) {
+        String name = m.methodName().stringValue();
+        var params = overrideParams(classFqn, m);
+        for (String t : resolver.supertypeClosure(classFqn)) {
+            if (!t.equals(classFqn) && !resolver.programClassModels.containsKey(t)
+                    && resolver.declaresOverridable(t, name, params)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Exclude from inference a method that a subclass inherits as the
+     * implementation of an interface method its declaring class does not
+     * implement: with {@code C extends Base implements I}, a call through
+     * {@code I.m} runs {@code Base.m}, but Laurel's dispatch family of
+     * {@code I.m} does not contain {@code Base.m}, so an inferred
+     * {@code Base.m} could let an exception escape the call.
+     */
+    /**
+     * Per class, the warnings for methods {@link #excludeInterfaceImplementationsInherited}
+     * excluded because that class inherits them as an interface method's implementation:
+     * the class's declaration is what keeps them from being covered.
+     */
+    private final Map<String, List<String>> inheritedImplementationWarnings = new HashMap<>();
+
+    private void excludeInterfaceImplementationsInherited(String classFqn, java.lang.classfile.ClassModel cm,
+                                                          Map<String, Boolean> allowed) {
+        if (cm.flags().has(java.lang.reflect.AccessFlag.INTERFACE)) {
+            return;
+        }
+        var closure = resolver.supertypeClosure(classFqn);
+        var below = new ArrayList<String>(); // classFqn and its superclasses below `sup`
+        below.add(classFqn);
+        var c = cm;
+        while (c.superclass().isPresent()) {
+            String sup = JavaNames.dottedFqn(c.superclass().get().asInternalName());
+            var sm = resolver.programClassModels.get(sup);
+            if (sm == null) {
+                return;
+            }
+            var supClosure = resolver.supertypeClosure(sup);
+            for (var bm : sm.methods()) {
+                String key = methodKey(sup, bm);
+                if (!allowed.getOrDefault(key, false)
+                        || bm.flags().has(java.lang.reflect.AccessFlag.STATIC)
+                        || bm.flags().has(java.lang.reflect.AccessFlag.PRIVATE)) {
+                    continue;
+                }
+                String name = bm.methodName().stringValue();
+                var params = overrideParams(sup, bm);
+                if (below.stream().anyMatch(t -> resolver.declaresOverridable(t, name, params))) {
+                    continue; // overridden below, so not the inherited implementation
+                }
+                for (String t : closure) {
+                    if (!supClosure.contains(t) && resolver.declaresOverridable(t, name, params)) {
+                        allowed.put(key, false);
+                        String cls = JavaNames.simpleName(classFqn);
+                        String base = JavaNames.simpleName(sup);
+                        String iface = JavaNames.simpleName(t);
+                        inheritedImplementationWarnings.computeIfAbsent(classFqn, k -> new ArrayList<>()).add(
+                                "'" + base + "." + name + "' is not covered by @AllowUncheckedExceptions: '" + cls
+                                        + "' inherits it as the implementation of '" + iface + "." + name
+                                        + "'. Override '" + name + "' in '" + cls + "', or make '" + base
+                                        + "' implement '" + iface + "'.");
+                        break;
+                    }
+                }
+            }
+            below.add(sup);
+            c = sm;
         }
     }
 
@@ -2067,6 +2343,22 @@ public class BytecodeToLaurelCompiler {
         return false;
     }
 
+    /** Whether {@code m} states a {@code throwsOn} case. */
+    private static boolean invokesThrowsOn(java.lang.classfile.MethodModel m) {
+        var code = m.code().orElse(null);
+        if (code == null) {
+            return false;
+        }
+        for (var el : code) {
+            if (el instanceof java.lang.classfile.instruction.InvokeInstruction inv
+                    && inv.owner().asInternalName().equals("org/strata/jverify/JVerify")
+                    && inv.name().stringValue().equals("throwsOn")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean invokesIsAbstract(java.lang.classfile.MethodModel m) {
         var code = m.code().orElse(null);
         if (code == null) {
@@ -2491,6 +2783,16 @@ public class BytecodeToLaurelCompiler {
             throwsType = Optional.of(node(new HighType.UserDefined(ident(join))));
             throwsBinding = Optional.of(ident(THROWN_BINDING));
         }
+        // Allowed undeclared unchecked exceptions: Laurel infers the thrown type
+        // from the body. Which methods qualify is decided up front
+        // (collectInferredThrows). Not for library members or relocated
+        // contracts either, which have no body of the user's.
+        boolean throwsInferred = member == null && !ctx.method.relocatedContract
+                && inferredThrows(classFqn, m);
+        ctx.method.throwsInferred = throwsInferred;
+        if (throwsInferred) {
+            throwsBinding = Optional.of(ident(THROWN_BINDING));
+        }
 
         // --- Throw-coverage prescan, then the body run ---
         if (!ctx.method.relocatedContract) {
@@ -2625,7 +2927,7 @@ public class BytecodeToLaurelCompiler {
                     List.of(new org.strata.jverify.laurel.Parameter(LaurelFactory.reservedIdent(LAUREL_RESULT_BINDING),
                             node(new HighType.TBool()))),
                     List.of(), new CoroutineContracts.Regular(), Optional.empty(), fnBody, Optional.empty(), false,
-                    List.of(), Optional.empty(), Optional.empty(), List.of(),
+                    List.of(), Optional.empty(), Optional.empty(), /*throwsInferred=*/false, List.of(),
                     /*readsGlobals=*/List.of(), /*writesGlobals=*/List.of());
             if (!(abstractPrecondition && baseAbstract)) {
                 composites.instanceProcsBySort.computeIfAbsent(classFqn, k -> new ArrayList<>()).add(fn);
@@ -2908,7 +3210,7 @@ public class BytecodeToLaurelCompiler {
                 inputs, outputs, preconditions, new CoroutineContracts.Regular(),
                 Optional.empty(), procBody, Optional.empty(),
                 isInterpretEntry, List.of(),
-                throwsType, throwsBinding, throwsOnBlocks,
+                throwsType, throwsBinding, throwsInferred, throwsOnBlocks,
                 /*readsGlobals=*/List.of(), /*writesGlobals=*/List.of());
         if (isStatic) {
             procedures.add(proc);
@@ -2964,6 +3266,20 @@ public class BytecodeToLaurelCompiler {
         return overrideChildren ? ShouldVerifyMode.AlwaysNo : ShouldVerifyMode.DefaultNo;
     }
 
+    /** The {@code @AllowUncheckedExceptions} mode of an element. */
+    private static ShouldVerifyMode allowUncheckedModeOf(java.lang.classfile.AttributedElement el) {
+        var anno = ClassResolver.invisibleAnnotation(el, "Lorg/strata/jverify/AllowUncheckedExceptions;");
+        if (anno == null) {
+            return ShouldVerifyMode.Inherit;
+        }
+        boolean allow = ClassResolver.verifyValue(anno, "allow", true);
+        boolean override = ClassResolver.verifyValue(anno, "override", false);
+        if (allow) {
+            return override ? ShouldVerifyMode.AlwaysYes : ShouldVerifyMode.DefaultYes;
+        }
+        return override ? ShouldVerifyMode.AlwaysNo : ShouldVerifyMode.DefaultNo;
+    }
+
     private final Map<String, java.lang.classfile.ClassModel> packageInfos = new HashMap<>();
 
     private static String packageOf(String internalName) {
@@ -2977,14 +3293,14 @@ public class BytecodeToLaurelCompiler {
         resolver.imports = Map.of();
         var packageInfo = packageInfos.get(packageOf(cls.internalName()));
         if (packageInfo != null) {
-            pushShouldVerify(verifyModeOf(packageInfo));
+            pushPolicies(packageInfo);
         }
         try {
             compileType(root);
             registerUntranslatedMethods(cls);
         } finally {
             if (packageInfo != null) {
-                shouldVerifies.pop();
+                popPolicies();
             }
         }
     }
@@ -3007,7 +3323,11 @@ public class BytecodeToLaurelCompiler {
             return; // consumed as a contract definition, not user code
         }
         warnMissingSuperInitContract(node);
-        pushShouldVerify(verifyModeOf(node.cm()));
+        for (var msg : inheritedImplementationWarnings.getOrDefault(node.fqn(), List.of())) {
+            reporter.reportWarning(src.uri,
+                    src.linePoint(org.strata.java.bytecode.frontend.MethodBodyFactory.classDeclLine(node.cm())), msg);
+        }
+        pushPolicies(node.cm());
         try {
             var methods = Declarations.declaredMethodsOf(node.cm());
             for (var m : methods) {
@@ -3041,7 +3361,7 @@ public class BytecodeToLaurelCompiler {
                 compileType(nested);
             }
         } finally {
-            shouldVerifies.pop();
+            popPolicies();
         }
     }
 
@@ -3094,7 +3414,7 @@ public class BytecodeToLaurelCompiler {
             };
             Procedure q = new Procedure(p.name(), p.typeArgs(), p.inputs(), p.outputs(), p.preconditions(),
                     p.contracts(), p.decreases(), body, p.invokeOn(), p.isInterpretEntry(), p.axioms(),
-                    p.throwsType(), p.throwsBinding(), p.throwsOn(), p.readsGlobals(), p.writesGlobals());
+                    p.throwsType(), p.throwsBinding(), p.throwsInferred(), p.throwsOn(), p.readsGlobals(), p.writesGlobals());
             replaced.put(p, q);
             info.proc = q;
         }
@@ -3204,7 +3524,7 @@ public class BytecodeToLaurelCompiler {
             };
             Procedure q = new Procedure(p.name(), p.typeArgs(), p.inputs(), p.outputs(), pre,
                     p.contracts(), p.decreases(), body, p.invokeOn(), p.isInterpretEntry(), p.axioms(),
-                    p.throwsType(), p.throwsBinding(), p.throwsOn(), p.readsGlobals(), p.writesGlobals());
+                    p.throwsType(), p.throwsBinding(), p.throwsInferred(), p.throwsOn(), p.readsGlobals(), p.writesGlobals());
             replaced.put(p, q);
             info.proc = q;
             if (missing[0]) {
@@ -3464,12 +3784,20 @@ public class BytecodeToLaurelCompiler {
                 String laurelName = name + resolver.overloadSuffix(node.fqn(), m);
                 composites.referencedCompositeTypes.add(node.fqn());
                 var declPosts = List.<Condition>of();
+                // A method without a body declares its Java `throws`. When
+                // undeclared unchecked exceptions are allowed it also throws
+                // RuntimeException: it has no body to infer from, and its
+                // overrides are capped at its type.
+                var bodilessThrows = bodilessThrowsType(m, inferredThrows(node.fqn(), m));
                 composites.instanceProcsBySort.computeIfAbsent(node.fqn(), k -> new ArrayList<>()).add(new Procedure(
                         ident(laurelName), ownTypeParams.stream().map(LaurelFactory::ident).toList(), inputs, outputs,
                         List.of(), new CoroutineContracts.Regular(), Optional.empty(),
                         new Body.Opaque(declPosts, Optional.empty(), unguardedModifies(
                                 retDesc.equals("V") ? List.of(noRange(new StmtExpr.All())) : List.of())),
-                        Optional.empty(), false, List.of(), Optional.empty(), Optional.empty(), List.of(),
+                        Optional.empty(), false, List.of(),
+                        bodilessThrows.map(t -> node(new HighType.UserDefined(ident(t)))),
+                        bodilessThrows.map(t -> ident(THROWN_BINDING)),
+                        false, List.of(),
                         List.of(), List.of()));
             }
         } catch (JavaViolationException e) {

@@ -92,6 +92,11 @@ public final class Main {
         @Option(names = "--verify-by-default", description = "Whether to verify code without @Verify(true). Defaults to true.", defaultValue = "true")
         boolean verifyByDefault;
 
+        @Option(names = "--allow-unchecked-exceptions",
+                description = "Let undeclared unchecked exceptions leave methods without @AllowUncheckedExceptions, "
+                        + "inferring their thrown type. Defaults to false.")
+        boolean allowUncheckedExceptions;
+
         @Option(names = "--verbose", description = "Also print Strata's own output")
         boolean verbose;
 
@@ -175,7 +180,8 @@ public final class Main {
             var options = new VerifierOptions(out, workingDirectory, classPath,
                     emitLaurel, emitLaurel != null, showRanges, splitPaths(contractPaths),
                     paths, verifyByDefault, false, verbose, trackTime,
-                    interpret, entry, fuel, false, interpreter, strataProjectDir, noConstantFolding);
+                    interpret, entry, fuel, false, interpreter, strataProjectDir, noConstantFolding,
+                    allowUncheckedExceptions);
             return new VerifierDriver(options).verifyJavaPathsExit(inputs);
         }
 

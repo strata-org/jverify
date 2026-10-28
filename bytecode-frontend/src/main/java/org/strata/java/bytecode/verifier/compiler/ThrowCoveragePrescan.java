@@ -103,9 +103,10 @@ final class ThrowCoveragePrescan {
                     }
                 }
             }
-            if (caught || ctx.method.throwsJoin == null) {
+            if (caught || ctx.method.throwsJoin == null || ctx.method.throwsInferred) {
                 // No throws clause: an uncovered throw is asserted unreachable
-                // by Laurel rather than refused (see checkThrowCoverage).
+                // by Laurel rather than refused (see checkThrowCoverage). An
+                // inferred one: Laurel widens the thrown type to cover it.
                 continue;
             }
             if (!ctx.resolver.isSubclassOf(thrownFqn, ctx.method.throwsJoin)) {

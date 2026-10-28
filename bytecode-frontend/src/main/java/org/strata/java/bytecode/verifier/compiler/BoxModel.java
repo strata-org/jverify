@@ -247,7 +247,8 @@ final class BoxModel {
                         LaurelFactory.node(boxType))),
                 List.of(), new CoroutineContracts.Regular(), Optional.empty(),
                 new Body.Opaque(List.of(post, isBox), Optional.of(implementation), LaurelFactory.unguardedModifies(List.of())),
-                Optional.empty(), false, List.of(), Optional.empty(), Optional.empty(), List.of(),
+                Optional.empty(), false, List.of(), Optional.empty(), Optional.empty(),
+                /*throwsInferred=*/false, List.of(),
                 /*readsGlobals=*/List.of(), /*writesGlobals=*/List.of()));
         return name;
     }

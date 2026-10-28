@@ -102,6 +102,11 @@ final class TranslationContext {
         boolean pure;
         /** Declared exceptional join class (fqn) from the throws clause, or null. */
         String throwsJoin;
+        /**
+         * The method's {@code throws} is inferred (undeclared unchecked exceptions
+         * may escape): a throw outside {@link #throwsJoin} is no longer refused.
+         */
+        boolean throwsInferred;
         /** Catch types (fqns) of enclosing try BODIES, innermost first. */
         final Deque<List<String>> enclosingCatchTypes = new ArrayDeque<>();
         /** The current method's class-typed return sort, or null. */
