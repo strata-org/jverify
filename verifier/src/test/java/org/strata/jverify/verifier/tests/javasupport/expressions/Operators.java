@@ -138,7 +138,7 @@ class Operators {
         int x = 4;
         int y = 3;
         check(x == y);
-//      ^^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^^ Error: assertion does not hold
     }
 
     void InstanceOfTrivial() {
