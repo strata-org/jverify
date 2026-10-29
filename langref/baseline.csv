@@ -965,8 +965,8 @@ org/strata/jverify/langref/jls4/s4_5/WildcardSuper_1.java,unsupported
 org/strata/jverify/langref/jls4/s4_8/RawTypes_1.java,unsupported
 org/strata/jverify/langref/jls4/s4_8/RawTypes_2.java,unsupported
 org/strata/jverify/langref/jls4/s4_8/RawTypes_3.java,unsupported
-org/strata/jverify/langref/jls4/s4_9/IntersectionTypeCast_1.java,interp_error
-org/strata/jverify/langref/jls4/s4_9/IntersectionTypeCast_2.java,interp_error
+org/strata/jverify/langref/jls4/s4_9/IntersectionTypeCast_1.java,passed
+org/strata/jverify/langref/jls4/s4_9/IntersectionTypeCast_2.java,passed
 org/strata/jverify/langref/jls4/s4_9/IntersectionTypes.java,unsupported
 org/strata/jverify/langref/jls5/s5_1/BoxingConversion_1.java,unsupported
 org/strata/jverify/langref/jls5/s5_1/BoxingConversion_2.java,unsupported
