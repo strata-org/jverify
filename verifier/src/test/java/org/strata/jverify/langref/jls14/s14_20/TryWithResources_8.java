@@ -1,0 +1,51 @@
+package org.strata.jverify.langref.jls14.s14_20;
+
+import org.strata.jverify.testengine.Blocker;
+import org.strata.jverify.testengine.JVerifyTest;
+
+import static org.strata.jverify.JVerify.*;
+
+// JLS 14.20.3 -- try-with-resources: resources declared in the resource
+// specification are automatically closed when the try block completes, in the
+// reverse order of their declaration, whether completion is normal or abrupt.
+// Exercises normal completion (close on both), close ordering, and closing when
+// the body throws.
+@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls14.s14_20.TryWithResources_8#run", expectedToFail = true, blockedBy = {Blocker.LANGREF_UNSUPPORTED})
+class TryWithResources_8 {
+    // shared sink recording close order: order[0] is how many closes happened
+    static int[] order = new int[3];
+
+    static final class Resource implements AutoCloseable {
+        final int id;
+        Resource(int id) {
+            this.id = id;
+        }
+        @Override
+        public void close() {
+            int n = order[0];
+            order[1 + n] = id; // record id at position of close sequence
+            order[0] = n + 1;
+        }
+    }
+
+    static void run() {
+
+        // normal completion: both resources closed in reverse declaration order
+        order[0] = 0;
+        order[1] = 0;
+        order[2] = 0;
+        try (Resource a = new Resource(1); Resource b = new Resource(2)) {
+        }     // a closed second
+
+        // abrupt completion: body throws, resource still closed, exception caught
+        order[0] = 0;
+        order[1] = 0;
+        int caught = 0;
+        try (Resource c = new Resource(9)) {
+            throw new IllegalStateException("boom");
+        } catch (IllegalStateException e) {
+            caught = 1;
+        }     // resource closed despite the throw
+        check(order[1] == 9);
+    }
+}

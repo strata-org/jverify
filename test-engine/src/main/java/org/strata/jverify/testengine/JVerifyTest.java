@@ -108,4 +108,5 @@ public @interface JVerifyTest {
      * leaves the interpreter default in place. Ignored unless interpreting.
      */
     int fuel() default -1;
+    String interpreter() default "";
 }

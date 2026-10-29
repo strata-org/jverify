@@ -13,10 +13,10 @@ import java.util.Objects;
  *   <li>{@link Ran} — the backend ran and produced a verdict ({@link VerificationResults}).</li>
  *   <li>{@link NoVerdict} — no verdict was produced by design (a usage error, or
  *       emit-Laurel-only mode); previously modelled as {@code null} results.</li>
- *   <li>{@link DidNotRun} — the backend failed to launch or aborted mid-run; an
- *       infrastructure failure, not a verification outcome. Must never be read as
- *       a pass/fail (an xfail test would otherwise swallow it as an "expected
- *       failure").</li>
+ *   <li>{@link DidNotRun} — the backend failed to launch or aborted mid-run; not a
+ *       verification outcome, so never read as a pass/fail. The test engine lets an
+ *       xfail test absorb only Strata's program rejections (see {@code strataRejection});
+ *       every other abort fails loud.</li>
  * </ul>
  * All variants carry {@code diagnostics} and an {@code exitCode}; only {@link Ran}
  * carries a {@link VerificationResults}, so a verdict cannot be read off a run that
@@ -49,6 +49,10 @@ public sealed interface JVerifyResults
     /** No verdict by design: a usage error, or emit-Laurel-only mode. */
     record NoVerdict(List<Diagnostic<?>> diagnostics, int exitCode) implements JVerifyResults {}
 
-    /** The backend failed to launch (exit -1) or aborted (non-zero exit, no diagnostics). */
-    record DidNotRun(List<Diagnostic<?>> diagnostics, int exitCode) implements JVerifyResults {}
+    /**
+     * The backend failed to launch (exit -1) or aborted (non-zero exit).
+     * {@code strataExitCode} is Strata's own exit code ({@code -1} if it never ran),
+     * which {@code exitCode} may have remapped.
+     */
+    record DidNotRun(List<Diagnostic<?>> diagnostics, int exitCode, int strataExitCode) implements JVerifyResults {}
 }

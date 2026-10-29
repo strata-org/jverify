@@ -173,5 +173,10 @@ public enum Blocker {
     STRATA_NONLINEAR_ARITHMETIC,
     /** Strata catch-all: regressions, trait-redecl, loop-elim, HOF/streams, etc.
      *  Heterogeneous by design; split candidate (follow-up). */
-    STRATA_OTHER
+    STRATA_OTHER,
+    LANGREF_UNSUPPORTED,
+    LANGREF_INTERP_ERROR,
+    LANGREF_RESOLUTION_ERROR,
+    LANGREF_ASSERT_FAILED,
+    LANGREF_ERROR
 }

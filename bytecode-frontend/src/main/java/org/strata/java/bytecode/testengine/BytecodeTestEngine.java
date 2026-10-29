@@ -12,6 +12,7 @@ import org.strata.jverify.common.Range;
 import org.strata.jverify.verifier.DiagnosticWithRange;
 import org.strata.jverify.verifier.JVerifyResults;
 import org.strata.jverify.verifier.SourceFile;
+import org.strata.jverify.verifier.StrataTimeout;
 import org.strata.jverify.verifier.VerificationResults;
 import org.strata.java.bytecode.verifier.VerifierDriver;
 import org.strata.java.bytecode.verifier.VerifierOptions;
@@ -29,6 +30,7 @@ import org.junit.platform.engine.discovery.ClassSelector;
 import org.junit.platform.engine.discovery.ClasspathRootSelector;
 import org.junit.platform.engine.discovery.MethodSelector;
 import org.junit.platform.engine.support.descriptor.AbstractTestDescriptor;
+import org.junit.platform.engine.support.descriptor.ClassSource;
 import org.junit.platform.engine.support.descriptor.EngineDescriptor;
 import org.junit.platform.engine.support.hierarchical.EngineExecutionContext;
 import org.junit.platform.engine.support.hierarchical.HierarchicalTestEngine;
@@ -44,6 +46,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -107,13 +111,28 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
                 .forEach(testClass -> {
                     LOGGER.fine(() -> "Registering test for class: " + testClass);
                     var id = uniqueId.append("class", testClass.getName());
-                    descriptor.addChild(new JVerifyTestDescriptor(id, testClass));
+                    var container = new JVerifyClassDescriptor(id, testClass);
+                    container.addChild(new JVerifyTestDescriptor(id.append("test", "verify"), testClass));
+                    descriptor.addChild(container);
                 });
         return descriptor;
     }
 
     private boolean isJVerifyTest(Class<?> clazz) {
         return clazz.isAnnotationPresent(JVerifyTest.class);
+    }
+
+    static class JVerifyClassDescriptor
+            extends AbstractTestDescriptor
+            implements Node<EngineExecutionContext> {
+        JVerifyClassDescriptor(UniqueId uniqueId, Class<?> testClass) {
+            super(uniqueId, testClass.getSimpleName(), ClassSource.from(testClass));
+        }
+
+        @Override
+        public Type getType() {
+            return Type.CONTAINER;
+        }
     }
 
     static class JVerifyTestDescriptor
@@ -310,16 +329,53 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
         }
     }
 
+    public static final class StrataRejection extends AssertionError {
+        StrataRejection(String message) {
+            super(message);
+        }
+    }
+
+    public static final List<String> STRATA_PROGRAM_REJECTIONS = List.of(
+            "Laurel resolution failed",
+            "Laurel to Core translation failed",
+            "Core type checking failed");
+
+    public static Optional<StrataRejection> strataRejection(JVerifyResults results, JVerifyTest annotation) {
+        if (!annotation.interpret() || !(results instanceof JVerifyResults.DidNotRun didNotRun)) {
+            return Optional.empty();
+        }
+        var messages = results.diagnostics().stream().map(d -> d.getMessage(null)).filter(m -> m != null).toList();
+        if (messages.stream().anyMatch(m -> m.toUpperCase(Locale.ROOT).contains("PANIC") || m.contains(StrataTimeout.MESSAGE_PREFIX))) {
+            return Optional.empty();
+        }
+        int strataExitCode = didNotRun.strataExitCode();
+        boolean rejected = switch (strataExitCode) {
+            case 2, 4 -> true;
+            case 1 -> messages.stream().anyMatch(m -> STRATA_PROGRAM_REJECTIONS.stream().anyMatch(m::contains));
+            default -> false;
+        };
+        if (!rejected) {
+            return Optional.empty();
+        }
+        return Optional.of(new StrataRejection("Strata rejected the program (Strata exit " + strataExitCode + "): "
+                + String.join("; ", messages)));
+    }
+
     /**
      * Assert a verification {@code results} against the test's expectations.
      */
     public static void checkResults(JVerifyResults results, SourceFile sourceFile,
                                     JVerifyTest annotation, List<AnnotatedRange> ranges) {
-        // Infra failure, not a verification outcome: fail LOUD with a
-        // non-AssertionError so an xfail test can't swallow it.
+        // Not a verification outcome: a Strata program rejection is an
+        // AssertionError an xfail test may absorb; any other abort fails LOUD.
         if (results instanceof JVerifyResults.DidNotRun) {
+            strataRejection(results, annotation).ifPresent(e -> { throw e; });
+            var timeoutReason = results.diagnostics().stream().map(d -> d.getMessage(null))
+                    .filter(m -> m != null && m.contains(StrataTimeout.MESSAGE_PREFIX))
+                    .findFirst().map(m -> m.substring(m.indexOf(StrataTimeout.MESSAGE_PREFIX)) + "; ").orElse("");
             throw new IllegalStateException("Strata backend did not run (exit "
-                    + results.exitCode() + "): infrastructure failure, not a verification result.");
+                    + results.exitCode() + "): " + timeoutReason
+                    + "infrastructure failure, not a verification result.");
         }
 
         var diagnosticsAsAnnotations = results.diagnostics().stream()
@@ -468,7 +524,10 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
                 annotation.interpret(),
                 annotation.entry().isEmpty() ? null : annotation.entry(),
                 annotation.fuel() > 0 ? annotation.fuel() : null,
-                false   // test cases are compiled by the driver's own javac: always verifiable
+                false,  // test cases are compiled by the driver's own javac: always verifiable
+                annotation.interpreter().isEmpty() ? null : annotation.interpreter(),
+                null,
+                annotation.interpret()
         );
     }
 
@@ -501,6 +560,6 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
                                                         boolean expectedToFail, Blocker[] blockedBy) {
         return new JVerifyTestRecord("", verifyByDefault, useBuiltinContracts, continueOnErrors,
                 exitCode, new String[0], new String[0], -1, assertionsFailed, methodsVerified, -1,
-                expectedToFail, blockedBy, false, "", -1);
+                expectedToFail, blockedBy, false, "", -1, "");
     }
 }

@@ -9,6 +9,7 @@ import org.strata.jverify.common.Range;
 import org.strata.jverify.laurel.LaurelProgram;
 import org.strata.jverify.verifier.IntervalTree;
 import org.strata.jverify.verifier.JVerifyResults;
+import org.strata.jverify.verifier.StrataTimeout;
 import org.strata.java.bytecode.verifier.MethodVerificationStatus;
 import org.strata.jverify.verifier.VerificationResults;
 import org.strata.java.bytecode.verifier.VerifierOptions;
@@ -177,20 +178,35 @@ public class StrataBackend {
                                       IonValue serializedProgram) {
         var invocation = Invocation.of(verifierOptions);
         var processBuilder = invocation.processBuilder();
+        var abortUri = methodStatuses.keySet().stream().findFirst()
+                .orElse(Paths.get("strata").toUri());
         return verifierOptions.time("Running Strata", () -> {
+            StrataTimeout timeout = null;
             try (var process = new AutoClosingProcessWrapper(processBuilder.redirectErrorStream(true).start())) {
+                timeout = StrataTimeout.watch(process.getProcess());
                 try (var strataStdin = process.getProcess().getOutputStream();
                      var writer = IonBinaryWriterBuilder.standard().build(strataStdin)) {
                     serializedProgram.writeTo(writer);
                 }
-                return parseStrataOutput(positions, methodStatuses, verifierOptions, process.getProcess());
+                var results = parseStrataOutput(positions, methodStatuses, verifierOptions, process.getProcess());
+                return timeout.timedOut() ? timedOut(results, timeout, abortUri) : results;
             } catch (InterruptedException | IOException e) {
                 verifierOptions.outWriter().println("Failed to run " + invocation.describe()
                         + "\nError message: " + e.getMessage());
                 // Backend failed to launch: not a verification outcome.
-                return new JVerifyResults.DidNotRun(new ArrayList<>(), -1);
+                var notRun = new JVerifyResults.DidNotRun(new ArrayList<>(), -1, -1);
+                return timeout != null && timeout.timedOut() ? timedOut(notRun, timeout, abortUri) : notRun;
             }
         });
+    }
+
+    private JVerifyResults timedOut(JVerifyResults results, StrataTimeout timeout, URI abortUri) {
+        verifierOptions.outWriter().println(timeout.reason() + "; killed it");
+        var pos = new Position(1, 1);
+        var diagnostics = new ArrayList<Diagnostic<?>>(results.diagnostics());
+        diagnostics.add(new StrataDiagnostic(abortUri, new Range(pos, pos), timeout.reason()));
+        var strataExitCode = results instanceof JVerifyResults.DidNotRun d ? d.strataExitCode() : 0;
+        return new JVerifyResults.DidNotRun(diagnostics, results.exitCode(), strataExitCode);
     }
 
     static class AutoClosingProcessWrapper implements AutoCloseable {
@@ -354,7 +370,7 @@ public class StrataBackend {
             default -> verifierExitCode;
         };
         if (aborted) {
-            return new JVerifyResults.DidNotRun(diagnostics, exitCode);
+            return new JVerifyResults.DidNotRun(diagnostics, exitCode, verifierExitCode);
         }
         return new JVerifyResults.Ran(diagnostics, exitCode, verdict);
     }

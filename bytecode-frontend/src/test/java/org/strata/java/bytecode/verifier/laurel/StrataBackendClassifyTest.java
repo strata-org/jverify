@@ -28,5 +28,6 @@ class StrataBackendClassifyTest {
         assertInstanceOf(JVerifyResults.DidNotRun.class, r);
         assertEquals(CommandLine.ExitCode.USAGE, r.exitCode());
         assertEquals(failures, r.diagnostics());
+        assertEquals(4, ((JVerifyResults.DidNotRun) r).strataExitCode());
     }
 }

@@ -558,7 +558,7 @@ final class ControlFlowStructurer {
                 if (m < 0 || m == cur) {
                     return false;
                 }
-                if (!armIsValue(b.fall, m, new HashSet<>()) || !armIsValue(b.branch, m, new HashSet<>())) {
+                if (!armIsValue(b.fall, m, new HashSet<>(seen)) || !armIsValue(b.branch, m, new HashSet<>(seen))) {
                     return false;
                 }
                 cur = m;
