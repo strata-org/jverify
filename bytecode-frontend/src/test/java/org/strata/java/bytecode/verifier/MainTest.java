@@ -924,4 +924,168 @@ class MainTest {
                 r::toString);
         assertTrue(r.out().contains("Found 1 errors"), r::toString);
     }
+
+    /**
+     * An interface's default method reads a field of a class that implements it, declared after the interface.
+     */
+    @Test
+    void anInterfacesDefaultMethodReadsAFieldOfALaterClass(@TempDir Path tmp) throws Exception {
+        var r = run(write(tmp, "O1.java", """
+                import static org.strata.jverify.JVerify.check;
+
+                interface Area {
+                    default int widthOf(Rect r) {
+                        r.w = 4;
+                        check(r.w == 4);
+                        return r.w;
+                    }
+                }
+
+                class Rect implements Area {
+                    int w;
+                }
+
+                class O1 {
+                    static void other(int x) {
+                        check(x > 0);
+                    }
+                }
+                """).toString());
+        assertEquals(4, r.exitCode(), r::toString);
+        assertTrue(r.out().contains("O1.java(17:9-17:22): Error: assertion could not be proved"), r::toString);
+        assertTrue(r.out().contains("Found 1 errors"), r::toString);
+        assertTrue(r.out().contains("Verified methods: 3"), r::toString);
+    }
+
+    /**
+     * An instance method reads the fields of classes declared after its own: {@code A}'s methods those of
+     * {@code Item}, {@code Sub} (with {@code Base}'s {@code f}) and {@code Box<String>}, whatever the order of their
+     * composites.
+     */
+    @Test
+    void anInstanceMethodReadsTheFieldsOfClassesDeclaredAfterItsOwn(@TempDir Path tmp) throws Exception {
+        var r = run(write(tmp, "A.java", """
+                import static org.strata.jverify.JVerify.check;
+
+                class Box<T> {
+                    int n;
+                }
+
+                class Item {
+                    int v;
+                }
+
+                class Base {
+                    int f;
+                }
+
+                class Sub extends Base {
+                }
+
+                class A {
+                    void bad(Item i, Sub s, Box<String> b) {
+                        i.v = 1;
+                        s.f = 2;
+                        b.n = 3;
+                        check(i.v + s.f + b.n == 7);
+                    }
+
+                    void good(Item i, Sub s, Box<String> b) {
+                        i.v = 1;
+                        s.f = 2;
+                        b.n = 3;
+                        check(i.v + s.f + b.n == 6);
+                    }
+                }
+                """).toString());
+        assertEquals(4, r.exitCode(), r::toString);
+        assertTrue(r.out().contains("A.java(23:9-23:37): Error: assertion"), r::toString);
+        assertTrue(r.out().contains("Found 1 errors"), r::toString);
+    }
+
+    /**
+     * An opted-out method's kept declaration reads a field of its subclass, declared after it. {@code use}'s check
+     * fails, as nothing states what {@code ok} returns.
+     */
+    @Test
+    void anOptedOutMethodsDeclarationReadsAFieldOfASubclass(@TempDir Path tmp) throws Exception {
+        var r = run(write(tmp, "H.java", """
+                import org.strata.jverify.Pure;
+                import org.strata.jverify.Verify;
+
+                import static org.strata.jverify.JVerify.check;
+                import static org.strata.jverify.JVerify.precondition;
+
+                class Base {
+                    int k;
+
+                    @Verify(false)
+                    @Pure
+                    boolean ok(Sub s) {
+                        precondition(s.w > 0);
+                        return true;
+                    }
+                }
+
+                class Sub extends Base {
+                    int w;
+                }
+
+                class H {
+                    static void use(Base b, Sub s) {
+                        precondition(s.w > 0);
+                        check(b.ok(s));
+                    }
+                }
+                """).toString());
+        assertEquals(4, r.exitCode(), r::toString);
+        assertFalse(r.out().contains("not verified"), r::toString);
+        assertTrue(r.out().contains("H.java(25:9-25:24): Error: assertion could not be proved"), r::toString);
+        assertTrue(r.out().contains("Found 1 errors"), r::toString);
+    }
+
+    /**
+     * A precondition inlined by {@code preconditionOf} into an instance method reads a field of a class declared after
+     * the method's own.
+     */
+    @Test
+    void anInlinedPreconditionReadsAFieldOfALaterClass(@TempDir Path tmp) throws Exception {
+        var r = run(write(tmp, "O2b.java", """
+                import org.strata.jverify.Pure;
+
+                import static org.strata.jverify.JVerify.check;
+                import static org.strata.jverify.JVerify.precondition;
+                import static org.strata.jverify.JVerify.preconditionOf;
+
+                class C {
+                    void m(P p) {
+                        precondition(preconditionOf(D.need(p)));
+                        check(D.need(p) == 1);
+                    }
+                }
+
+                class D {
+                    @Pure
+                    static int need(P p) {
+                        precondition(p.f > 0);
+                        return 1;
+                    }
+                }
+
+                class P {
+                    int f;
+                }
+
+                class O2b {
+                    static void other(int x) {
+                        check(x > 0);
+                    }
+                }
+                """).toString());
+        assertEquals(4, r.exitCode(), r::toString);
+        assertTrue(r.out().contains("O2b.java(28:9-28:22): Error: assertion could not be proved"), r::toString);
+        assertTrue(r.out().contains("Found 1 errors"), r::toString);
+        assertTrue(r.out().contains("Verified methods: 6"), r::toString);
+    }
+
 }
