@@ -9,12 +9,18 @@ import static org.strata.jverify.JVerify.*;
 class IntegerSqrt {
     static int isqrt(@Nat int n) {
         precondition(0 <= n && n <= 46340);
-        postcondition((int res) -> 0 <= res && res * res <= n && n < (res + 1) * (res + 1));
+        // The squares are computed in long: under the invariant r <= 46340
+        // the int product (r + 1) * (r + 1) really does overflow in Java at
+        // r = 46340, so it carries an unprovable obligation. Widening makes
+        // the 64-bit obligation trivially dischargeable and matches the
+        // idiomatic Java fix for product guards.
+        postcondition((int res) -> 0 <= res && (long) res * res <= n
+                && n < ((long) res + 1) * ((long) res + 1));
 
         int r = 0;
-        while ((r + 1) * (r + 1) <= n) {
+        while (((long) r + 1) * ((long) r + 1) <= n) {
             invariant(0 <= r && r <= 46340);
-            invariant(r * r <= n);
+            invariant((long) r * r <= n);
 
             r = r + 1;
         }

@@ -26,9 +26,9 @@ class VerifyStatements {
     void nestedForLoop() {
         int x = 0;
         for (int i = 0; i < 5; i = i + 1) {
-            invariant(x == i * 5 && i >= 0 && i <= 5);
+            invariant(i >= 0 && i <= 5 && x == i * 5);
             for (int j = 0; j < 5; j = j + 1) {
-                invariant(x == j + i * 5 && j >= 0 && j <= 5);
+                invariant(j >= 0 && j <= 5 && x == j + i * 5);
                 x = x + 1;
             }
         }
@@ -39,12 +39,13 @@ class VerifyStatements {
         int x = 0;
         outerLoop:
         for (int i = 0; i < 5; i = i + 1) {
-            invariant(i <= 2 ? x == i * 5 : x == 12 + (i - 3) * 5);
+            // Bounds first: they discharge the next invariant's products.
             invariant(i >= 0 && i <= 5);
+            invariant(i <= 2 ? x == i * 5 : x == 12 + (i - 3) * 5);
             
             for (int j = 0; j < 5; j = j + 1) {
-                invariant(i <= 2 ? x == j + i * 5 : x == j + 12 + (i - 3) * 5);
                 invariant(j >= 0 && j <= 5);
+                invariant(i <= 2 ? x == j + i * 5 : x == j + 12 + (i - 3) * 5);
                 invariant(i == 2 ? j <= 2 : true);
                 if (i == 2 && j == 2) {
                     check(x == 12);
@@ -79,7 +80,9 @@ class VerifyStatements {
 
     @Transparent
     boolean P3(int x, int y, int z) {
-        return x > (y+z);
+        // The widening makes the sum 64-bit, so it carries no int overflow
+        // obligation on the havoced parameters.
+        return x > (long) y + z;
     }
 
     @Transparent

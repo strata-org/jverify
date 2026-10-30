@@ -199,7 +199,9 @@ class ArraysEndToEndTest {
                 import static org.strata.jverify.JVerify.*;
                 public class WrongLength {
                     static void alloc(int n) {
-                        precondition(n >= 0);
+                        // The upper bound keeps `n + 1` free of its own
+                        // overflow obligation; the test plants ONE failure.
+                        precondition(n >= 0 && n <= 1000);
                         int[] a = new int[n];
                         check(a.length == n + 1);
                     }

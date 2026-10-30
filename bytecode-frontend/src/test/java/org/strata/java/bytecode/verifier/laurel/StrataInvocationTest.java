@@ -40,7 +40,10 @@ class StrataInvocationTest {
         assertEquals(List.of("strataLaurel", "laurelInterpretBinary", "--entry", "p.C::m", "--fuel", "7",
                 "--interpreter", "laurel"), invocation.command());
         assertNull(invocation.directory());
-        assertEquals(List.of("strataLaurel", "laurelInterpretBinary",
+        // No explicit --fuel and not the Laurel interpreter: the frontend
+        // passes its own 100000 default (checked arithmetic costs ~3x the
+        // Core interpreter's 10000-per-call budget).
+        assertEquals(List.of("strataLaurel", "laurelInterpretBinary", "--fuel", "100000",
                 "--skip-phases", "CoroutineElaboration,YieldElim"),
                 StrataBackend.Invocation.of(options(true, null, null, null, null)).command());
     }
@@ -50,7 +53,7 @@ class StrataInvocationTest {
         var project = Path.of("/work/Strata");
         var interpret = StrataBackend.Invocation.of(options(true, "p.C#m", null, "core", project));
         assertEquals(List.of("lake", "exe", "-q", "strata", "laurelInterpretBinary", "--entry", "p.C::m",
-                "--interpreter", "core",
+                "--fuel", "100000", "--interpreter", "core",
                 "--skip-phases", "CoroutineElaboration,YieldElim"),
                 interpret.command());
         assertEquals(project.resolve("StrataCLI"), interpret.directory());

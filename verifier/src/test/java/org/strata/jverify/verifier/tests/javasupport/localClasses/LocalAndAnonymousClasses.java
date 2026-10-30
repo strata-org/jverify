@@ -9,7 +9,7 @@ import static org.strata.jverify.JVerify.postcondition;
 import static org.strata.jverify.JVerify.precondition;
 
 @SuppressWarnings({"Convert2Lambda", "Anonymous2MethodRef", "ConstantValue", "NewObjectEquality"})
-@JVerifyTest(exitCode = 4, methodsVerified = 27, errorCount = 8)
+@JVerifyTest(exitCode = 4, methodsVerified = 27, errorCount = 14)
 public class LocalAndAnonymousClasses {
 
     void noCaptures() {
@@ -62,7 +62,9 @@ public class LocalAndAnonymousClasses {
 //          ^ Error: postcondition could not be proved
                 precondition(x >= y);
                 postcondition((int r) -> r == x - y);
+//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: no int overflow on '-' could not be proved
                 return x - y;
+//              ^^^^^^^^^^^^^ Error: no int overflow on '-' could not be proved
 //              ^ Error: assertion could not be proved
             }
         };
@@ -102,6 +104,7 @@ public class LocalAndAnonymousClasses {
 //          ^ Error: postcondition could not be proved
                         var level3 = 3;
                         return level1 + level2 + level3 + x + x2 + y2;
+//                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: no int overflow on '+' could not be proved
 //                      ^ Error: assertion could not be proved
                     }
                 };
@@ -130,12 +133,14 @@ public class LocalAndAnonymousClasses {
     public int add(int x, int y) {
 //  ^ Error: postcondition could not be proved
         return x + y;
+//      ^^^^^^^^^^^^^ Error: no int overflow on '+' could not be proved
 //      ^ Error: assertion could not be proved
     }
 
     public static int staticAdd(int x, int y) {
 //  ^ Error: postcondition could not be proved
         return x + y;
+//      ^^^^^^^^^^^^^ Error: no int overflow on '+' could not be proved
 //      ^ Error: assertion could not be proved
     }
 
@@ -177,6 +182,7 @@ public class LocalAndAnonymousClasses {
             public int doSomething(int x, int y) {
                 precondition(x >= y);
                 postcondition((int r) -> r == x - y);
+//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: no int overflow on '-' could not be proved
                 throw new ContractException();
             }
         }

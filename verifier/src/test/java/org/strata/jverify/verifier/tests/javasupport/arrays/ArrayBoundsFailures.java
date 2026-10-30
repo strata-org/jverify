@@ -6,7 +6,7 @@ package org.strata.jverify.verifier.tests.javasupport.arrays;
 import org.strata.jverify.testengine.JVerifyTest;
 import org.strata.jverify.*;
 import static org.strata.jverify.JVerify.*;
-@JVerifyTest(exitCode = 4, methodsInvalid = 7, errorCount = 7, methodsVerified = 1, methodsSkipped = 0)
+@JVerifyTest(exitCode = 4, methodsInvalid = 7, errorCount = 8, methodsVerified = 1, methodsSkipped = 0)
 class ArrayBoundsFailures {
     int[] data;
 
@@ -43,6 +43,7 @@ class ArrayBoundsFailures {
         int[] a = new int[1];
         a[0] = x + 1;
 //      ^^^^^^^^^^^^^ Error: int[] element range could not be proved
+//             ^^^^^ Error: no int overflow on '+' could not be proved
     }
 
     void fieldOob() {

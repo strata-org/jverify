@@ -351,6 +351,73 @@ final class LaurelFactory {
         castHelpers.put(helperName, proc);
     }
 
+    // --- Checked integer arithmetic helpers ---
+
+    /**
+     * Register, once, the checked arithmetic helper for {@code op} on the
+     * int type named {@code typeName} ({@code int32} or {@code int64}):
+     * {@code java?<opKey>_<typeName>(x: int[, y: int]): int}, transparent
+     * {@code x <op> y}, with {@code requires} clauses bounding the
+     * mathematical result to the type's range (summary
+     * {@code "no <int|long> overflow on '<symbol>'"}).
+     *
+     * <p>The body is TRANSPARENT, not opaque with {@code ensures $result ==
+     * x + y}: a transparent body makes the call's value the mathematical
+     * result unconditionally wherever the call appears. In a contract
+     * helper's {@code $asFunction} twin an opaque helper's {@code ensures}
+     * is not available (TransparencyPass erases the assumes that would
+     * justify it), so an opaque encoding would leave postconditions that
+     * mention checked arithmetic unprovable. The {@code requires} is the
+     * overflow proof obligation, checked wherever Strata checks call
+     * preconditions — method bodies, contracts, and conditionally evaluated
+     * positions (guarded, like {@code $divT}'s divisor). Same pattern as
+     * {@code java?array_get}'s transparent body with a bounds requires.
+     *
+     * @return the helper's name
+     */
+    String registerArithHelper(String opKey, String symbol, Operation op, boolean unary, String typeName) {
+        String name = "java?" + opKey + "_" + typeName;
+        if (!castHelpers.containsKey(name)) {
+            Long[] bounds = BOUNDS.get(typeName);
+            String javaName = typeName.equals("int64") ? "long" : "int";
+            var label = Optional.of("no " + javaName + " overflow on '" + symbol + "'");
+            java.util.function.Supplier<StmtExpr> result = () -> unary
+                    ? primitiveOp(op, noRange(var_("x")))
+                    : primitiveOp(op, noRange(var_("x")), noRange(var_("y")));
+            var preconditions = List.of(
+                    new Condition(noRange(primitiveOp(new Operation.Geq(),
+                            noRange(result.get()), noRange(longLiteral(bounds[0])))), label, new ConditionMode.Both()),
+                    new Condition(noRange(primitiveOp(new Operation.Leq(),
+                            noRange(result.get()), noRange(longLiteral(bounds[1])))), label, new ConditionMode.Both()));
+            var inputs = unary ? List.of(param("x", new HighType.TInt()))
+                    : List.of(param("x", new HighType.TInt()), param("y", new HighType.TInt()));
+            // The body is a Block ending in Return — the shape a translated
+            // method body has — rather than a bare expression, which the
+            // Laurel-to-Core lowering cannot turn into a function (the Core
+            // interpreter then gets stuck on the unreduced call).
+            var body = new Body.Transparent(noRange(new StmtExpr.Block(
+                    List.of(noRange(new StmtExpr.Return(List.of(noRange(result.get()))))),
+                    Optional.empty(), List.of(), Optional.empty())));
+            castHelpers.put(name, helperProcedure(name, List.of(), inputs, new HighType.TInt(),
+                    preconditions, body));
+        }
+        return name;
+    }
+
+    /** The {@code Operation} behind a checked-arithmetic helper name, or null if not one. */
+    static Operation arithHelperOp(String callee) {
+        if (!callee.startsWith("java?")) {
+            return null;
+        }
+        return switch (callee.substring("java?".length())) {
+            case "add_int32", "add_int64" -> new Operation.Add();
+            case "sub_int32", "sub_int64" -> new Operation.Sub();
+            case "mul_int32", "mul_int64" -> new Operation.Mul();
+            case "neg_int32", "neg_int64" -> new Operation.Neg();
+            default -> null;
+        };
+    }
+
     // --- Array element helpers and wrappers ---
 
     /**

@@ -18,7 +18,7 @@ import static org.strata.jverify.JVerify.*;
  * <p>A captured local is unconstrained inside the body, which is checked for
  * every value the local could hold.
  */
-@JVerifyTest(exitCode = 4, methodsVerified = 7, errorCount = 5)
+@JVerifyTest(exitCode = 4, methodsVerified = 7, errorCount = 7)
 public class LambdaBodyContract {
 
     interface Grow {
@@ -62,6 +62,8 @@ public class LambdaBodyContract {
     static void overflowInBody() {
         useGrow(x -> x * 1000000000 + 1000000000);
 //                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: no int overflow on '*' could not be proved
+//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: no int overflow on '+' could not be proved
 //                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: postcondition could not be proved
     }
 

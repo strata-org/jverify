@@ -77,7 +77,8 @@ class NestedContractsTest {
         }
         public int getY() {
             reads(this);
-            postcondition((int i) -> i == value+1);
+            // The bound guards the +1 (spec arithmetic is overflow-checked).
+            postcondition((int i) -> value < Integer.MAX_VALUE && i == value + 1);
             throw new ContractException();
         }
     }

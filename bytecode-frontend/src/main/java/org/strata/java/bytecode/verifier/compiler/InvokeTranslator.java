@@ -920,6 +920,22 @@ final class InvokeTranslator {
         b.calleeKeys.put(call.val(), calleeKey);
     }
 
+    /** True iff {@code m}'s return type carries the given JVerify type annotation (METHOD_RETURN target). */
+    private static boolean hasReturnAnno(java.lang.classfile.MethodModel m, String simpleName) {
+        for (var ta : org.strata.java.bytecode.frontend.ClassfileQueries.typeAnnotationsOn(m)) {
+            if (!ta.targetPath().isEmpty()
+                    || ta.targetInfo().targetType()
+                            != java.lang.classfile.TypeAnnotation.TargetType.METHOD_RETURN) {
+                continue;
+            }
+            String cn = ta.annotation().className().stringValue();
+            if (cn.equals("Lorg/strata/jverify/" + simpleName + ";")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** True iff {@code m}'s generic Signature result is a type variable; false without a Signature. */
     private static boolean returnsTypeVar(java.lang.classfile.MethodModel m) {
         var sa = m.findAttribute(java.lang.classfile.Attributes.signature()).orElse(null);
@@ -954,6 +970,16 @@ final class InvokeTranslator {
             b.noteDesc(call, ret);
             if (ret.startsWith("L") || (ret.startsWith("[") && ctx.composites.arrays.enabled())) {
                 b.staticTypeOf.put(call, TypeRef.ofDescriptor(ret));
+            } else if (callee != null) {
+                // An integer result keeps the callee's @Nat/@Unbounded return
+                // annotations, so arithmetic on it stays in the domain the
+                // callee declared (`spec(n - 1) + spec(n - 2)` with an
+                // @Unbounded spec must not get an int32 overflow obligation).
+                boolean natR = hasReturnAnno(callee, "Nat");
+                boolean unbR = hasReturnAnno(callee, "Unbounded");
+                if (natR || unbR) {
+                    b.staticTypeOf.put(call, TypeRef.ofDescriptor(ret, natR, unbR));
+                }
             }
             if (resultIsTypeVar) {
                 b.typeVarValues.add(call);
@@ -1156,10 +1182,18 @@ final class InvokeTranslator {
                 String instantiatedDesc = bsm.arguments().size() >= 3 && bsm.arguments().get(2)
                         instanceof java.lang.classfile.constantpool.MethodTypeEntry it
                         ? it.descriptor().stringValue() : null;
+                // Captured arguments' declared types, as the ENCLOSING scope
+                // knows them. The synthetic impl method's capture parameters
+                // carry no type annotations, so without this a captured
+                // `@Unbounded int` reads back as int32 inside a spec lambda.
+                var captureTypes = new ArrayList<TypeRef>(captures.size());
+                for (var capture : captures) {
+                    captureTypes.add(b.staticTypeOf.get(capture));
+                }
                 b.lambdas.put(handle, new BodyTranslator.LambdaHandle(name, desc, captures.size(),
                         !isLambdaImpl, sam, ref.owner().asInternalName(),
                         mh.kind() == java.lang.invoke.MethodHandleInfo.REF_invokeStatic,
-                        indy.name().stringValue(), samDesc, instantiatedDesc));
+                        indy.name().stringValue(), samDesc, instantiatedDesc, captureTypes));
                 return;
             }
             if (bo.equals("java/lang/invoke/StringConcatFactory")) {

@@ -1,13 +1,12 @@
 package org.strata.jverify.langref.jls15.s15_15;
 
-import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
 // JLS 15.15.1 -- Prefix Increment ++ applied to a long: the expression yields
 // the post-increment value.
-@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls15.s15_15.PrefixIncrement_Long#run", expectedToFail = true, blockedBy = {Blocker.LANGREF_UNSUPPORTED})
+@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls15.s15_15.PrefixIncrement_Long#run")
 class PrefixIncrement_Long {
     static void run() {
 

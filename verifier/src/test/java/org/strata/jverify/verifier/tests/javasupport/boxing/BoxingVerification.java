@@ -20,9 +20,13 @@ class BoxingVerification {
     }
 
     static void unboxWrongValue(int x) {
+        // No arithmetic in the compared value: a checked `x + 1` here makes
+        // the boxing-model VC churn in z3 (solver timeout on slow hosts, a
+        // nondeterministic diagnostic). The wrong-value point only needs a
+        // value the unboxed x cannot be proved equal to.
         Integer b = x;
-        check(b == x + 1);
-//      ^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+        check(b == 7);
+//      ^^^^^^^^^^^^^^ Error: assertion could not be proved
     }
 
     static Integer box(int x) {

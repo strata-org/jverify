@@ -130,6 +130,14 @@ public class StrataBackend {
                 if (options.fuel() != null) {
                     arguments.add("--fuel");
                     arguments.add(Integer.toString(options.fuel()));
+                } else if (!"laurel".equals(options.interpreter())) {
+                    // Every checked int/long op is a helper call, roughly
+                    // tripling the Core interpreter's steps per iteration;
+                    // Strata's 10000-per-call default exhausts on a
+                    // ~300-iteration counting loop. 100000 matches the
+                    // Laurel interpreter's budget.
+                    arguments.add("--fuel");
+                    arguments.add("100000");
                 }
                 if (cortex) {
                     arguments.add("--interpreter");

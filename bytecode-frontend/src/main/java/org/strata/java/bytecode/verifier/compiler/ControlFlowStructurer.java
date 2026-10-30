@@ -924,6 +924,12 @@ final class ControlFlowStructurer {
         if (body.arrays.enabled()) {
             typeArrayTernary(r, thenVal, elseVal);
         }
+        // A ternary whose arms are both @Unbounded stays mathematical, so
+        // `(c ? u + 1 : u) * 2` carries no int32 obligation. Both arms, not
+        // either: a bounded arm's value must keep its overflow checks.
+        if (body.isUnboundedInt(thenVal) && body.isUnboundedInt(elseVal)) {
+            body.unboundedResults.add(r);
+        }
         return r;
     }
 

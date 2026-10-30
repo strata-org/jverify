@@ -21,10 +21,12 @@ import static org.strata.jverify.JVerify.*;
  */
 @JVerifyTest(exitCode = 4, methodsVerified = 1, methodsInvalid = 2, errorCount = 2)
 class InstanceContractsChecked {
-    /** Postcondition contradicts the body. */
+    /** Postcondition contradicts the body. (No arithmetic: `x + 1000`
+     * carries an overflow obligation of its own, which is not what this
+     * fixture is about.) */
     int wrongPostcondition(int x) {
-        postcondition((int r) -> r == x + 1000);
-//                               ^^^^^^^^^^^^^ Error: postcondition does not hold
+        postcondition((int r) -> r != x);
+//                               ^^^^^^ Error: postcondition does not hold
         return x;
     }
 

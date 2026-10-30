@@ -462,10 +462,21 @@ class MainTest {
     @Test
     void interpreterSelectsTheLaurelInterpreter(@TempDir Path tmp) throws Exception {
         var file = write(tmp, "Rec.java", RECURSION).toString();
-        var laurel = run("--interpret", "--interpreter", "laurel", "--entry", "p.Rec#run", file);
+        // Small explicit fuel: the Laurel interpreter's state grows with
+        // every step of this never-returning recursion (its 100M-step
+        // default gets strataLaurel OOM-killed, exit 137, on
+        // memory-constrained build hosts; even 100k steps of retained
+        // frames OOM there). 1000 steps give "out of fuel" within a few
+        // hundred levels and a few MB.
+        var laurel = run("--interpret", "--interpreter", "laurel", "--fuel", "1000",
+                "--entry", "p.Rec#run", file);
         assertEquals(2, laurel.exitCode(), laurel::toString);
         assertTrue(laurel.out().contains("out of fuel"), laurel::toString);
-        var core = run("--interpret", "--entry", "p.Rec#run", file);
+        // Same small cap for the Core interpreter: its per-call budget is
+        // consumed by actually interpreting the recursion, so the frontend's
+        // 100000 default retains ~100k helper-heavy frames before failing —
+        // OOM on build hosts. The message stays "failed to terminate".
+        var core = run("--interpret", "--fuel", "1000", "--entry", "p.Rec#run", file);
         assertEquals(2, core.exitCode(), core::toString);
         assertFalse(core.out().contains("out of fuel"), core::toString);
     }

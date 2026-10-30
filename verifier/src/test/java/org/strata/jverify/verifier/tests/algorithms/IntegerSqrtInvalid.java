@@ -9,11 +9,14 @@ import static org.strata.jverify.JVerify.*;
 class IntegerSqrtInvalid {
     static int isqrt(@Nat int n) {
         precondition(0 <= n && n <= 46340);
-        postcondition((int res) -> 0 <= res && res * res <= n && n < (res + 1) * (res + 1));
+        // Squares in long, as in IntegerSqrt: the int products carry their
+        // own overflow obligations, and this fixture is about the missing
+        // invariant, not overflow.
+        postcondition((int res) -> 0 <= res && (long) res * res <= n && n < ((long) res + 1) * ((long) res + 1));
 //                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: postcondition could not be proved
 
         int r = 0;
-        while (r * r <= n) {
+        while ((long) r * r <= n) {
             invariant(0 <= r && r <= 46340);
 
             r = r + 1;

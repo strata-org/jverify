@@ -167,7 +167,8 @@ final class BodyTranslator {
     /** An invokedynamic-produced closure: the synthetic impl (lambda) or referenced method. */
     record LambdaHandle(String implName, String implDesc, int captureCount, boolean isMethodRef,
                         String samFqn, String implOwner, boolean implStatic,
-                        String samName, String samDesc, String instantiatedDesc) {
+                        String samName, String samDesc, String instantiatedDesc,
+                        List<TypeRef> captureTypes) {
     }
 
     /**
@@ -282,7 +283,11 @@ final class BodyTranslator {
             case StmtExpr.LiteralInt i -> true;
             case StmtExpr.LiteralBool lb -> true;
             case StmtExpr.LiteralString s -> pendingNew.containsKey(n);
-            case StmtExpr.StaticCall c -> LaurelFactory.isOperationProcName(c.callee().text())
+            // Checked arithmetic helpers are pure and heap-free, exactly
+            // like the $-operators they replaced; without this, an
+            // arithmetic array index (`a[i + 1] += 1`) stops being simple.
+            case StmtExpr.StaticCall c -> (LaurelFactory.isOperationProcName(c.callee().text())
+                    || LaurelFactory.arithHelperOp(c.callee().text()) != null)
                     && c.arguments().stream().allMatch(this::isSimple);
             default -> false;
         };
@@ -690,8 +695,20 @@ final class BodyTranslator {
         return slotDesc.get(slot);
     }
 
+    /**
+     * Declared types of a spec lambda's captured parameters, by impl slot,
+     * seeded from the capture site's {@code staticTypeOf} (see
+     * {@code LambdaHandle.captureTypes}). Only populated on the inner
+     * translator of a spec lambda body.
+     */
+    final Map<Integer, TypeRef> captureTypeOf = new HashMap<>();
+
     /** Declared TypeRef of a local: generic (LVTT) if known, else erased, else null ("var"). */
     TypeRef localTypeRef(int slot) {
+        TypeRef captured = captureTypeOf.get(slot);
+        if (captured != null) {
+            return captured;
+        }
         boolean isNat = hasSlotAnno(slot, "Nat");
         boolean isUnbounded = hasSlotAnno(slot, "Unbounded");
         if (locals != null) {
@@ -1046,9 +1063,15 @@ final class BodyTranslator {
         if (!(v instanceof StmtExpr.StaticCall call) || call.arguments().size() != 2) {
             return 0;
         }
+        // Bounded ints update via the checked java?add_/java?sub_ helpers,
+        // @Unbounded ones via the plain ops; both are the self-update shape.
+        // The IncrDecr this becomes is overflow-checked by the assignment
+        // constraint after Strata eliminates it (SelfUpdateOverflow pins
+        // this for local, field, long and array-element targets).
         String proc = call.callee().text();
-        boolean plus = proc.equals("$add");
-        if (!plus && !proc.equals("$sub")) {
+        Operation helperOp = LaurelFactory.arithHelperOp(proc);
+        boolean plus = proc.equals("$add") || helperOp instanceof Operation.Add;
+        if (!plus && !proc.equals("$sub") && !(helperOp instanceof Operation.Sub)) {
             return 0;
         }
         AstNode<StmtExpr> targetAsExpr = e(new StmtExpr.Var(target.val()));
@@ -1068,13 +1091,107 @@ final class BodyTranslator {
     }
 
     /**
+     * Integer (int/long) {@code +}/{@code -}/{@code *}: Java wraps on
+     * overflow, JVerify instead demands a proof that the mathematical result
+     * fits the operand width — at the operation itself, so an overflow in an
+     * intermediate subexpression such as {@code (a + b) / 2} is caught even
+     * when the result never reaches an assignment, return or parameter.
+     * The op is emitted as a call to a checked helper whose {@code requires}
+     * bounds the result; the helper's transparent body keeps the value equal
+     * to the mathematical result in every position, including contracts.
+     *
+     * <p>An {@code @Unbounded} operand opts the whole operation out: its
+     * arithmetic is mathematical by declaration, so the plain {@code $op}
+     * is emitted and the result stays unbounded ({@link #unboundedResults}).
+     */
+    void checkedBin(Operation op, String opKey, String symbol, boolean isLong) {
+        AstNode<StmtExpr> b = stack.pop(), a = stack.pop();
+        if (isUnboundedInt(a) || isUnboundedInt(b)) {
+            unboundedResults.add(push(LaurelFactory.primitiveOp(op, a, b)));
+            return;
+        }
+        String helper = ctx.lf.registerArithHelper(opKey, symbol, op, false, isLong ? "int64" : "int32");
+        AstNode<StmtExpr> n = push(new StmtExpr.StaticCall(
+                LaurelFactory.ident(helper), List.of(a, b), List.of()));
+        noteDesc(n, isLong ? "J" : "I");
+    }
+
+    /** INEG/LNEG with the overflow obligation of {@link #checkedBin} ({@code -MIN_VALUE} overflows). */
+    void checkedNeg(boolean isLong) {
+        AstNode<StmtExpr> v = stack.pop();
+        // Literal folding: a negated literal folds into the literal itself —
+        // except MIN_VALUE, whose negation does not fit the width (the JVM
+        // wraps it back to MIN_VALUE); it falls through to the checked helper
+        // so the overflow obligation is emitted. javac folds -MIN_VALUE
+        // itself, but a literal can reach here from other bytecode producers.
+        long min = isLong ? Long.MIN_VALUE : Integer.MIN_VALUE;
+        if (v.val() instanceof StmtExpr.LiteralInt li && li.value() != min) {
+            push(pinnedLongLiteral(-li.value()));
+            return;
+        }
+        if (isUnboundedInt(v)) {
+            unboundedResults.add(push(LaurelFactory.primitiveOp(new Operation.Neg(), v)));
+            return;
+        }
+        String helper = ctx.lf.registerArithHelper("neg", "-", new Operation.Neg(), true,
+                isLong ? "int64" : "int32");
+        AstNode<StmtExpr> n = push(new StmtExpr.StaticCall(
+                LaurelFactory.ident(helper), List.of(v), List.of()));
+        noteDesc(n, isLong ? "J" : "I");
+    }
+
+    /**
+     * Results of plain {@code $add}/{@code $sub}/{@code $mul}/{@code $neg}
+     * emitted because an operand was {@code @Unbounded}: they stay in the
+     * mathematical domain, so further operations on them are not
+     * overflow-checked either. Identity-keyed, like the other node maps.
+     */
+    final java.util.Set<AstNode<StmtExpr>> unboundedResults =
+            java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+
+    /**
+     * True when the operand is known to verify in the unbounded integer
+     * domain: a value whose declared type carries {@code @Unbounded}, a
+     * range cast to {@code int}/{@code nat}, or arithmetic on such values.
+     * Conservative in the other direction — anything whose unbounded type
+     * the frontend cannot see (e.g. a spec lambda's own {@code @Unbounded}
+     * binder, whose annotation javac drops from the synthetic impl) is
+     * treated as bounded, which matches the JVM value's actual width; the
+     * escape hatch is binding it to an {@code @Unbounded} local first.
+     */
+    boolean isUnboundedInt(AstNode<StmtExpr> n) {
+        TypeRef t = staticTypeOf.get(n);
+        if (t != null && t.isUnbounded()) {
+            return true;
+        }
+        if (n.val() instanceof StmtExpr.StaticCall call) {
+            String callee = call.callee().text();
+            if (callee.startsWith("java?cast_to_int_from_") || callee.startsWith("java?cast_to_nat_from_")) {
+                return true;
+            }
+        }
+        return unboundedResults.contains(n);
+    }
+
+    /**
      * Integer (int/long) division or remainder: throws ArithmeticException on a
      * zero divisor. Recorded as an implicit throw on the operation's node; see
      * {@link #explicitImplicitThrows}.
      */
     void intDivRem(Operation op) {
+        AstNode<StmtExpr> b = stack.pop(), a = stack.pop();
+        // The quotient/remainder of @Unbounded operands stays in the
+        // mathematical domain, like the checked ops' opt-out (checkedBin);
+        // without this, `n / 2 + 1` on an @Unbounded n picks up an int32
+        // overflow obligation.
+        boolean unbounded = isUnboundedInt(a) || isUnboundedInt(b);
+        stack.push(a);
+        stack.push(b);
         AstNode<StmtExpr> divisor = stack.peek();
         bin(op);
+        if (unbounded) {
+            unboundedResults.add(stack.peek());
+        }
         implicitThrows.put(stack.peek(), new ImplicitThrow(
                 e(LaurelFactory.primitiveOp(new Operation.Eq(), divisor, e(new StmtExpr.LiteralInt(0)))),
                 ARITHMETIC_EXCEPTION));
@@ -2018,9 +2135,15 @@ final class BodyTranslator {
 
     void operator(java.lang.classfile.instruction.OperatorInstruction oi) {
         switch (oi.opcode()) {
-            case IADD, LADD, FADD, DADD -> bin(new Operation.Add());
-            case ISUB, LSUB, FSUB, DSUB -> bin(new Operation.Sub());
-            case IMUL, LMUL, FMUL, DMUL -> bin(new Operation.Mul());
+            case IADD -> checkedBin(new Operation.Add(), "add", "+", false);
+            case LADD -> checkedBin(new Operation.Add(), "add", "+", true);
+            case ISUB -> checkedBin(new Operation.Sub(), "sub", "-", false);
+            case LSUB -> checkedBin(new Operation.Sub(), "sub", "-", true);
+            case IMUL -> checkedBin(new Operation.Mul(), "mul", "*", false);
+            case LMUL -> checkedBin(new Operation.Mul(), "mul", "*", true);
+            case FADD, DADD -> bin(new Operation.Add());
+            case FSUB, DSUB -> bin(new Operation.Sub());
+            case FMUL, DMUL -> bin(new Operation.Mul());
             case IDIV, LDIV -> intDivRem(new Operation.DivT());
             case IREM, LREM -> intDivRem(new Operation.ModT());
             case FDIV, DDIV -> bin(new Operation.DivT());
@@ -2037,7 +2160,9 @@ final class BodyTranslator {
             case LSHR -> binRefused(">>", true);
             case IUSHR -> binRefused(">>>", false);
             case LUSHR -> binRefused(">>>", true);
-            case INEG, LNEG, FNEG, DNEG -> neg();
+            case INEG -> checkedNeg(false);
+            case LNEG -> checkedNeg(true);
+            case FNEG, DNEG -> neg();
             case LCMP -> push3Way("Long", null);
             case FCMPL -> push3Way("Float", Boolean.FALSE);
             case FCMPG -> push3Way("Float", Boolean.TRUE);

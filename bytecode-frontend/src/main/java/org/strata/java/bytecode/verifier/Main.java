@@ -120,7 +120,7 @@ public final class Main {
         @Nullable String entry;
 
         @Option(names = "--fuel", paramLabel = "N",
-                description = "Maximum number of execution steps in --interpret mode (default: 10000 per call "
+                description = "Maximum number of execution steps in --interpret mode (default: 100000 per call "
                         + "with --interpreter core; 100000 per entry point with --interpreter laurel).")
         @Nullable Integer fuel;
 

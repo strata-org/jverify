@@ -164,7 +164,10 @@ class TieredInputEquivalenceTest {
                 overflow = i + 1;
             }
         }
-        return List.of(java.util.Objects.requireNonNull(check), java.util.Objects.requireNonNull(overflow));
+        // The `stored + by` line reports twice: the ternary arm's own
+        // overflow obligation plus the assignment's range check.
+        return List.of(java.util.Objects.requireNonNull(check),
+                java.util.Objects.requireNonNull(overflow), overflow);
     }
 
     private static List<Integer> diagnosticLines(JVerifyResults results) {

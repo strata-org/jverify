@@ -93,11 +93,13 @@ final class FieldAccessTranslator {
                 if (fdesc.startsWith("L")
                         || (fdesc.startsWith("[") && ctx.composites.arrays.enabled())) {
                     b.staticTypeOf.put(n, TypeRef.ofDescriptor(fdesc));
-                } else if (ctx.contractMode) {
-                    // Contract code types a primitive field read by its
-                    // declaration, so an @Unbounded field reads as the
-                    // unbounded Laurel int and javac's widening of it is
-                    // the identity (see BodyTranslator.convert).
+                } else {
+                    // A primitive field read is typed by its declaration in
+                    // every context, so an @Unbounded field reads as the
+                    // unbounded Laurel int: javac's widening of it is the
+                    // identity (see BodyTranslator.convert) and its arithmetic
+                    // carries no overflow obligation
+                    // (BodyTranslator.checkedBin).
                     b.staticTypeOf.put(n, declared);
                 }
             }

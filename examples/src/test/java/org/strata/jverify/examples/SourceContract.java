@@ -23,7 +23,9 @@ public class SourceContract {
 
         public int foo(int x) {
             precondition(x > 0);
-            postcondition((int i) -> i >= i + 1);
+            // Unsatisfiable on purpose, without arithmetic: `i + 1`
+            // carries an overflow obligation on the havoced binder.
+            postcondition((int i) -> i != i);
             throw new ContractException();
         }
 

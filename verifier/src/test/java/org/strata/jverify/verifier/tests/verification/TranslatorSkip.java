@@ -17,7 +17,7 @@ import static org.strata.jverify.JVerify.check;
         methodsVerified = 2,
         methodsInvalid = 1,
         methodsSkipped = 0,
-        errorCount = 5
+        errorCount = 6
 )
 class TranslatorSkip {
     static int unsupported(int n) {
@@ -28,6 +28,7 @@ class TranslatorSkip {
 //                                         ^^^ Error: assertion does not hold
             sum = sum + i;
 //                ^^^^^^^ Error: assertion does not hold
+//                ^^^^^^^ Error: no int overflow on '+' does not hold
         }
         return sum;
 //             ^^^ Error: assertion does not hold

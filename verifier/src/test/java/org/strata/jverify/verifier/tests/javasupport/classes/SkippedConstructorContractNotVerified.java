@@ -11,7 +11,7 @@ import static org.strata.jverify.JVerify.postcondition;
  * not Verified. The one Verified method is the outer class's implicit
  * constructor. Before the fix: 2 Verified / 0 errors.
  */
-@JVerifyTest(exitCode = 4, methodsVerified = 1, methodsSkipped = 0, methodsInvalid = 1, errorCount = 1)
+@JVerifyTest(exitCode = 4, methodsVerified = 1, methodsSkipped = 0, methodsInvalid = 1, errorCount = 2)
 public class SkippedConstructorContractNotVerified {
     static class Box {
         private final int value;
@@ -20,6 +20,7 @@ public class SkippedConstructorContractNotVerified {
             this.value = value_;
             postcondition(this.value == value_ + 1);
 //          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: postcondition could not be proved
+//                                       ^^^^^^^^^^ Error: no int overflow on '+' could not be proved
         }
     }
 }

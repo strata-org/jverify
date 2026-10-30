@@ -419,6 +419,7 @@ final class SpecCallTranslator {
             inner.isInstance = !impl.flags().has(java.lang.reflect.AccessFlag.STATIC);
             inner.locals = ish.locals();
             inner.crt = ish.crt();   // the impl method's OWN CRT (its pcs key it)
+            seedCaptureTypes(inner, lambda, impl);
             var seq = ish.seq();
             inner.seqToBci = MethodBodyFactory.bciTable(seq);
             inner.retDesc = impl.methodTypeSymbol().returnType().descriptorString();
@@ -449,6 +450,7 @@ final class SpecCallTranslator {
                     inner.crt = ish.crt();
                     inner.seqToBci = MethodBodyFactory.bciTable(seq);
                     inner.retDesc = impl.methodTypeSymbol().returnType().descriptorString();
+                    seedCaptureTypes(inner, lambda, impl);
                     int rslot = iStatic ? 0 : 1;
                     for (int i = 0; i < imt.parameterCount(); i++) {
                         var ps = inner.locals.at(rslot, 0);
@@ -476,6 +478,36 @@ final class SpecCallTranslator {
             ctx.method.renames = savedRenames;
             ctx.method.inContract = savedContract;
             b.pos = savedPos;
+        }
+    }
+
+    /**
+     * Seed {@code inner.captureTypeOf} with the declared types the capture
+     * site recorded ({@code LambdaHandle.captureTypes}), keyed by the impl
+     * method's parameter slots. A captured value's {@code @Nat}/{@code
+     * @Unbounded} annotations live on the ENCLOSING declaration; the
+     * synthetic impl's capture parameters carry none, so without this an
+     * {@code @Unbounded} local reads back as int32 inside the spec lambda.
+     * For an instance impl the first capture is the receiver, not a
+     * parameter.
+     */
+    private void seedCaptureTypes(BodyTranslator inner, BodyTranslator.LambdaHandle lambda,
+                                  java.lang.classfile.MethodModel impl) {
+        List<TypeRef> types = lambda.captureTypes();
+        if (types == null || types.isEmpty()) {
+            return;
+        }
+        var imt = impl.methodTypeSymbol();
+        boolean iStatic = impl.flags().has(java.lang.reflect.AccessFlag.STATIC);
+        int ci = iStatic ? 0 : 1;
+        int slot = iStatic ? 0 : 1;
+        for (int i = 0; i < imt.parameterCount() && ci < types.size(); i++, ci++) {
+            TypeRef t = types.get(ci);
+            if (t != null) {
+                inner.captureTypeOf.put(slot, t);
+            }
+            String dd = imt.parameterType(i).descriptorString();
+            slot += (dd.equals("J") || dd.equals("D")) ? 2 : 1;
         }
     }
 

@@ -45,7 +45,10 @@ class ParameterReassignment {
             // obligations discharge; `0 <= n` plus the exit condition give the
             // final check. The invariant mentions the reassigned parameter, so
             // it must track its current value, not its entry value.
-            invariant(0 <= n && 0 <= steps && steps + n <= 100);
+            // Overflow-free form: `steps + n <= 100` would carry an overflow
+            // obligation its own bound cannot discharge under havoc, and the
+            // explicit n <= 100 replaces the int32 range the havoc drops.
+            invariant(0 <= n && n <= 100 && 0 <= steps && steps <= 100 - n);
             steps = steps + 1;
             n = n - 1;
         }

@@ -5,29 +5,93 @@
 
 XFAIL org.strata.jverify.langref.jls12.s12_5.ImplicitSuperCall_1 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls12.s12_5.ThisCtorChain_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls14.s14_10.AssertStatement CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls14.s14_11.SwitchOnInteger_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls14.s14_12.WhileStatement_1 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls14.s14_12.WhileStatement_2 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls14.s14_13.DoStatement_1 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls14.s14_13.DoStatement_3 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls14.s14_13.DoStatement_4 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls14.s14_13.DoStatement_5 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls14.s14_14.BasicForStatement CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls14.s14_15.BreakStatement_2 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls14.s14_15.BreakStatement_4 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls14.s14_16.ContinueStatement CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls14.s14_17.ReturnStatement_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls14.s14_2.Blocks_1 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls14.s14_2.Blocks_2 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls14.s14_2.Blocks_3 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls14.s14_2.Blocks_4 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls14.s14_4.LocalVariableDeclarationStatements_1 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls14.s14_4.LocalVariableDeclarationStatements_4 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls14.s14_4.LocalVariableDeclarators_1 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls14.s14_6.EmptyStatement CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls15.s15_11.FieldAccessUsingPrimary_1 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls15.s15_11.FieldAccessUsingPrimary_2 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls15.s15_11.FieldAccessUsingPrimary_3 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls15.s15_12.IsChosenMethodAppropriate_1 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls15.s15_12.IsChosenMethodAppropriate_2 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_14.PostfixDecrement_Long CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_14.PostfixIncrement_Long CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_15.PrefixIncrement_Long CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_15.UnaryMinusOperator_1 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_15.UnaryMinusOperator_2 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls15.s15_16.CastExpression_1 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls15.s15_16.CastExpression_4 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls15.s15_16.CastExpression_5 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls15.s15_16.CastExpression_BoxingCast CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls15.s15_16.CastExpression_UnboxingCast CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_17.MultiplicationOperator_1 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_17.MultiplicationOperator_2 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_17.MultiplicationOperator_3 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_17.MultiplicationOperator_4 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_17.MultiplicationOperator_7 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_17.RemainderOperator_5 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_18.NumericAdditiveOperators_1 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_18.NumericAdditiveOperators_2 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_18.NumericAdditiveOperators_3 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_18.NumericAdditiveOperators_5 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_18.NumericAdditiveOperators_6 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_21.NumericalEqualityOperators_1 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_21.NumericalEqualityOperators_2 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls15.s15_21.ReferenceEqualityOperators_1 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls15.s15_21.ReferenceEqualityOperators_2 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls15.s15_21.ReferenceEqualityOperators_3 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls15.s15_21.ReferenceEqualityOperators_4 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls15.s15_25.NumericConditionalExpression_8 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_26.CompoundAssignment_3 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_26.CompoundAssignment_4 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_26.CompoundAssignment_5 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_28.SwitchExpression_4 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_29.ConstantExpression_1 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_29.ConstantExpression_13 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_29.ConstantExpression_14 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_29.ConstantExpression_18 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_8.ParenthesizedExpressions_1 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_8.ParenthesizedExpressions_2 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_8.ParenthesizedExpressions_3 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls15.s15_8.ThisExpression_1 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls15.s15_8.ThisExpression_2 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_9.AnonymousClassDeclaration CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls15.s15_9.DeterminingClassInstantiated_1 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls15.s15_9.DeterminingClassInstantiated_2 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls15.s15_9.DeterminingClassInstantiated_3 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls3.s3_12.Operators_1 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls3.s3_12.Operators_2 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls3.s3_12.Operators_3 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls3.s3_12.Operators_34 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls3.s3_12.Operators_35 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls3.s3_12.Operators_36 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls3.s3_12.Operators_6 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls3.s3_8.Identifiers CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls3.s3_9.Keywords_1 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls3.s3_9.Keywords_10 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls3.s3_9.Keywords_2 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls3.s3_9.Keywords_3 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls3.s3_9.Keywords_4 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls3.s3_9.Keywords_5 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls3.s3_9.Keywords_6 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls3.s3_9.Keywords_8 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls4.s4_12.FinalVariables_1 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls4.s4_12.FinalVariables_2 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls4.s4_12.FinalVariables_3 CORTEX_CONTRACT procedure with a body and a contract
@@ -36,6 +100,11 @@ XFAIL org.strata.jverify.langref.jls4.s4_12.KindsOfVariables_2 CORTEX_CONTRACT p
 XFAIL org.strata.jverify.langref.jls4.s4_12.KindsOfVariables_4 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls4.s4_12.KindsOfVariables_5 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls4.s4_12.ReferenceTypeVariable_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls4.s4_2.IntegerOperations_1 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls4.s4_2.IntegerOperations_2 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls4.s4_2.IntegerOperations_20 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls4.s4_2.IntegerOperations_3 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls4.s4_2.IntegerOperations_ByteArithPromotion CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls4.s4_3.Objects_1 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls4.s4_3.Objects_2 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls4.s4_3.WhenReferenceTypesAreTheSame_1 CORTEX_CONTRACT procedure with a body and a contract
@@ -43,6 +112,8 @@ XFAIL org.strata.jverify.langref.jls4.s4_3.WhenReferenceTypesAreTheSame_2 CORTEX
 XFAIL org.strata.jverify.langref.jls4.s4_4.TypeVariables_2 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls4.s4_8.RawTypes_1 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls4.s4_8.RawTypes_3 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls4.s4_9.IntersectionTypeCast_1 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls4.s4_9.IntersectionTypeCast_2 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls5.s5_1.BoxingConversion_1 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls5.s5_1.BoxingConversion_2 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls5.s5_1.BoxingConversion_4 CORTEX_CONTRACT procedure with a body and a contract
@@ -58,15 +129,30 @@ XFAIL org.strata.jverify.langref.jls5.s5_5.CastingContexts_10 CORTEX_CONTRACT pr
 XFAIL org.strata.jverify.langref.jls5.s5_5.CastingContexts_11 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls5.s5_5.CastingContexts_2 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls5.s5_5.CastingContexts_9 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls5.s5_6.NumericContexts_1 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls5.s5_6.NumericContexts_3 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls5.s5_6.NumericContexts_4 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls5.s5_6.NumericContexts_7 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls6.s6_3.Scope_1 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls6.s6_3.Scope_3 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls6.s6_7.FullyQualified_1 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls8.s8_1.AbstractClass CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls8.s8_1.SealedClass CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls8.s8_1.Superinterfaces CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls8.s8_3.FieldInitialization_1 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls8.s8_3.FieldInitialization_2 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls8.s8_3.FieldInitialization_ReferenceEarlier CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls8.s8_3.FinalField_1 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls8.s8_3.FinalField_2 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls8.s8_3.TransientField_1 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls8.s8_3.VolatileField_2 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls8.s8_4.AbstractMethods CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls8.s8_4.MethodBody_1 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls8.s8_4.MethodBody_2 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls8.s8_4.MethodResult_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls8.s8_4.StaticMethods_1 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls8.s8_4.StaticMethods_2 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls8.s8_4.SynchronizedMethod_1 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls8.s8_8.ConstructorOverloading_1 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls8.s8_8.ConstructorOverloading_2 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls8.s8_8.ConstructorOverloading_3 CORTEX_CONTRACT procedure with a body and a contract
@@ -75,6 +161,10 @@ XFAIL org.strata.jverify.langref.jls8.s8_8.ExplicitConstructorInvocation_1 CORTE
 XFAIL org.strata.jverify.langref.jls8.s8_8.ExplicitConstructorInvocation_2 CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls8.s8_8.PreventingInstantiation CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.langref.jls9.s9_1.GenericInterfaces CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls9.s9_1.Superinterfaces CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_4 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls9.s9_4.InterfaceMethodBody_1 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls9.s9_4.InterfaceMethodBody_2 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.algorithms.Ackermann CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.algorithms.AlignUp CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.algorithms.AlignUpInvalid CORTEX_CONTRACT procedure with a body and a contract
@@ -94,8 +184,12 @@ XFAIL org.strata.jverify.verifier.tests.examples.PostconditionFailure CORTEX_CON
 XFAIL org.strata.jverify.verifier.tests.examples.Postconditions CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.examples.ProcedureCalls CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.examples.WhileLoop CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.interpret.InterpretArithmetic CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.interpret.InterpretCalleePreconditionFails CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.interpret.InterpretCrossFile CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.interpret.InterpretParameterReassignment CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.interpret.InterpretPostconditionFails CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.interpret.InterpretSwitchArmNestedLoop CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.CallToOptedOutOverload CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.InstanceContractsChecked CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.Jequals CORTEX_CONTRACT procedure with a body and a contract
@@ -110,6 +204,7 @@ XFAIL org.strata.jverify.verifier.tests.javasupport.arrays.PrimitiveArrays CORTE
 XFAIL org.strata.jverify.verifier.tests.javasupport.boxing.BoxingRefusals CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.boxing.BoxingVerification CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.classes.AbstractLibraryMethod CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.classes.CascadeDepth3 CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.classes.ConstructorsVerified CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.classes.CrossClassOverloadRefusal CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.classes.FinalReceiverInheritedCall CORTEX_CONTRACT procedure with a body and a contract
@@ -135,13 +230,19 @@ XFAIL org.strata.jverify.verifier.tests.javasupport.exceptions.AllowUncheckedExc
 XFAIL org.strata.jverify.verifier.tests.javasupport.exceptions.ImplicitExceptions CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.exceptions.ThrowsOnContract CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.exceptions.TryCatchFinally CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.exceptions.WishlistCatchUnproducible CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.exceptions.WishlistConstructorData CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.exceptions.uncheckedpkg.PackageLevel CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.ArithmeticOverflow CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.FieldAccessModifies CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.FreshAndOld CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.ImpureNumericOperatorsVerification CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.IncrementDecrement CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.IncrementDecrementField CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.NegatedMinValue CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.OldExpressions CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.PrimitiveCasts CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.VerifyNumericOperators CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.generics.OverrideOfGenericInstantiation CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.generics.PolymorphicStaticsVerification CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.lambdas.LambdaBodyContract CORTEX_CONTRACT procedure with a body and a contract
@@ -149,15 +250,21 @@ XFAIL org.strata.jverify.verifier.tests.javasupport.lambdas.LambdaCapturesThisIn
 XFAIL org.strata.jverify.verifier.tests.javasupport.localClasses.LocalAndAnonymousClasses CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.packages.MultiPackageTest CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.statements.AssertVsCheck CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.statements.BareForLoop CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.statements.BlockScopeReuse CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.statements.GuardCallFrame CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.statements.HoistedNameReuse CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.statements.LeadingBreakGuard CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.statements.LoopCounterSnapshotRefusal CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.statements.LoopHeaderShapes CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.statements.NewInLoopInvariantRefusal CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.statements.ParameterReassignment CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.statements.SwitchArmNestedLoop CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.statements.SwitchDesugaring CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.statements.VerifyBreakContinue CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.jcl.BigIntegerContracts CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.jcl.StringContracts CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.jcl.UnsupportedContractCalls CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.verification.InvariantsAndStaticMethodsInSameClass CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.verification.MethodContractsVerification CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.verification.externalcontracts.InterfaceContractVerification CORTEX_CONTRACT procedure with a body and a contract
@@ -178,6 +285,7 @@ XFAIL org.strata.jverify.verifier.tests.javasupport.generics.GenericNoArgConstru
 XFAIL org.strata.jverify.verifier.tests.javasupport.generics.InferredGenericsForConstructor CORTEX_GENERICS generic composite types
 XFAIL org.strata.jverify.verifier.tests.javasupport.generics.LibraryExceptionTypeArgument CORTEX_GENERICS generic composite types
 XFAIL org.strata.jverify.verifier.tests.javasupport.nestedClasses.NestedPolymorphism CORTEX_GENERICS generic composite types
+XFAIL org.strata.jverify.verifier.tests.javasupport.statements.SelfUpdateOverflow CORTEX_GENERICS generic composite types
 XFAIL org.strata.jverify.verifier.tests.examples.ForLoop CORTEX_LOOP_INVARIANT loop invariants
 XFAIL org.strata.jverify.verifier.tests.javasupport.statements.VerifyDoWhile CORTEX_LOOP_INVARIANT loop invariants
 XFAIL org.strata.jverify.verifier.tests.javasupport.statements.VerifyStatements CORTEX_LOOP_INVARIANT loop invariants
