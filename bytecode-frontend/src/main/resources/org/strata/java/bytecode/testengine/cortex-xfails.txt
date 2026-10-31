@@ -235,6 +235,7 @@ XFAIL org.strata.jverify.verifier.tests.javasupport.exceptions.WishlistConstruct
 XFAIL org.strata.jverify.verifier.tests.javasupport.exceptions.uncheckedpkg.PackageLevel CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.ArithmeticOverflow CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.FieldAccessModifies CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.FieldReceiverEvaluatedOnce CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.FreshAndOld CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.ImpureNumericOperatorsVerification CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.IncrementDecrement CORTEX_CONTRACT procedure with a body and a contract
