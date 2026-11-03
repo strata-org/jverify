@@ -292,7 +292,7 @@ final class SpecCallTranslator {
             }
             call = b.e(new StmtExpr.InstanceCall(
                     b.e(LaurelFactory.reservedVar_(BytecodeToLaurelCompiler.LAUREL_RESULT_BINDING)),
-                    LaurelFactory.ident(name), List.of()));
+                    LaurelFactory.ident(name), List.of(), List.of()));
         }
         if (ctx.method.info != null) {
             ctx.method.info.callees.add(fqn + "#" + name);

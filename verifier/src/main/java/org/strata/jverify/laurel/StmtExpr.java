@@ -253,7 +253,7 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record InstanceCall(AstNode<StmtExpr> target, Identifier callee, java.util.List<AstNode<StmtExpr>> arguments) implements StmtExpr {
+    public record InstanceCall(AstNode<StmtExpr> target, Identifier callee, java.util.List<AstNode<StmtExpr>> arguments, java.util.List<AstNode<HighType>> typeArgs) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -263,6 +263,9 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         var _l2 = ion.newEmptyList();
         for (var e : arguments()) _l2.add(e.toIon(ion));
         sexp.add(_l2);
+        var _l3 = ion.newEmptyList();
+        for (var e : typeArgs()) _l3.add(e.toIon(ion));
+        sexp.add(_l3);
         return sexp;
         }
     }

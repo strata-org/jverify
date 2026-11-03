@@ -2971,7 +2971,7 @@ public class BytecodeToLaurelCompiler {
                 FileRange preRange = pres.isEmpty() ? UNKNOWN_RANGE : pres.get(0).source();
                 preconditions.clear();
                 preconditions.add(new Condition(node(new StmtExpr.InstanceCall(
-                        noRange(new StmtExpr.Var(new Variable.Local(inputs.get(0).name()))), ident(fnName), args),
+                        noRange(new StmtExpr.Var(new Variable.Local(inputs.get(0).name()))), ident(fnName), args, List.of()),
                         preRange), Optional.empty(), new ConditionMode.Both()));
             }
         }

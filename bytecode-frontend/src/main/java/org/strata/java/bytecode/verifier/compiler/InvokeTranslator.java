@@ -88,7 +88,7 @@ final class InvokeTranslator {
                 if (target != null && Constructors.eligible(ocm, target)) {
                     String nm = Constructors.procName(ownerFqn, d);
                     ctx.constructorCalls.add(nm);
-                    b.addStmt(new StmtExpr.InstanceCall(recv, LaurelFactory.ident(nm), args));
+                    b.addStmt(new StmtExpr.InstanceCall(recv, LaurelFactory.ident(nm), args, List.of()));
                 }
                 return;
             }
@@ -142,7 +142,7 @@ final class InvokeTranslator {
                         new org.strata.jverify.laurel.Variable.Declare(new org.strata.jverify.laurel.ParameterOpt(
                                 LaurelFactory.ident(tmp), Optional.empty())), SourceMap.UNKNOWN_RANGE)), alloc));
                 var init = b.e(new StmtExpr.InstanceCall(b.e(LaurelFactory.var_(tmp)), LaurelFactory.ident(nm),
-                        ctorArgs));
+                        ctorArgs, List.of()));
                 AstNode<StmtExpr> nw = b.push(new StmtExpr.Block(List.of(decl, init, b.e(LaurelFactory.var_(tmp))),
                         Optional.empty(), List.of(), Optional.empty()));
                 b.callNodes.add(nw);
@@ -632,7 +632,7 @@ final class InvokeTranslator {
                         Optional.empty(), false, List.of(), Optional.empty(), Optional.empty(), false, List.of(),
                         List.of(), List.of()));
             }
-            AstNode<StmtExpr> call = b.e(new StmtExpr.InstanceCall(recv, LaurelFactory.ident("equals"), args));
+            AstNode<StmtExpr> call = b.e(new StmtExpr.InstanceCall(recv, LaurelFactory.ident("equals"), args, List.of()));
             b.callNodes.add(call);
             finishCall(call, d);
             return true;
@@ -644,7 +644,7 @@ final class InvokeTranslator {
         if (ctx.method.info != null) {
             ctx.method.info.callees.add(sort + "#" + mangled);
         }
-        AstNode<StmtExpr> call = b.e(new StmtExpr.InstanceCall(recv, LaurelFactory.ident(mangled), args));
+        AstNode<StmtExpr> call = b.e(new StmtExpr.InstanceCall(recv, LaurelFactory.ident(mangled), args, List.of()));
         b.callNodes.add(call);
         b.calleeKeys.put(call.val(), Declarations.purityKey(contract.fqn(), target));
         finishCall(call, d);
@@ -723,7 +723,7 @@ final class InvokeTranslator {
         if (member != null) {
             refuseStringValuedArguments(bareName, args, d);
             AstNode<StmtExpr> call = b.e(new StmtExpr.InstanceCall(
-                    recv, LaurelFactory.ident(member.laurelName()), args));
+                    recv, LaurelFactory.ident(member.laurelName()), args, List.of()));
             recordContractCall(member, call, member.sortOrFqn() + "_" + member.laurelName());
             finishCall(call, d, null, member.returnsTypeVar());
             return;
@@ -754,7 +754,7 @@ final class InvokeTranslator {
         if (ctx.method.info != null) {
             ctx.method.info.callees.add(callee.declaringFqn() + "#" + mangled);
         }
-        AstNode<StmtExpr> call = b.e(new StmtExpr.InstanceCall(recv, LaurelFactory.ident(mangled), args));
+        AstNode<StmtExpr> call = b.e(new StmtExpr.InstanceCall(recv, LaurelFactory.ident(mangled), args, List.of()));
         b.callNodes.add(call);
         b.calleeKeys.put(call.val(), Declarations.purityKey(callee.declaringFqn(), callee.method()));
         b.calleeModels.put(call.val(), new BodyTranslator.CalleeRef(callee.declaringFqn(), callee.method()));

@@ -120,7 +120,7 @@ final class LaurelTrees {
             case StmtExpr.AsType n -> new StmtExpr.AsType(rerange(n.target(), range, stop), n.targetType());
             case StmtExpr.IsType n -> new StmtExpr.IsType(rerange(n.target(), range, stop), n.type());
             case StmtExpr.InstanceCall n -> new StmtExpr.InstanceCall(rerange(n.target(), range, stop),
-                    n.callee(), rerangeAll(n.arguments(), range, stop));
+                    n.callee(), rerangeAll(n.arguments(), range, stop), n.typeArgs());
             case StmtExpr.Quantifier n -> new StmtExpr.Quantifier(n.mode(), n.param(),
                     rerange(n.trigger(), range, stop), rerange(n.body(), range, stop));
             case StmtExpr.Assigned n -> new StmtExpr.Assigned(rerange(n.name(), range, stop));
@@ -211,7 +211,7 @@ final class LaurelTrees {
             case StmtExpr.AsType n -> new StmtExpr.AsType(map(n.target(), f), n.targetType());
             case StmtExpr.IsType n -> new StmtExpr.IsType(map(n.target(), f), n.type());
             case StmtExpr.InstanceCall n -> new StmtExpr.InstanceCall(map(n.target(), f),
-                    n.callee(), mapAll(n.arguments(), f));
+                    n.callee(), mapAll(n.arguments(), f), n.typeArgs());
             case StmtExpr.Quantifier n -> new StmtExpr.Quantifier(n.mode(), n.param(),
                     map(n.trigger(), f), map(n.body(), f));
             case StmtExpr.Assigned n -> new StmtExpr.Assigned(map(n.name(), f));

@@ -134,7 +134,7 @@ final class ArrayAccessTranslator {
         b.addStmt(declare(a, arrayType, b.e(new StmtExpr.New(LaurelFactory.ident(ArrayModel.SORT),
                 List.of(LaurelFactory.node(k.carrier()))))));
         AstNode<StmtExpr> lengthCall = b.e(new StmtExpr.InstanceCall(b.e(local(a)),
-                LaurelFactory.ident("length"), List.of()));
+                LaurelFactory.ident("length"), List.of(), List.of()));
         record(length, lengthCall, "length");
         b.addStmt(new StmtExpr.Assume(b.e(LaurelFactory.primitiveOp(new Operation.Eq(), lengthCall, b.e(count)))));
         String i = b.mintTemp();
@@ -142,7 +142,7 @@ final class ArrayAccessTranslator {
                 b.e(LaurelFactory.primitiveOp(new Operation.Leq(), b.e(new StmtExpr.LiteralInt(0)), b.e(local(i)))),
                 b.e(LaurelFactory.primitiveOp(new Operation.Lt(), b.e(local(i)), b.e(count)))));
         AstNode<StmtExpr> getCall = b.e(new StmtExpr.InstanceCall(b.e(local(a)),
-                LaurelFactory.ident("get"), List.of(b.e(local(i)))));
+                LaurelFactory.ident("get"), List.of(b.e(local(i))), List.of()));
         record(get, getCall, "get");
         AstNode<StmtExpr> isZero = b.e(LaurelFactory.primitiveOp(new Operation.Eq(), getCall, b.e(k.zero())));
         b.addStmt(new StmtExpr.Assume(b.e(new StmtExpr.Quantifier(new QuantifierMode.Forall(),
@@ -191,7 +191,7 @@ final class ArrayAccessTranslator {
                                           ArrayModel.ElementKind k, ContractMember get) {
         AstNode<StmtExpr> call;
         if (isLocal(arr)) {
-            call = b.e(new StmtExpr.InstanceCall(arr, LaurelFactory.ident("get"), List.of(index)));
+            call = b.e(new StmtExpr.InstanceCall(arr, LaurelFactory.ident("get"), List.of(index), List.of()));
         } else {
             ctx.lf.registerArrayWrappers();
             call = b.e(new StmtExpr.StaticCall(LaurelFactory.ident(ArrayModel.GET_WRAPPER), List.of(arr, index),
@@ -234,7 +234,7 @@ final class ArrayAccessTranslator {
             receiver = b.e(local(w));
         }
         AstNode<StmtExpr> call = b.e(new StmtExpr.InstanceCall(receiver, LaurelFactory.ident("set"),
-                List.of(index, stored)));
+                List.of(index, stored), List.of()));
         record(set, call, "set");
         b.callNodes.add(call);
         b.addStmt(call.val());
@@ -248,7 +248,7 @@ final class ArrayAccessTranslator {
         ContractMember length = ctx.composites.arrays.member("length");
         AstNode<StmtExpr> call;
         if (isLocal(arr)) {
-            call = b.e(new StmtExpr.InstanceCall(arr, LaurelFactory.ident("length"), List.of()));
+            call = b.e(new StmtExpr.InstanceCall(arr, LaurelFactory.ident("length"), List.of(), List.of()));
         } else {
             ctx.lf.registerArrayWrappers();
             call = b.e(new StmtExpr.StaticCall(LaurelFactory.ident(ArrayModel.LENGTH_WRAPPER), List.of(arr),
@@ -516,7 +516,7 @@ final class ArrayAccessTranslator {
                 var target = rewriteLoads(c.target(), onLoad);
                 var args = rewriteAll(c.arguments(), onLoad);
                 yield target == c.target() && args == c.arguments() ? v
-                        : new StmtExpr.InstanceCall(target, c.callee(), args);
+                        : new StmtExpr.InstanceCall(target, c.callee(), args, c.typeArgs());
             }
             case StmtExpr.IfThenElse c -> {
                 var cond = rewriteLoads(c.cond(), onLoad);
