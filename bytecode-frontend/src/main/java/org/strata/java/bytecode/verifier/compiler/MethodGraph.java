@@ -235,7 +235,7 @@ final class MethodGraph {
      * refused (no diagnostic), so the drop pass removes it. Roots are the
      * non-refused program infos: a verified root follows its callee edges; a
      * quiet root (emitted without its implementation) reaches a library
-     * member whose instance Laurel name, or static {@code owner_name}, is in
+     * member whose instance Laurel name, or static {@code owner::name}, is in
      * its {@link MethodInfo#specCalleeNames}. From there callee edges are
      * followed through non-refused library members. Name matching can only
      * keep a member, never drop a referenced one.
@@ -260,7 +260,7 @@ final class MethodGraph {
                 continue;
             }
             for (var lib : libraryByKey.values()) {
-                String emitted = lib.isStatic ? lib.classFqn + "_" + lib.laurelName : lib.laurelName;
+                String emitted = lib.isStatic ? JavaNames.staticProcedure(lib.classFqn, lib.laurelName) : lib.laurelName;
                 if (info.specCalleeNames.contains(emitted)) {
                     work.add(lib.nameKey());
                 }

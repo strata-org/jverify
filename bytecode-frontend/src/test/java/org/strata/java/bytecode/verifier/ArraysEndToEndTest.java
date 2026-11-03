@@ -539,7 +539,7 @@ class ArraysEndToEndTest {
         assertEquals(1, news.size());
         assertEquals(List.of(new HighType.TInt()), news.get(0).typeArgs().stream().map(AstNode::val).toList());
         assertFalse(fresh[0], "no Fresh");
-        assertFalse(names.stream().anyMatch(n -> n.contains("JArray_create")), names::toString);
+        assertFalse(names.stream().anyMatch(n -> n.contains("JArray::create")), names::toString);
         assertFalse(wrapperCalls.isEmpty());
         for (var c : wrapperCalls) {
             assertEquals(List.of(new HighType.TInt()), c.typeArgs().stream().map(AstNode::val).toList());
@@ -548,7 +548,7 @@ class ArraysEndToEndTest {
         var setTargets = modifiesTargets(procedureNamed(p, "set"));
         assertEquals(1, setTargets.size());
         assertContentsVersion(setTargets.get(0));
-        var fillTargets = modifiesTargets(procedureNamed(p, "Shape_fill"));
+        var fillTargets = modifiesTargets(procedureNamed(p, "Shape::fill"));
         assertEquals(1, fillTargets.size());
         assertContentsVersion(fillTargets.get(0));
         // The JArray composite is generic with the single ghost field.

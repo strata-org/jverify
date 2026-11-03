@@ -113,13 +113,13 @@ class ArrayTranslationTest {
                 }
                 """.formatted(className, methods.indent(4)));
         assertEquals(List.of(expected), t.messages());
-        assertTrue(hasProcedure(t.program(), className + "_ok"), "ok must still translate");
+        assertTrue(hasProcedure(t.program(), className + "::ok"), "ok must still translate");
         assertFalse(hasProcedure(t.program(), refused), refused + " must be refused");
     }
 
     private static void assertStaticRefusal(Path tmp, String className, String methods, String reason)
             throws Exception {
-        assertRefusedBesideOk(tmp, className, methods, className + "_m", "error: " + reason);
+        assertRefusedBesideOk(tmp, className, methods, className + "::m", "error: " + reason);
     }
 
     private static Procedure procedure(LaurelProgram p, String name) {
@@ -163,7 +163,7 @@ class ArrayTranslationTest {
                 }
                 """);
         assertEquals(List.of("error: " + ArrayModel.CONDITIONAL), t.messages());
-        procedure(t.program(), "Cond_ok");
+        procedure(t.program(), "Cond::ok");
     }
 
     @Test
@@ -273,8 +273,8 @@ class ArrayTranslationTest {
                 "error: " + ArrayModel.LOOP_CONDITION_READ,
                 "warning: instance method 'field' was not verified: " + ArrayModel.LOOP_CONDITION_READ),
                 t.messages());
-        assertTrue(hasProcedure(t.program(), "LoopRead_len"));
-        assertTrue(hasProcedure(t.program(), "LoopRead_latch"));
+        assertTrue(hasProcedure(t.program(), "LoopRead::len"));
+        assertTrue(hasProcedure(t.program(), "LoopRead::latch"));
     }
 
     @Test
@@ -295,7 +295,7 @@ class ArrayTranslationTest {
                 }
                 """);
         assertEquals(List.of(), t.messages());
-        assertTrue(hasProcedure(t.program(), "DoWrite_d"));
+        assertTrue(hasProcedure(t.program(), "DoWrite::d"));
     }
 
     @Test
@@ -315,8 +315,8 @@ class ArrayTranslationTest {
                 }
                 """);
         assertEquals(List.of(), t.messages());
-        assertEquals(List.of(new StmtExpr.All()), modifiesTargets(procedure(t.program(), "AllocFrame_inLoop")));
-        assertEquals(List.of(), modifiesTargets(procedure(t.program(), "AllocFrame_once")));
+        assertEquals(List.of(new StmtExpr.All()), modifiesTargets(procedure(t.program(), "AllocFrame::inLoop")));
+        assertEquals(List.of(), modifiesTargets(procedure(t.program(), "AllocFrame::once")));
     }
 
     private static List<StmtExpr> modifiesTargets(Procedure proc) {
@@ -350,7 +350,7 @@ class ArrayTranslationTest {
                 }
                 """);
         assertEquals(List.of("error: " + ArrayModel.CONDITIONAL), t.messages());
-        assertTrue(hasProcedure(t.program(), "DoCont_e"), "without a continue the test runs once per iteration");
+        assertTrue(hasProcedure(t.program(), "DoCont::e"), "without a continue the test runs once per iteration");
     }
 
     @Test
@@ -397,7 +397,7 @@ class ArrayTranslationTest {
                 """);
         assertEquals(List.of("error: " + ArrayModel.NULLABLE, "error: " + ArrayModel.NULLABLE,
                 "warning: instance method 'field' was not verified: " + ArrayModel.NULLABLE), t.messages());
-        procedure(t.program(), "Nulls_ok");
+        procedure(t.program(), "Nulls::ok");
     }
 
     @Test
@@ -412,7 +412,7 @@ class ArrayTranslationTest {
                 }
                 """);
         assertEquals(List.of(), t.messages());
-        assertTrue(procedure(t.program(), "PureAlloc_p").body() instanceof Body.Transparent);
+        assertTrue(procedure(t.program(), "PureAlloc::p").body() instanceof Body.Transparent);
     }
 
     // --- Out-of-scope constructs: one per-method refusal each (design §6) ---
@@ -539,7 +539,7 @@ class ArrayTranslationTest {
                 }
                 """);
         assertEquals(List.of(), t.messages());
-        assertTrue(callsIn(implementation(procedure(t.program(), "SameTernary_m")).get(0),
+        assertTrue(callsIn(implementation(procedure(t.program(), "SameTernary::m")).get(0),
                 ArrayModel.GET_WRAPPER));
     }
 
@@ -612,9 +612,9 @@ class ArrayTranslationTest {
         assertEquals(List.of("error: " + ArrayModel.NO_DEBUG_INFO, "error: " + ArrayModel.NO_DEBUG_INFO),
                 t.messages().stream().filter(m -> !m.contains("input compiled without")).toList());
         // No locals to type: an array method with no slots translates.
-        procedure(t.program(), "Bare_mk");
+        procedure(t.program(), "Bare::mk");
         var baseline = translateWithoutDebugInfo(tmp, "Bare", source, LibraryContracts.none());
-        assertEquals(procedure(baseline.program(), "Bare_plain"), procedure(t.program(), "Bare_plain"));
+        assertEquals(procedure(baseline.program(), "Bare::plain"), procedure(t.program(), "Bare::plain"));
     }
 
     @Test
@@ -643,7 +643,7 @@ class ArrayTranslationTest {
                 """, contracts);
         assertEquals(List.of("error: call to 'abs', which could not be translated: " + ArrayModel.CONTRACT_WRITE),
                 t.messages());
-        procedure(t.program(), "UsesAbs_ok");
+        procedure(t.program(), "UsesAbs::ok");
     }
 
     /** With no contracts the array model is off: every construct keeps its pre-model refusal. */
@@ -676,6 +676,6 @@ class ArrayTranslationTest {
                 "warning: missing contract for method 'arraycopy' in class 'java.lang.System'"),
                 t.messages());
         // A returned lambda allocates its functional interface's sort.
-        procedure(t.program(), "Legacy_ctor");
+        procedure(t.program(), "Legacy::ctor");
     }
 }

@@ -322,6 +322,27 @@ class MainTest {
         assertTrue(r.out().contains("Found 1 errors"), r::toString);
     }
 
+    /** A static method of a default-package class {@code java} is named apart from the cast helper {@code (int) l} calls. */
+    @Test
+    void aStaticMethodIsNamedApartFromTheFrontendsHelpers(@TempDir Path tmp) throws Exception {
+        var r = run(write(tmp, "java.java", """
+                import static org.strata.jverify.JVerify.precondition;
+
+                class java {
+                    static int cast_to_int32_from_int64(long x) {
+                        return 0;
+                    }
+
+                    static int narrow(long l) {
+                        precondition(l == 0);
+                        return (int) l;
+                    }
+                }
+                """).toString());
+        assertEquals(0, r.exitCode(), r::toString);
+        assertTrue(r.out().contains("Verified methods: 3"), r::toString);
+    }
+
     private static final String MIXED = """
             package p;
 

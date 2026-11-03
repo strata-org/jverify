@@ -59,7 +59,7 @@ final class Declarations {
 
     /** The per-overload key of {@code m} declared in {@code fqn}: its name plus its erased descriptor. */
     static String purityKey(String fqn, java.lang.classfile.MethodModel m) {
-        return fqn + "_" + m.methodName().stringValue() + m.methodTypeSymbol().descriptorString();
+        return fqn + "#" + m.methodName().stringValue() + m.methodTypeSymbol().descriptorString();
     }
 
     /** True iff the method behind {@link #purityKey} is annotated @Transparent. */

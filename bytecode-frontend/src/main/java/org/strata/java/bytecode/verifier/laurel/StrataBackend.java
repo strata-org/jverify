@@ -99,9 +99,9 @@ public class StrataBackend {
         return runVerifier(positions, methodStatuses, serializedProgram);
     }
 
-    /** The Laurel procedure that the user-facing {@code pkg.Class#method} names: {@code pkg.Class_method}. */
+    /** The Laurel procedure that the user-facing {@code pkg.Class#method} names: {@code pkg.Class::method}. */
     static String entryProcedure(String entry) {
-        return entry.replace('#', '_');
+        return entry.replace("#", "::");
     }
 
     /**

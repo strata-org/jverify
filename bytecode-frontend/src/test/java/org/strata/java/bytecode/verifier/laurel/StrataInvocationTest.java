@@ -36,7 +36,7 @@ class StrataInvocationTest {
     @Test
     void interpretationPassesEntryFuelAndInterpreter() {
         var invocation = StrataBackend.Invocation.of(options(true, "p.C#m", 7, "laurel", null));
-        assertEquals(List.of("strataLaurel", "laurelInterpretBinary", "--entry", "p.C_m", "--fuel", "7",
+        assertEquals(List.of("strataLaurel", "laurelInterpretBinary", "--entry", "p.C::m", "--fuel", "7",
                 "--interpreter", "laurel"), invocation.command());
         assertNull(invocation.directory());
         assertEquals(List.of("strataLaurel", "laurelInterpretBinary",
@@ -48,7 +48,7 @@ class StrataInvocationTest {
     void aStrataProjectDirectoryRunsLakeExeInItsStrataCli() {
         var project = Path.of("/work/Strata");
         var interpret = StrataBackend.Invocation.of(options(true, "p.C#m", null, "core", project));
-        assertEquals(List.of("lake", "exe", "-q", "strata", "laurelInterpretBinary", "--entry", "p.C_m",
+        assertEquals(List.of("lake", "exe", "-q", "strata", "laurelInterpretBinary", "--entry", "p.C::m",
                 "--interpreter", "core",
                 "--skip-phases", "CoroutineElaboration,YieldElim"),
                 interpret.command());

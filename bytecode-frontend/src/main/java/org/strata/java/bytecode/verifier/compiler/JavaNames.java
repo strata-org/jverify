@@ -11,6 +11,14 @@ final class JavaNames {
     private JavaNames() {
     }
 
+    /**
+     * The Laurel procedure of static method {@code name} of {@code ownerFqn}. {@code :} appears in no Java
+     * identifier and in no name the frontend or Strata generates, so no two procedures share a name.
+     */
+    static String staticProcedure(String ownerFqn, String name) {
+        return ownerFqn + "::" + name;
+    }
+
     /** A JVM internal ({@code pkg/Outer$Inner}) or binary ({@code pkg.Outer$Inner}) name as a dotted fqn. */
     static String dottedFqn(String internalOrBinary) {
         return internalOrBinary.replace('/', '.').replace('$', '.');

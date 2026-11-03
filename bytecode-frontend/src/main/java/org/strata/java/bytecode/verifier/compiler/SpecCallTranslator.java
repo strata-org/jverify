@@ -285,7 +285,7 @@ final class SpecCallTranslator {
             } else {
                 return null;
             }
-            call = b.e(new StmtExpr.StaticCall(LaurelFactory.ident(fqn + "_" + name), args, List.of()));
+            call = b.e(new StmtExpr.StaticCall(LaurelFactory.ident(JavaNames.staticProcedure(fqn, name)), args, List.of()));
         } else {
             if (arity != 0 || !resultBinder) {
                 return null;

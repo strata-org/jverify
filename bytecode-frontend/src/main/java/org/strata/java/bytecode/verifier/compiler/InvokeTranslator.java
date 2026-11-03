@@ -379,7 +379,7 @@ final class InvokeTranslator {
         if (ownerInternal.startsWith("org/strata/jverify/")) {
             return false;
         }
-        var sb = new StringBuilder(ownerFqn).append('_').append(bareName);
+        var sb = new StringBuilder(JavaNames.staticProcedure(ownerFqn, bareName));
         for (var pt : d.parameterList()) {
             sb.append(ClassResolver.MANGLE_SEPARATOR).append(ClassResolver.erasedTypeName(pt));
         }
@@ -515,9 +515,9 @@ final class InvokeTranslator {
                     : ctx.contracts.lookupStatic(ownerInternal, bareName, d);
             if (cm != null && !typeVarArgumentTrips(cm, args, d)) {
                 refuseStringValuedArguments(bareName, args, d);
-                String procName = cm.sortOrFqn() + "_" + cm.laurelName();
+                String procName = JavaNames.staticProcedure(cm.sortOrFqn(), cm.laurelName());
                 AstNode<StmtExpr> call = b.e(new StmtExpr.StaticCall(LaurelFactory.ident(procName), args, List.of()));
-                recordContractCall(cm, call, procName);
+                recordContractCall(cm, call, cm.sortOrFqn() + "_" + cm.laurelName());
                 finishCall(call, d, null, cm.returnsTypeVar());
                 return;
             }
@@ -574,7 +574,7 @@ final class InvokeTranslator {
             args = unifyTypeVariableArgs(bound, args);
         }
         AstNode<StmtExpr> call = b.e(new StmtExpr.StaticCall(
-                LaurelFactory.ident(fqn + "_" + mangled), args, List.of()));
+                LaurelFactory.ident(JavaNames.staticProcedure(fqn, mangled)), args, List.of()));
         b.callNodes.add(call);
         // An unresolved (library) callee gets a key no purity entry matches, so it
         // reads as impure -- the conservative side of the heap-write fallback.

@@ -604,7 +604,7 @@ public class BytecodeToLaurelCompiler {
         ctx.beginMethod(info);
         var signature = buildSignature(m.sortOrFqn(), cm, mm, null, m.isStatic(), typeParams, methodTypeParams);
         refuseUnfixedTypeParams(methodTypeParams, signature.inputs());
-        String name = m.isStatic() ? m.sortOrFqn() + "_" + m.laurelName() : m.laurelName();
+        String name = m.isStatic() ? JavaNames.staticProcedure(m.sortOrFqn(), m.laurelName()) : m.laurelName();
         var proc = new Procedure(
                 ident(name),
                 methodTypeParams.stream().map(LaurelFactory::ident).toList(),
@@ -2665,7 +2665,7 @@ public class BytecodeToLaurelCompiler {
         String procName = member != null ? member.laurelName()
                 : isCtor || translatingRelocatedContract
                         ? info.laurelName : bareName + resolver.overloadSuffix(classFqn, m);
-        String methodName = isStatic ? classFqn + "_" + procName : procName;
+        String methodName = isStatic ? JavaNames.staticProcedure(classFqn, procName) : procName;
 
         var mt = m.methodTypeSymbol();
         if (isInterpretEntry && mt.parameterCount() > 0) {
