@@ -7,6 +7,7 @@ import org.strata.jverify.laurel.IncrDecrMode;
 import org.strata.jverify.laurel.IncrDecrOp;
 import org.strata.jverify.laurel.Operation;
 import org.strata.jverify.laurel.ParameterOpt;
+import org.strata.jverify.laurel.GotoDestination;
 import org.strata.jverify.laurel.StmtExpr;
 import org.strata.jverify.laurel.Variable;
 
@@ -103,8 +104,6 @@ final class BodyTranslator {
     Set<Integer> loadedSlots = Set.of();
     /** Reference locals some store fills with a value read from the heap ({@link #heapReadSlots}). */
     Set<String> heapReadSlots = Set.of();
-    int pendingIncSlot = -1;                 // deferred mid-expression iinc (prefix ++x)
-    int pendingIncDelta;
     Map<Integer, List<java.lang.classfile.Annotation>> slotTypeAnnos = Map.of();
     List<org.strata.java.bytecode.frontend.MethodBody.SlotRange> impureLocals = List.of();
 
@@ -138,9 +137,6 @@ final class BodyTranslator {
     final Set<AstNode<StmtExpr>> stringLiterals = Collections.newSetFromMap(new IdentityHashMap<>());
     /** Results of string concatenation ({@code invokedynamic makeConcatWithConstants}). */
     final Set<AstNode<StmtExpr>> stringConcatResults = Collections.newSetFromMap(new IdentityHashMap<>());
-    /** 3-way compare result -> its two operands (for rebuilding `a <op> b`). */
-    final Map<AstNode<StmtExpr>, AstNode<StmtExpr>[]> cmp3 = new IdentityHashMap<>();
-    final Map<AstNode<StmtExpr>, Boolean> cmp3NanHigh = new IdentityHashMap<>();
     /** NEW-instruction marker -> internal class name (bridges NEW..invokespecial). */
     final Map<AstNode<StmtExpr>, String> pendingNew = new IdentityHashMap<>();
     /**
@@ -270,28 +266,6 @@ final class BodyTranslator {
         return "t$" + (++synthCounter);
     }
 
-    /**
-     * True iff evaluating {@code n} has no effect and reads no heap: a
-     * local, a literal, a pending {@code new} marker, or a primitive
-     * operator over such operands. Array statements may be emitted while only
-     * such values are pending on the stack, because no statement can change
-     * them.
-     */
-    boolean isSimple(AstNode<StmtExpr> n) {
-        return switch (n.val()) {
-            case StmtExpr.Var v -> v.var_() instanceof Variable.Local;
-            case StmtExpr.LiteralInt i -> true;
-            case StmtExpr.LiteralBool lb -> true;
-            case StmtExpr.LiteralString s -> pendingNew.containsKey(n);
-            // Checked arithmetic helpers are pure and heap-free, exactly
-            // like the $-operators they replaced; without this, an
-            // arithmetic array index (`a[i + 1] += 1`) stops being simple.
-            case StmtExpr.StaticCall c -> (LaurelFactory.isOperationProcName(c.callee().text())
-                    || LaurelFactory.arithHelperOp(c.callee().text()) != null)
-                    && c.arguments().stream().allMatch(this::isSimple);
-            default -> false;
-        };
-    }
 
     /**
      * Refuse a specification argument that mentions an array allocation's
@@ -300,6 +274,13 @@ final class BodyTranslator {
      */
     void refuseAllocTempMention(AstNode<StmtExpr> n) {
         if (allocTemps.isEmpty() || n == null) {
+            return;
+        }
+        if (isStackRead(n)) {
+            AstNode<StmtExpr> o = origin(n);
+            if (o != n) {
+                refuseAllocTempMention(o);
+            }
             return;
         }
         if (n.val() instanceof StmtExpr.Var v && v.var_() instanceof Variable.Local l
@@ -363,6 +344,205 @@ final class BodyTranslator {
         AstNode<StmtExpr> n = e(v);
         stack.push(n);
         return n;
+    }
+
+    private final Map<StmtExpr, AstNode<StmtExpr>> pushOf = new IdentityHashMap<>();
+    private final Map<StmtExpr, AstNode<StmtExpr>> spillOrigin = new IdentityHashMap<>();
+    boolean spilling = true;
+
+    static long countStackReads(AstNode<StmtExpr> n) {
+        long[] count = {0};
+        LaurelTrees.map(n, x -> {
+            count[0] += isStackRead(x) ? 1 : 0;
+            return x;
+        });
+        return count[0];
+    }
+
+    static boolean isStackRead(AstNode<StmtExpr> n) {
+        return n.val() instanceof StmtExpr.Var v && v.var_() instanceof Variable.Stack;
+    }
+
+    static AstNode<StmtExpr> stackRead(FileRange src) {
+        return new AstNode<>(new StmtExpr.Var(new Variable.Stack(Optional.empty())), src);
+    }
+
+    boolean held(AstNode<StmtExpr> n) {
+        return switch (n.val()) {
+            case StmtExpr.LiteralInt x -> true;
+            case StmtExpr.LiteralBool x -> true;
+            case StmtExpr.LiteralString x -> true;
+            case StmtExpr.LiteralDecimal x -> true;
+            case StmtExpr.LiteralBv x -> true;
+            case StmtExpr.This x -> true;
+            case StmtExpr.All x -> true;
+            case StmtExpr.StaticCall c when c.callee().text().equals("$neg") && c.arguments().size() == 1
+                    && held(c.arguments().get(0)) -> true;
+            case StmtExpr.Var v when v.var_() instanceof Variable.Stack -> true;
+            case StmtExpr.Var v when v.var_() instanceof Variable.Local l
+                    && l.name().text().equals(LaurelFactory.LAUREL_SELF_BINDING) -> true;
+            default -> deferredRefusal.containsKey(n) || ctx.method.statementNodes.contains(n);
+        };
+    }
+
+    void settle() {
+        if (!spilling || stack.isEmpty()) {
+            return;
+        }
+        var entries = new ArrayList<>(stack);
+        Collections.reverse(entries);
+        spillFrom(entries, 0);
+    }
+
+    void settleInto(List<AstNode<StmtExpr>> out) {
+        int mark = stmts.size();
+        settle();
+        out.addAll(stmts.subList(mark, stmts.size()));
+        stmts.subList(mark, stmts.size()).clear();
+    }
+
+    private void spillFrom(List<AstNode<StmtExpr>> entries, int floor) {
+        for (int i = floor; i < entries.size(); i++) {
+            AstNode<StmtExpr> n = entries.get(i);
+            if (!held(n)) {
+                entries.set(i, pushValue(n));
+            }
+        }
+        stack.clear();
+        for (AstNode<StmtExpr> entry : entries) {
+            stack.push(entry);
+        }
+    }
+
+    AstNode<StmtExpr> origin(AstNode<StmtExpr> n) {
+        AstNode<StmtExpr> o = isStackRead(n) ? spillOrigin.get(n.val()) : null;
+        return o == null ? n : origin(o);
+    }
+
+    final Set<AstNode<StmtExpr>> implicitGuards = Collections.newSetFromMap(new IdentityHashMap<>());
+
+    boolean isContractStep(AstNode<StmtExpr> s) {
+        return isContractStep(s, Set.of());
+    }
+
+    private boolean isContractStep(AstNode<StmtExpr> s, Set<String> labels) {
+        return switch (s.val()) {
+            case StmtExpr.IfThenElse i when implicitGuards.contains(s) -> true;
+            case StmtExpr.IfThenElse i -> isContractStep(i.thenBranch(), labels)
+                    && i.elseBranch().map(e -> isContractStep(e, labels)).orElse(true);
+            case StmtExpr.Block b -> {
+                Set<String> inner = b.label().map(l -> {
+                    var all = new java.util.HashSet<>(labels);
+                    all.add(l);
+                    return (Set<String>) all;
+                }).orElse(labels);
+                yield b.invariants().isEmpty() && b.decreases().isEmpty()
+                        && b.statements().stream().allMatch(x -> isContractStep(x, inner));
+            }
+            case StmtExpr.Goto g -> g.destination() instanceof GotoDestination.BlockEnd && labels.contains(g.target());
+            case StmtExpr.Assign a when a.targets().size() == 1
+                    && a.targets().get(0).val() instanceof Variable.Declare d -> isMintedName(d.parameter().name().text());
+            default -> isPush(s);
+        };
+    }
+
+    private static boolean isMintedName(String name) {
+        return name.startsWith("t$") || name.contains("?");
+    }
+
+    List<AstNode<StmtExpr>> contractPrefix(List<AstNode<StmtExpr>> steps) {
+        return steps.stream().filter(s -> !implicitGuards.contains(s)).map(this::withoutGuards).toList();
+    }
+
+    private AstNode<StmtExpr> withoutGuards(AstNode<StmtExpr> s) {
+        return switch (s.val()) {
+            case StmtExpr.IfThenElse i when i.elseBranch().isPresent() -> new AstNode<>(new StmtExpr.IfThenElse(
+                    i.cond(), withoutGuards(i.thenBranch()), Optional.of(withoutGuards(i.elseBranch().get()))),
+                    s.source());
+            case StmtExpr.Block b -> new AstNode<>(new StmtExpr.Block(contractPrefix(b.statements()), b.label(),
+                    b.invariants(), b.decreases()), s.source());
+            default -> s;
+        };
+    }
+
+    static AstNode<StmtExpr> pushedBefore(AstNode<StmtExpr> pushed, AstNode<StmtExpr> value) {
+        return withPrefix(List.of(new AstNode<>(new StmtExpr.Assign(List.of(new AstNode<Variable>(
+                new Variable.Stack(Optional.empty()), pushed.source())), pushed), pushed.source())), value);
+    }
+
+    static AstNode<StmtExpr> withPrefix(List<AstNode<StmtExpr>> prefix, AstNode<StmtExpr> value) {
+        if (prefix.isEmpty()) {
+            return value;
+        }
+        var all = new ArrayList<>(prefix);
+        if (value.val() instanceof StmtExpr.Block b && b.label().isEmpty() && b.invariants().isEmpty()
+                && b.decreases().isEmpty()) {
+            all.addAll(b.statements());
+        } else {
+            all.add(value);
+        }
+        return new AstNode<>(new StmtExpr.Block(all, Optional.empty(), List.of(), Optional.empty()), value.source());
+    }
+
+    static boolean isPush(AstNode<StmtExpr> s) {
+        return s.val() instanceof StmtExpr.Assign a && !a.targets().isEmpty()
+                && a.targets().stream().allMatch(t -> t.val() instanceof Variable.Stack);
+    }
+
+    AstNode<StmtExpr> unspill(AstNode<StmtExpr> n) {
+        if (isStackRead(n)) {
+            AstNode<StmtExpr> origin = spillOrigin.get(n.val());
+            AstNode<StmtExpr> push = pushOf.get(n.val());
+            if (origin == null || push == null || !stmts.removeIf(x -> x == push)) {
+                return n;
+            }
+            return unspill(origin);
+        }
+        AstNode<StmtExpr> done = LaurelTrees.map(n, x -> isStackRead(x) ? unspill(x) : x);
+        if (done != n) {
+            transfer(n, done);
+        }
+        return done;
+    }
+
+    AstNode<StmtExpr> pushValue(AstNode<StmtExpr> n) {
+        if (isStackRead(n)) {
+            return n;
+        }
+        addStmt(new StmtExpr.Assign(List.of(new AstNode<Variable>(new Variable.Stack(Optional.empty()), n.source())), n));
+        AstNode<StmtExpr> read = stackRead(n.source());
+        transfer(n, read);
+        pushOf.put(read.val(), stmts.get(stmts.size() - 1));
+        spillOrigin.put(read.val(), n);
+        return read;
+    }
+
+    private void transfer(AstNode<StmtExpr> from, AstNode<StmtExpr> to) {
+        String d = descOf.get(from);
+        if (d != null) {
+            descOf.put(to, d);
+        }
+        TypeRef t = staticTypeOf.get(from);
+        if (t != null) {
+            staticTypeOf.put(to, t);
+        }
+        for (Set<AstNode<StmtExpr>> facts : List.of(bools, typeVarValues, impureValues, stringLiterals,
+                stringConcatResults, untypedLoads, callNodes, heapReadValues, unboundedResults)) {
+            if (facts.contains(from)) {
+                facts.add(to);
+            }
+        }
+        String key = calleeKeys.get(from.val());
+        if (key != null) {
+            calleeKeys.put(to.val(), key);
+        }
+        if (erasedResults.contains(from.val())) {
+            erasedResults.add(to.val());
+        }
+        CalleeRef ref = calleeModels.get(from.val());
+        if (ref != null) {
+            calleeModels.put(to.val(), ref);
+        }
     }
 
     void noteDesc(AstNode<StmtExpr> n, String desc) {
@@ -469,6 +649,19 @@ final class BodyTranslator {
         }
         if (n.val() instanceof StmtExpr.StaticCall c && c.callee().text().startsWith(BoxModel.BOX_HELPER_PREFIX)) {
             throw new JavaViolationException("boxing inside a contract is not yet supported");
+        }
+    }
+
+    void checkContractCode(AstNode<StmtExpr> n) {
+        switch (n.val()) {
+            case StmtExpr.Block b when b.label().isEmpty() -> b.statements().forEach(this::checkContractCode);
+            case StmtExpr.IfThenElse i -> {
+                checkContractArg(i.cond());
+                checkContractCode(i.thenBranch());
+                i.elseBranch().ifPresent(this::checkContractCode);
+            }
+            case StmtExpr.Assign a when isPush(n) -> checkContractArg(a.value());
+            default -> checkContractArg(n);
         }
     }
 
@@ -605,6 +798,7 @@ final class BodyTranslator {
             AstNode<StmtExpr> placed = place(t, range);
             stmtSeq.put(placed, seqIdx);
             stmts.add(placed);
+            implicitGuards.add(placed);
         }
         AstNode<StmtExpr> placed = place(raw, range);
         stmtSeq.put(placed, seqIdx);
@@ -826,10 +1020,16 @@ final class BodyTranslator {
                 noteDesc(n, "Ljava/lang/String;");
                 stringLiterals.add(n);
             }
-            case Float f -> defer(push(new StmtExpr.LiteralString("float " + f)),
-                    "Unsupported expression: DoubleLiteralExpr");
-            case Double d -> defer(push(new StmtExpr.LiteralString("double " + d)),
-                    "Unsupported expression: DoubleLiteralExpr");
+            case Float f -> {
+                AstNode<StmtExpr> n = push(new StmtExpr.LiteralString("float " + f));
+                noteDesc(n, "F");
+                defer(n, "Unsupported expression: DoubleLiteralExpr");
+            }
+            case Double d -> {
+                AstNode<StmtExpr> n = push(new StmtExpr.LiteralString("double " + d));
+                noteDesc(n, "D");
+                defer(n, "Unsupported expression: DoubleLiteralExpr");
+            }
             case java.lang.constant.ClassDesc cd -> defer(push(new StmtExpr.LiteralString("class")),
                     "Unsupported expression: ClassExpr");
             default -> defer(push(new StmtExpr.LiteralString(String.valueOf(v))),
@@ -854,15 +1054,6 @@ final class BodyTranslator {
 
     /** LOAD: push the named local (applying renames; {@code this} -> self?). */
     void load(LoadInstruction li) {
-        if (pendingIncSlot == li.slot()) {
-            int c = pendingIncDelta;
-            pendingIncSlot = -1;
-            AstNode<StmtExpr> n = push(new StmtExpr.IncrDecr(new IncrDecrMode.Pre(),
-                    c > 0 ? (IncrDecrOp) new IncrDecrOp.Incr() : new IncrDecrOp.Decr(),
-                    localVarTarget(li.slot())));
-            noteDesc(n, localDesc(li.slot()));
-            return;
-        }
         String name = localName(li.slot());
         AstNode<StmtExpr> n = localVar(name);
         CatchCast cast = catchCasts.get(li.slot());
@@ -950,9 +1141,6 @@ final class BodyTranslator {
                 slotType.put(si.slot(), vd);
             }
         }
-        if (asIncrementExpr(si.slot(), val)) {
-            return;
-        }
         if (declared.add(varKey(si.slot()))) {
             // First store to the slot: a local declaration.
             String nm = localName(si.slot());
@@ -971,115 +1159,11 @@ final class BodyTranslator {
         }
     }
 
-    /** IINC: postfix absorb, prefix defer, else a compound-assignment statement. */
+    /** IINC: a compound-assignment statement. */
     void increment(IncrementInstruction ii) {
-        String nm = localName(ii.slot());
         int c = ii.constant();
-        if ((c == 1 || c == -1) && replaceStackedRead(nm, c > 0)) {
-            return;
-        }
-        if ((c == 1 || c == -1) && !stack.isEmpty()) {
-            pendingIncSlot = ii.slot();
-            pendingIncDelta = c;
-            return;
-        }
         addStmt(new StmtExpr.CompoundAssign(c >= 0 ? new Operation.Add() : new Operation.Sub(),
                 localVarTarget(ii.slot()), e(new StmtExpr.LiteralInt(Math.abs(c)))));
-    }
-
-    /** Emit a deferred mid-expression iinc as the statement it would have been. */
-    void drainPendingInc() {
-        if (pendingIncSlot < 0) {
-            return;
-        }
-        int slot = pendingIncSlot;
-        int c = pendingIncDelta;
-        pendingIncSlot = -1;
-        addStmt(new StmtExpr.CompoundAssign(c >= 0 ? new Operation.Add() : new Operation.Sub(),
-                localVarTarget(slot), e(new StmtExpr.LiteralInt(Math.abs(c)))));
-    }
-
-    /** Replace an unconsumed stacked read of {@code nm} with a postfix inc/dec. */
-    boolean replaceStackedRead(String nm, boolean inc) {
-        if (stack.isEmpty()) {
-            return false;
-        }
-        AstNode<StmtExpr> top = stack.peek();
-        String laurelName = nm.equals("this")
-                ? LaurelFactory.LAUREL_SELF_BINDING : LaurelFactory.laurelLocalName(ctx.method.renames, nm);
-        if (!(top.val() instanceof StmtExpr.Var var)
-                || !(var.var_() instanceof Variable.Local local)
-                || !local.name().text().equals(laurelName)) {
-            return false;
-        }
-        AstNode<StmtExpr> old = stack.pop();
-        AstNode<StmtExpr> n = push(new StmtExpr.IncrDecr(new IncrDecrMode.Post(),
-                inc ? (IncrDecrOp) new IncrDecrOp.Incr() : new IncrDecrOp.Decr(),
-                new AstNode<>(new Variable.Local(LaurelFactory.ident(laurelName)), SourceMap.UNKNOWN_RANGE)));
-        String d = descOf.get(old);
-        if (d != null) {
-            noteDesc(n, d);
-        }
-        return true;
-    }
-
-    /**
-     * Recover {@code x++} / {@code ++x} from a store whose value updates the
-     * same slot by one while a value is still live on the stack (the local
-     * case of {@link #asIncrementExprOn}).
-     */
-    boolean asIncrementExpr(int slot, AstNode<StmtExpr> val) {
-        return asIncrementExprOn(localVarTarget(slot), val);
-    }
-
-    boolean asIncrementExprOn(AstNode<Variable> target, AstNode<StmtExpr> val) {
-        int step = selfUpdateStep(target, val);
-        if (step == 0 || stack.isEmpty()) {
-            return false;
-        }
-        AstNode<StmtExpr> targetAsExpr = e(new StmtExpr.Var(target.val()));
-        boolean post = LaurelTrees.structuralEquals(stack.peek(), targetAsExpr);
-        if (!post && !LaurelTrees.structuralEquals(stack.peek(), val)) {
-            return false;
-        }
-        AstNode<StmtExpr> old = stack.pop();
-        AstNode<StmtExpr> n = push(new StmtExpr.IncrDecr(
-                post ? new IncrDecrMode.Post() : new IncrDecrMode.Pre(),
-                step > 0 ? (IncrDecrOp) new IncrDecrOp.Incr() : new IncrDecrOp.Decr(),
-                target));
-        String d = descOf.get(old);
-        if (d != null) {
-            noteDesc(n, d);
-        }
-        return true;
-    }
-
-    /** +1/-1 if val is target ± 1 (allowing a byte/short/char narrowing cast). */
-    private int selfUpdateStep(AstNode<Variable> target, AstNode<StmtExpr> val) {
-        StmtExpr v = val.val();
-        // A narrowing conversion wraps the update in a cast, modeled as a
-        // $cast_to_* helper call at conversion time, so the raw update
-        // shape here is the $add/$sub StaticCall itself.
-        if (!(v instanceof StmtExpr.StaticCall call) || call.arguments().size() != 2) {
-            return 0;
-        }
-        // Bounded ints update via the checked java?add_/java?sub_ helpers,
-        // @Unbounded ones via the plain ops; both are the self-update shape.
-        // The IncrDecr this becomes is overflow-checked by the assignment
-        // constraint after Strata eliminates it (SelfUpdateOverflow pins
-        // this for local, field, long and array-element targets).
-        String proc = call.callee().text();
-        Operation helperOp = LaurelFactory.arithHelperOp(proc);
-        boolean plus = proc.equals("$add") || helperOp instanceof Operation.Add;
-        if (!plus && !proc.equals("$sub") && !(helperOp instanceof Operation.Sub)) {
-            return 0;
-        }
-        AstNode<StmtExpr> targetAsExpr = e(new StmtExpr.Var(target.val()));
-        if (!LaurelTrees.structuralEquals(call.arguments().get(0), targetAsExpr)) {
-            return 0;
-        }
-        return call.arguments().get(1).val() instanceof StmtExpr.LiteralInt one && one.value() == 1
-                ? (plus ? 1 : -1) : 0;
     }
 
     // --- Operators (arithmetic, comparison and boolean ops) ---
@@ -1160,6 +1244,10 @@ final class BodyTranslator {
      * escape hatch is binding it to an {@code @Unbounded} local first.
      */
     boolean isUnboundedInt(AstNode<StmtExpr> n) {
+        AstNode<StmtExpr> origin = isStackRead(n) ? spillOrigin.get(n.val()) : null;
+        if (origin != null && origin != n && isUnboundedInt(origin)) {
+            return true;
+        }
         TypeRef t = staticTypeOf.get(n);
         if (t != null && t.isUnbounded()) {
             return true;
@@ -1214,13 +1302,9 @@ final class BodyTranslator {
     final Map<AstNode<StmtExpr>, ImplicitThrow> implicitThrows = new IdentityHashMap<>();
 
     /**
-     * The explicit {@code if (condition) { throw new E }} statements to place
-     * immediately before statement {@code root}, one per implicit throw that
-     * Java evaluates before anything else can have an effect, in evaluation
-     * order: first those of the operands still on the stack -- Java evaluated
-     * them before {@code root} even if a later statement consumes them
-     * ({@code a / b + (x = 5)} emits {@code x = 5} first) -- then those of
-     * {@code root}. Each implicit throw is decided once, here. Laurel then
+     * The explicit {@code if (condition) { throw new E }} statement to place
+     * immediately before statement {@code root}, for the implicit throw of the
+     * operation {@code root} pushes. Each implicit throw is decided once, here. Laurel then
      * treats each as a real throw: an error only if it is reachable and not
      * caught.
      *
@@ -1237,109 +1321,46 @@ final class BodyTranslator {
      *       value arm, a loop header, a boolean region past its first test),
      *       where a statement would land in an expression block or run at the
      *       wrong time;</li>
-     *   <li>after a call or allocation in the same statement, whose effect
-     *       Java performs before the throw;</li>
      *   <li>when the exception would leave a method whose {@code throws}
      *       clause does not cover it, and no enclosing {@code catch} does
      *       (Laurel rejects that escape statically).</li>
      * </ul>
-     * Once one implicit throw stays implicit, every later one in the statement
-     * does too, so the explicit throws never run ahead of an earlier check.
      */
     List<AstNode<StmtExpr>> explicitImplicitThrows(AstNode<StmtExpr> root) {
         if (ctx.method.inContract || ctx.method.pure || inConditional()
                 || root.val() instanceof StmtExpr.Assert || root.val() instanceof StmtExpr.Assume) {
             return List.of();
         }
-        var found = new ArrayList<ImplicitThrow>();
-        boolean[] blocked = {false};
-        for (AstNode<StmtExpr> pending : stack.reversed()) {
-            collectImplicitThrows(pending, found, blocked);
-        }
-        collectImplicitThrows(root, found, blocked);
+        ImplicitThrow found = implicitThrows.remove(root.val() instanceof StmtExpr.Assign a ? a.value() : root);
         var out = new ArrayList<AstNode<StmtExpr>>();
-        for (ImplicitThrow t : found) {
+        if (found != null && mayThrowHere(found.exceptionFqn())) {
+            ImplicitThrow t = found;
             ctx.composites.registerHierarchyUpToThrowable(t.exceptionFqn());
-            AstNode<StmtExpr> thrown = e(new StmtExpr.Throw(
-                    e(new StmtExpr.New(LaurelFactory.ident(t.exceptionFqn()), List.of()))));
-            out.add(e(new StmtExpr.IfThenElse(t.condition(),
-                    e(new StmtExpr.Block(List.of(thrown), Optional.empty(), List.of(), Optional.empty())), Optional.empty())));
-        }
-        return out;
-    }
-
-    /** Post-order (evaluation order) walk of the unconditionally evaluated nodes. */
-    private void collectImplicitThrows(AstNode<StmtExpr> n, List<ImplicitThrow> out, boolean[] blocked) {
-        for (AstNode<StmtExpr> c : unconditionalChildren(n.val())) {
-            collectImplicitThrows(c, out, blocked);
-        }
-        ImplicitThrow t = implicitThrows.remove(n);
-        if (t != null) {
-            if (!blocked[0] && mayThrowHere(t.exceptionFqn())) {
-                out.add(t);
-            } else {
-                blocked[0] = true;
-            }
-        }
-        if (!isEffectFree(n.val())) {
-            blocked[0] = true;
-        }
-    }
-
-    /** The children Java always evaluates, in evaluation order. */
-    private static List<AstNode<StmtExpr>> unconditionalChildren(StmtExpr v) {
-        return switch (v) {
-            case StmtExpr.StaticCall sc -> isShortCircuit(sc) && !sc.arguments().isEmpty()
-                    ? List.of(sc.arguments().get(0)) : sc.arguments();
-            case StmtExpr.InstanceCall ic -> {
-                var l = new ArrayList<AstNode<StmtExpr>>();
-                l.add(ic.target());
-                l.addAll(ic.arguments());
-                yield l;
-            }
-            case StmtExpr.Var var when var.var_() instanceof Variable.Field f -> List.of(f.target());
-            case StmtExpr.ReferenceEquals r -> List.of(r.lhs(), r.rhs());
-            case StmtExpr.AsType a -> List.of(a.target());
-            case StmtExpr.IsType i -> List.of(i.target());
-            case StmtExpr.IfThenElse i -> List.of(i.cond());
-            case StmtExpr.Assign a -> {
-                var l = new ArrayList<AstNode<StmtExpr>>();
-                for (var t : a.targets()) {
-                    if (t.val() instanceof Variable.Field f) {
-                        l.add(f.target());
+            AstNode<StmtExpr> exception = e(new StmtExpr.New(LaurelFactory.ident(t.exceptionFqn()), List.of()));
+            AstNode<StmtExpr> pushed = e(new StmtExpr.Assign(List.of(new AstNode<Variable>(
+                    new Variable.Stack(Optional.empty()), exception.source())), exception));
+            AstNode<StmtExpr> thrown = e(new StmtExpr.Throw(stackRead(exception.source())));
+            AstNode<StmtExpr> guard = e(new StmtExpr.IfThenElse(t.condition(),
+                    e(new StmtExpr.Block(List.of(pushed, thrown), Optional.empty(), List.of(), Optional.empty())),
+                    Optional.empty()));
+            long reads = countStackReads(t.condition());
+            if (reads > 0) {
+                var name = new StringBuilder("$permute");
+                var targets = new ArrayList<AstNode<Variable>>();
+                for (int copy = 0; copy < 2; copy++) {
+                    for (int r = 0; r < reads; r++) {
+                        name.append('_').append(r);
+                        targets.add(new AstNode<>(new Variable.Stack(Optional.empty()), exception.source()));
                     }
                 }
-                l.add(a.value());
-                yield l;
+                var args = java.util.stream.LongStream.range(0, reads).mapToObj(r -> stackRead(exception.source())).toList();
+                AstNode<StmtExpr> dup = e(new StmtExpr.Assign(targets, e(new StmtExpr.StaticCall(
+                        LaurelFactory.reservedIdent(name.toString()), args, List.of()))));
+                guard = e(new StmtExpr.Block(List.of(dup, guard), Optional.empty(), List.of(), Optional.empty()));
             }
-            case StmtExpr.Return r -> r.values();
-            case StmtExpr.Throw t -> List.of(t.value());
-            default -> List.of();
-        };
-    }
-
-    private static boolean isShortCircuit(StmtExpr.StaticCall sc) {
-        String name = sc.callee().text();
-        return name.equals(LaurelFactory.operationProcName(new Operation.AndThen()))
-                || name.equals(LaurelFactory.operationProcName(new Operation.OrElse()))
-                || name.equals(LaurelFactory.operationProcName(new Operation.Implies()));
-    }
-
-    /**
-     * Evaluating the node itself (not its children) has no effect. Static calls
-     * to Strata's {@code $} operators and the frontend's {@code java?} helpers are
-     * pure; any other call, an allocation, or a statement form is not.
-     */
-    private static boolean isEffectFree(StmtExpr v) {
-        return switch (v) {
-            case StmtExpr.StaticCall sc -> sc.callee().text().startsWith("$")
-                    || sc.callee().text().startsWith("java?");
-            case StmtExpr.LiteralInt _, StmtExpr.LiteralBool _, StmtExpr.LiteralString _,
-                 StmtExpr.LiteralDecimal _, StmtExpr.LiteralBv _, StmtExpr.Var _, StmtExpr.This _,
-                 StmtExpr.ReferenceEquals _, StmtExpr.AsType _, StmtExpr.IsType _,
-                 StmtExpr.IfThenElse _, StmtExpr.Quantifier _, StmtExpr.Old _, StmtExpr.Fresh _ -> true;
-            default -> false;
-        };
+            out.add(guard);
+        }
+        return out;
     }
 
     /**
@@ -1445,19 +1466,15 @@ final class BodyTranslator {
         push(LaurelFactory.primitiveOp(new Operation.Neg(), v));
     }
 
-    /** LCMP/FCMPL/FCMPG/DCMPL/DCMPG: register the 3-way pair; defer the unconsumed refusal. */
-    void push3Way(String boxType, Boolean nanHigh) {
+    void pushCmp3() {
         AstNode<StmtExpr> b = stack.pop(), a = stack.pop();
-        @SuppressWarnings("unchecked")
-        AstNode<StmtExpr>[] pair = new AstNode[]{a, b};
+        noteDesc(push(new StmtExpr.StaticCall(LaurelFactory.reservedIdent("$cmp3"), List.of(a, b), List.of())), "I");
+    }
+
+    void refuseCmp3(String boxType) {
+        AstNode<StmtExpr> b = stack.pop(), a = stack.pop();
         AstNode<StmtExpr> n = push(new StmtExpr.StaticCall(
                 LaurelFactory.ident("java?cmp3$" + boxType), List.of(a, b), List.of()));
-        cmp3.put(n, pair);
-        if (nanHigh != null) {
-            cmp3NanHigh.put(n, nanHigh);
-        }
-        // Unconsumed, a bare 3-way compare surfaces as a Long.compare-style
-        // call to an unknown class and refuses.
         defer(n, "Call to unknown class '" + boxType + "' is not supported");
     }
 
@@ -1550,8 +1567,8 @@ final class BodyTranslator {
             return;
         }
         var it = stack.iterator();
-        AstNode<StmtExpr> b = it.next();
-        AstNode<StmtExpr> a = it.next();
+        AstNode<StmtExpr> b = origin(it.next());
+        AstNode<StmtExpr> a = origin(it.next());
         if (keepsReferenceIdentity(a) || keepsReferenceIdentity(b)) {
             return;
         }
@@ -1637,56 +1654,16 @@ final class BodyTranslator {
 
     private AstNode<StmtExpr> cmpZero(Operation op) {
         AstNode<StmtExpr> a = stack.pop();
-        AstNode<StmtExpr>[] pair = cmp3.get(a);
-        if (pair != null) {
-            return relational(a, pair[0], op, pair[1]);
-        }
         return e(LaurelFactory.primitiveOp(op, a, e(new StmtExpr.LiteralInt(0))));
     }
 
     private AstNode<StmtExpr> unaryBool(boolean trueWhenNonZero) {
         AstNode<StmtExpr> a = stack.pop();
         Operation op = trueWhenNonZero ? new Operation.Neq() : new Operation.Eq();
-        AstNode<StmtExpr>[] pair = cmp3.get(a);
-        if (pair != null) {
-            return relational(a, pair[0], op, pair[1]);
-        }
         if (isBool(a)) {
-            return trueWhenNonZero ? a : LaurelTrees.negate(a, ctx.method.unordered);
+            return trueWhenNonZero ? a : LaurelTrees.negate(a);
         }
         return e(LaurelFactory.primitiveOp(op, a, e(new StmtExpr.LiteralInt(0))));
-    }
-
-    /**
-     * Rebuild a relational test from a 3-way comparison, keeping NaN on the
-     * correct side. NaN-unordered comparisons are recorded in the
-     * context's identity set (their relational negation must not flip).
-     */
-    private AstNode<StmtExpr> relational(AstNode<StmtExpr> src, AstNode<StmtExpr> a,
-                                         Operation op, AstNode<StmtExpr> b) {
-        Boolean nanHigh = cmp3NanHigh.get(src);
-        if (nanHigh != null) {
-            boolean high = op instanceof Operation.Geq || op instanceof Operation.Gt;
-            if (high == nanHigh) {                      // the fall path includes NaN
-                Operation strict = switch (op) {
-                    case Operation.Geq g -> new Operation.Lt();
-                    case Operation.Gt g -> new Operation.Leq();
-                    case Operation.Lt l -> new Operation.Geq();
-                    case Operation.Leq l -> new Operation.Gt();
-                    default -> null;
-                };
-                if (strict != null) {
-                    StmtExpr inner = LaurelFactory.primitiveOp(strict, a, b);
-                    ctx.method.unordered.add(inner);
-                    return e(LaurelFactory.primitiveOp(new Operation.Not(), e(inner)));
-                }
-            }
-        }
-        StmtExpr rel = LaurelFactory.primitiveOp(op, a, b);
-        if (nanHigh != null) {
-            ctx.method.unordered.add(rel);
-        }
-        return e(rel);
     }
 
     // ================= Part 2: dispatch, stack ops, arrays, calls =================
@@ -1930,16 +1907,14 @@ final class BodyTranslator {
                 int consumed = tryBooleanRegion(seq, k, br);
                 if (consumed > 0) {
                     k += consumed;
+                    settle();
                     continue;
                 }
             }
             int c;
             if ((c = tryArrayInit(seq, null, k)) > 0) {
                 k += c;
-                continue;
-            }
-            if ((c = tryCompoundAssign(seq, null, k)) > 0) {
-                k += c;
+                settle();
                 continue;
             }
             translate(insn);
@@ -1963,10 +1938,7 @@ final class BodyTranslator {
             int c;
             if ((c = tryArrayInit(seq, idxs, p)) > 0) {
                 p += c;
-                continue;
-            }
-            if ((c = tryCompoundAssign(seq, idxs, p)) > 0) {
-                p += c;
+                settle();
                 continue;
             }
             translate((Instruction) el);
@@ -1981,6 +1953,7 @@ final class BodyTranslator {
         if (!impureCasts.isEmpty() && producesImpureCast(in, at) && !stack.isEmpty()) {
             impureValues.add(stack.peek());
         }
+        settle();
     }
 
     /**
@@ -2010,10 +1983,6 @@ final class BodyTranslator {
             if (annos != null) {
                 applyRangeCast(annos);
             }
-        }
-        if (pendingIncSlot >= 0
-                && !(in instanceof LoadInstruction li && li.slot() == pendingIncSlot)) {
-            drainPendingInc();
         }
         switch (in) {
             case java.lang.classfile.instruction.ConstantInstruction ci -> pushConstant(ci.constantValue());
@@ -2117,7 +2086,9 @@ final class BodyTranslator {
                     ctx.composites.registerHierarchyUpToThrowable(thrownFqn);
                     FileRange range = stmtRange(pos, false);
                     for (AstNode<StmtExpr> t : explicitImplicitThrows(before)) {
-                        stmts.add(place(t, range));
+                        AstNode<StmtExpr> placed = place(t, range);
+                        stmts.add(placed);
+                        implicitGuards.add(placed);
                     }
                     AstNode<StmtExpr> placed = place(before, range);
                     stmts.add(placed);
@@ -2164,11 +2135,9 @@ final class BodyTranslator {
             case INEG -> checkedNeg(false);
             case LNEG -> checkedNeg(true);
             case FNEG, DNEG -> neg();
-            case LCMP -> push3Way("Long", null);
-            case FCMPL -> push3Way("Float", Boolean.FALSE);
-            case FCMPG -> push3Way("Float", Boolean.TRUE);
-            case DCMPL -> push3Way("Double", Boolean.FALSE);
-            case DCMPG -> push3Way("Double", Boolean.TRUE);
+            case LCMP -> pushCmp3();
+            case FCMPL, FCMPG -> refuseCmp3("Float");
+            case DCMPL, DCMPG -> refuseCmp3("Double");
             case ARRAYLENGTH -> {
                 if (arrays.handlesLength()) {
                     arrays.length();
@@ -2186,6 +2155,13 @@ final class BodyTranslator {
                         + oi.opcode().toString().replaceAll("[^A-Za-z0-9_]", "_")));
             }
         }
+        noteDesc(stack.peek(), switch (oi.opcode()) {
+            case IADD, ISUB, IMUL, IDIV, IREM, IAND, IOR, IXOR, ISHL, ISHR, IUSHR, INEG -> "I";
+            case LADD, LSUB, LMUL, LDIV, LREM, LAND, LOR, LXOR, LSHL, LSHR, LUSHR, LNEG -> "J";
+            case FADD, FSUB, FMUL, FDIV, FREM, FNEG -> "F";
+            case DADD, DSUB, DMUL, DDIV, DREM, DNEG -> "D";
+            default -> null;
+        });
     }
 
     /** Primitive conversion via the registered cast-helper procedures. */
@@ -2207,14 +2183,6 @@ final class BodyTranslator {
             defer(push(new StmtExpr.LiteralString("$cast")),
                     "Cast to " + targetName + " is not yet supported");
             return;
-        }
-        // `(short) l` compiles to `l2i; i2s`. Two range checks (int64 -> int32, then
-        // int32 -> int16) hold exactly when one does (int64 -> int16), which is the
-        // single obligation with a single message -- so the pair is fused.
-        if (isIntNarrowing(cv.opcode()) && operand.val() instanceof StmtExpr.StaticCall prev
-                && prev.callee().text().equals("java?cast_to_int32_from_int64")
-                && prev.arguments().size() == 1) {
-            operand = prev.arguments().get(0);
         }
         HighType sourceType = inferCastSourceType(operand);
         // Every integral WIDENING is the identity, not only one off an unbounded value:
@@ -2245,12 +2213,6 @@ final class BodyTranslator {
         AstNode<StmtExpr> n = push(new StmtExpr.StaticCall(
                 LaurelFactory.ident(helperName), List.of(operand), List.of()));
         noteDesc(n, ClassfileQueries.convDesc(cv.opcode()));
-    }
-
-    /** The int-to-narrower conversions javac emits after an {@code l2i} for {@code (short) l}. */
-    private static boolean isIntNarrowing(java.lang.classfile.Opcode op) {
-        return op == java.lang.classfile.Opcode.I2S || op == java.lang.classfile.Opcode.I2B
-                || op == java.lang.classfile.Opcode.I2C;
     }
 
     /**
@@ -2462,12 +2424,14 @@ final class BodyTranslator {
             if (vfqn != null && !vfqn.equals("java.lang.Object") && !ctx.resolver.isInterface(vfqn)
                     && !ctx.resolver.isInterface(fqn) && ctx.resolver.superclassOf(vfqn) != null
                     && !ctx.resolver.isSubclassOf(vfqn, fqn) && !ctx.resolver.isSubclassOf(fqn, vfqn)) {
+                drop(v);
                 AstNode<StmtExpr> n = push(new StmtExpr.LiteralBool(false));
                 bools.add(n);
                 return;
             }
-            String enclosing = enclosingInstanceFqn(v);
+            String enclosing = enclosingInstanceFqn(origin(v));
             if (enclosing != null && ctx.resolver.isSubclassOf(enclosing, fqn)) {
+                drop(v);
                 AstNode<StmtExpr> n = push(new StmtExpr.LiteralBool(true));
                 bools.add(n);
                 return;
@@ -2489,7 +2453,7 @@ final class BodyTranslator {
             return JavaNames.dottedFqn(cm.thisClass().asInternalName());
         }
         if (v.val() instanceof StmtExpr.Var(Variable.Field f) && f.fieldName().text().startsWith("this$")
-                && enclosingInstanceFqn(f.target()) != null) {
+                && enclosingInstanceFqn(origin(f.target())) != null) {
             TypeRef t = staticTypeOf.get(v);
             return t == null ? null : resolveFqn(t);
         }
@@ -2512,78 +2476,198 @@ final class BodyTranslator {
     void stackOp(java.lang.classfile.instruction.StackInstruction sk, Instruction in) {
         switch (sk.opcode()) {
             case DUP, DUP_X1, DUP_X2 -> {
-                AstNode<StmtExpr> top = stack.peek();
-                int depth = sk.opcode() == java.lang.classfile.Opcode.DUP ? 0
+                int under = sk.opcode() == java.lang.classfile.Opcode.DUP ? 0
                         : (sk.opcode() == java.lang.classfile.Opcode.DUP_X1 ? 1 : 2);
-                arrays.refuseValueUse(depth);
-                insertDup(top, depth);
+                arrays.refuseValueUse(under);
+                duplicate(1, under, sk.opcode());
             }
             case DUP2, DUP2_X1, DUP2_X2 -> {
-                AstNode<StmtExpr> top = stack.peek();
-                // A category-2 value (long/double) is ONE node here, so the
-                // single-node duplication is exact. Two category-1 values
-                // would need two nodes duplicated; refuse rather than
-                // silently corrupt the simulated stack.
-                String d = descOf.get(top);
-                if (!"J".equals(d) && !"D".equals(d)) {
-                    throw new JavaViolationException(
-                            "Unsupported stack shape: " + sk.opcode() + " over a non-long/double value");
-                }
-                int depth = sk.opcode() == java.lang.classfile.Opcode.DUP2 ? 0
+                int under = sk.opcode() == java.lang.classfile.Opcode.DUP2 ? 0
                         : (sk.opcode() == java.lang.classfile.Opcode.DUP2_X1 ? 1 : 2);
-                arrays.refuseValueUse(depth);
-                insertDup(top, depth);
+                arrays.refuseValueUse(under);
+                duplicate(2, under, sk.opcode());
             }
             case SWAP -> {
-                AstNode<StmtExpr> a = stack.pop(), b = stack.pop();
-                stack.push(a);
-                stack.push(b);
+                reorder(topSlots(2, sk.opcode()), new int[] {1, 0});
             }
-            case POP -> {
-                AstNode<StmtExpr> v = stack.pop();
-                if (callNodes.contains(v)) {
-                    addStmt(v.val());
-                } else {
-                    SpecStmt spec = specStmts.get(v);
-                    if (spec != null && spec.name().equals("throwsOn")) {
-                        // The completed throwsOn(...).x(...) chain statement:
-                        // emit the marker the driver's contract extraction
-                        // consumes (the chain is one source statement).
-                        boolean hasLambda = spec.lambdaArg() != null
-                                || spec.links().stream().anyMatch(l -> l.lambdaArg() != null);
-                        AstNode<StmtExpr> raw = e(new StmtExpr.LiteralString("$spec$throwsOn"));
-                        AstNode<StmtExpr> placed = ctx.placeStatement(raw,
-                                stmtRange(pos, hasLambda));
-                        stmts.add(placed);
-                        specStmts.put(placed, spec);
-                    }
-                }
-            }
+            case POP -> popValue(stack.pop());
             case POP2 -> {
-                if (!stack.isEmpty()) {
-                    stack.pop();
+                AstNode<StmtExpr> v = stack.pop();
+                popValue(v);
+                String d = descOf.get(v);
+                if (d == null) {
+                    throw new JavaViolationException("Unsupported stack shape: " + sk.opcode());
+                }
+                if (!stack.isEmpty() && !"J".equals(d) && !"D".equals(d)) {
+                    popValue(stack.pop());
                 }
             }
             default -> todo(in.opcode().toString());
         }
     }
 
-    void insertDup(AstNode<StmtExpr> top, int depth) {
-        if (stack.isEmpty()) {
-            stack.push(top);
+    private void popValue(AstNode<StmtExpr> v) {
+        if (isStackRead(v)) {
+            discard(v);
+        } else if (callNodes.contains(v)) {
+            addStmt(v.val());
+        } else {
+            SpecStmt spec = specStmts.get(v);
+            if (spec != null && spec.name().equals("throwsOn")) {
+                // The completed throwsOn(...).x(...) chain statement:
+                // emit the marker the driver's contract extraction
+                // consumes (the chain is one source statement).
+                boolean hasLambda = spec.lambdaArg() != null
+                        || spec.links().stream().anyMatch(l -> l.lambdaArg() != null);
+                AstNode<StmtExpr> raw = e(new StmtExpr.LiteralString("$spec$throwsOn"));
+                AstNode<StmtExpr> placed = ctx.placeStatement(raw,
+                        stmtRange(pos, hasLambda));
+                stmts.add(placed);
+                specStmts.put(placed, spec);
+            }
+        }
+    }
+
+    AstNode<StmtExpr> unpush(AstNode<StmtExpr> v) {
+        if (!isStackRead(v)) {
+            return v;
+        }
+        AstNode<StmtExpr> push = pushOf.get(v.val());
+        AstNode<StmtExpr> pushed = spillOrigin.get(v.val());
+        if (push == null || pushed == null || stmts.isEmpty() || stmts.get(stmts.size() - 1) != push) {
+            return null;
+        }
+        stmts.remove(stmts.size() - 1);
+        return pushed;
+    }
+
+    AstNode<StmtExpr> boxedOperand(AstNode<StmtExpr> v) {
+        AstNode<StmtExpr> pushed = isStackRead(v) ? spillOrigin.get(v.val()) : v;
+        if (pushed == null || !boxedValue.containsKey(pushed) || unpush(v) == null) {
+            return null;
+        }
+        return boxedValue.get(pushed);
+    }
+
+    AstNode<StmtExpr> takeCall(AstNode<StmtExpr> v) {
+        AstNode<StmtExpr> boxed = boxedOperand(v);
+        if (boxed != null) {
+            return takeCall(boxed);
+        }
+        AstNode<StmtExpr> value = unpush(v);
+        return value != null && (value.val() instanceof StmtExpr.StaticCall
+                || value.val() instanceof StmtExpr.InstanceCall) ? value : null;
+    }
+
+    void drop(AstNode<StmtExpr> v) {
+        if (isStackRead(v)) {
+            discard(v);
+        }
+    }
+
+    void discard(AstNode<StmtExpr> read) {
+        AstNode<StmtExpr> push = pushOf.get(read.val());
+        if (push != null && !stmts.isEmpty() && stmts.get(stmts.size() - 1) == push
+                && push.val() instanceof StmtExpr.Assign a && a.targets().size() == 1
+                && (a.value().val() instanceof StmtExpr.StaticCall || a.value().val() instanceof StmtExpr.InstanceCall)) {
+            stmts.set(stmts.size() - 1, a.value());
             return;
         }
-        stack.pop();
-        @SuppressWarnings("unchecked")
-        AstNode<StmtExpr>[] below = new AstNode[depth];
-        for (int i = 0; i < depth; i++) {
-            below[i] = stack.isEmpty() ? e(new StmtExpr.LiteralString("?")) : stack.pop();
+        addStmt(read.val());
+    }
+
+    void duplicate(int groupSlots, int underSlots, java.lang.classfile.Opcode op) {
+        var group = topSlots(groupSlots, op);
+        var under = topSlots(underSlots, op);
+        var in = new ArrayList<>(under);
+        in.addAll(group);
+        int[] order = new int[2 * group.size() + under.size()];
+        int t = 0;
+        for (int g = 0; g < group.size(); g++) {
+            order[t++] = under.size() + g;
         }
-        stack.push(top);
-        for (int i = depth - 1; i >= 0; i--) {
-            stack.push(below[i]);
+        for (int u = 0; u < under.size(); u++) {
+            order[t++] = u;
         }
-        stack.push(top);
+        for (int g = 0; g < group.size(); g++) {
+            order[t++] = under.size() + g;
+        }
+        reorder(in, order);
+    }
+
+    private List<AstNode<StmtExpr>> topSlots(int slots, java.lang.classfile.Opcode op) {
+        var taken = new ArrayList<AstNode<StmtExpr>>();
+        int n = 0;
+        while (n < slots && !stack.isEmpty()) {
+            AstNode<StmtExpr> v = stack.pop();
+            String d = descOf.get(v);
+            if (d == null && slots - n >= 2) {
+                throw new JavaViolationException("Unsupported stack shape: " + op);
+            }
+            n += "J".equals(d) || "D".equals(d) ? 2 : 1;
+            taken.add(0, v);
+        }
+        if (n != slots) {
+            throw new JavaViolationException("Unsupported stack shape: " + op);
+        }
+        return taken;
+    }
+
+    AstNode<StmtExpr> nameRead(AstNode<StmtExpr> read) {
+        String name = mintTemp();
+        addStmt(new StmtExpr.Assign(List.of(new AstNode<>(new Variable.Declare(
+                new org.strata.jverify.laurel.ParameterOpt(LaurelFactory.ident(name), Optional.empty())),
+                read.source())), read));
+        AstNode<StmtExpr> local = e(LaurelFactory.var_(name));
+        transfer(read, local);
+        return local;
+    }
+
+    void emitPermute(int reads, int[] order, FileRange src) {
+        var name = new StringBuilder("$permute");
+        var targets = new ArrayList<AstNode<Variable>>();
+        for (int r : order) {
+            name.append('_').append(r);
+            targets.add(new AstNode<>(new Variable.Stack(Optional.empty()), src));
+        }
+        var args = java.util.stream.IntStream.range(0, reads).mapToObj(r -> stackRead(src)).toList();
+        addStmt(new StmtExpr.Assign(targets, e(new StmtExpr.StaticCall(LaurelFactory.reservedIdent(name.toString()),
+                args, List.of()))));
+    }
+
+    private void reorder(List<AstNode<StmtExpr>> in, int[] order) {
+        var reads = new ArrayList<Integer>();
+        for (int i = 0; i < in.size(); i++) {
+            if (isStackRead(in.get(i))) {
+                reads.add(i);
+            }
+        }
+        var outReads = new ArrayList<Integer>();
+        for (int o : order) {
+            if (isStackRead(in.get(o))) {
+                outReads.add(reads.indexOf(o));
+            }
+        }
+        boolean identity = outReads.equals(java.util.stream.IntStream.range(0, reads.size()).boxed().toList());
+        var fresh = new java.util.ArrayDeque<AstNode<StmtExpr>>();
+        if (!identity) {
+            FileRange src = in.get(reads.get(0)).source();
+            emitPermute(reads.size(), outReads.stream().mapToInt(Integer::intValue).toArray(), src);
+            for (int r : outReads) {
+                AstNode<StmtExpr> source = in.get(reads.get(r));
+                AstNode<StmtExpr> read = stackRead(src);
+                transfer(source, read);
+                AstNode<StmtExpr> origin = spillOrigin.get(source.val());
+                if (origin != null) {
+                    spillOrigin.put(read.val(), origin);
+                }
+                fresh.add(read);
+            }
+        }
+        for (int o : order) {
+            AstNode<StmtExpr> v = in.get(o);
+            stack.push(isStackRead(v) && !identity ? fresh.removeFirst() : v);
+        }
     }
 
     // ================= Part 3: calls, fields, indy, peepholes =================
@@ -2644,6 +2728,7 @@ final class BodyTranslator {
 
     /** The receiver's declared static type as an fqn, or null. */
     String staticTypeFqnOf(AstNode<StmtExpr> receiver) {
+        receiver = origin(receiver);
         if (receiver.val() instanceof StmtExpr.Var var
                 && var.var_() instanceof Variable.Local l
                 && l.name().text().equals(LaurelFactory.LAUREL_SELF_BINDING)) {
@@ -2658,6 +2743,7 @@ final class BodyTranslator {
 
     /** The thrown expression's static type fqn, or null. */
     String thrownStaticTypeFqn(AstNode<StmtExpr> thrown) {
+        thrown = origin(thrown);
         if (thrown.val() instanceof StmtExpr.New nw) {
             return nw.ref().text();                     // allocation: the sort IS the fqn
         }
@@ -2736,7 +2822,7 @@ final class BodyTranslator {
 
     // --- invokedynamic (LambdaMetafactory / StringConcatFactory) ---
 
-    // --- Peepholes (tryArrayInit / tryCompoundAssign / tryBooleanRegion) ---
+    // --- Peepholes (tryArrayInit / tryBooleanRegion) ---
 
     int tryArrayInit(List<CodeElement> seq, List<Integer> idxs, int k) {
         if (!(seq.get(k) instanceof Instruction na)) {
@@ -2823,10 +2909,6 @@ final class BodyTranslator {
                     j += c;
                     continue;
                 }
-                if ((c = tryCompoundAssign(seq, idxs, j)) > 0) {
-                    j += c;
-                    continue;
-                }
                 translate((Instruction) seq.get(j));
                 j++;
             }
@@ -2850,6 +2932,13 @@ final class BodyTranslator {
     /** Array-initializer markers -> the first element's rendering (pointRangeAt needle). */
     final Map<AstNode<StmtExpr>, String> arrayInitNeedles = new IdentityHashMap<>();
 
+
+    static boolean sameField(java.lang.classfile.instruction.FieldInstruction a,
+                             java.lang.classfile.instruction.FieldInstruction b) {
+        return a.owner().asInternalName().equals(b.owner().asInternalName())
+                && a.name().equals(b.name());
+    }
+
     /** The pointRangeAt needle: the anchor expression as source text renders it. */
     private String renderNeedle(AstNode<StmtExpr> n) {
         return switch (n.val()) {
@@ -2870,97 +2959,6 @@ final class BodyTranslator {
     static boolean isDup2(CodeElement e) {
         return e instanceof java.lang.classfile.instruction.StackInstruction s
                 && s.opcode() == java.lang.classfile.Opcode.DUP2;
-    }
-
-    int tryCompoundAssign(List<CodeElement> seq, List<Integer> idxs, int k) {
-        if (!(seq.get(k) instanceof Instruction in)) {
-            return 0;
-        }
-        if (isDup2(in) && k + 1 < seq.size()
-                && seq.get(k + 1) instanceof java.lang.classfile.instruction.ArrayLoadInstruction
-                && stack.size() >= 2) {
-            if (arrays.enabled()) {
-                // a[i] op= rhs / a[i]++: duplicate the side-effect-free array
-                // and index so the load and the store translate normally.
-                arrays.duplicateIndexedPair();
-                return 1;
-            }
-            // a[i] op= rhs: arrays refuse as assignment targets.
-            throw new JavaViolationException("Unsupported variable expression: ArrayAccessExpr");
-        }
-        if (isDup(in) && k + 1 < seq.size()
-                && seq.get(k + 1) instanceof java.lang.classfile.instruction.FieldInstruction gf
-                && gf.opcode() == java.lang.classfile.Opcode.GETFIELD && !stack.isEmpty()) {
-            // Value-postfix form (`y = c.n++`): dup_x1 right after the
-            // getfield -> decline so the ordinary translation absorbs it.
-            if (k + 2 < seq.size()
-                    && seq.get(k + 2) instanceof java.lang.classfile.instruction.StackInstruction sx
-                    && (sx.opcode() == java.lang.classfile.Opcode.DUP_X1
-                            || sx.opcode() == java.lang.classfile.Opcode.DUP_X2)) {
-                return 0;
-            }
-            int j = k + 2;
-            while (j < seq.size()
-                    && !(seq.get(j) instanceof java.lang.classfile.instruction.FieldInstruction f
-                            && f.opcode() == java.lang.classfile.Opcode.PUTFIELD)) {
-                j++;
-            }
-            if (j >= seq.size()
-                    || !sameField(gf, (java.lang.classfile.instruction.FieldInstruction) seq.get(j))) {
-                return 0;
-            }
-            if (!(seq.get(j - 1) instanceof java.lang.classfile.instruction.OperatorInstruction bop)) {
-                return 0;
-            }
-            Operation aop = compoundOp(bop.opcode());
-            AstNode<StmtExpr> recv = stack.pop();
-            translateSpan(seq, idxs, k + 2, j - 1);
-            if (stack.isEmpty()) {
-                return 0;
-            }
-            AstNode<StmtExpr> rhs = stack.pop();
-            boolean superWrite = fieldAccess.isSuperFieldRead(gf, recv);
-            fieldAccess.declareAccessedField(recv, gf.name().stringValue());
-            if (superWrite) {
-                throw new JavaViolationException("Unsupported expression: SuperExpr");
-            }
-            var target = new AstNode<Variable>(new Variable.Field(recv,
-                    LaurelFactory.ident(gf.name().stringValue())), SourceMap.UNKNOWN_RANGE);
-            addStmt(new StmtExpr.CompoundAssign(aop, target,
-                    coerce(rhs, gf.typeSymbol().descriptorString())));
-            return (j + 1) - k;
-        }
-        return 0;
-    }
-
-    /** Compound-assignment operator support, refusing the rest with their operator names. */
-    private Operation compoundOp(java.lang.classfile.Opcode op) {
-        return switch (op) {
-            case IADD, LADD, FADD, DADD -> new Operation.Add();
-            case ISUB, LSUB, FSUB, DSUB -> new Operation.Sub();
-            case IMUL, LMUL, FMUL, DMUL -> new Operation.Mul();
-            case IDIV, LDIV, FDIV, DDIV -> new Operation.DivT();
-            case IREM, LREM, FREM, DREM -> new Operation.ModT();
-            case IAND, LAND -> throw new JavaViolationException(
-                    "Unsupported compound assignment: BINARY_AND");
-            case IOR, LOR -> throw new JavaViolationException(
-                    "Unsupported compound assignment: BINARY_OR");
-            case IXOR, LXOR -> throw new JavaViolationException(
-                    "Unsupported compound assignment: XOR");
-            case ISHL, LSHL -> throw new JavaViolationException(
-                    "Unsupported compound assignment: LEFT_SHIFT");
-            case ISHR, LSHR -> throw new JavaViolationException(
-                    "Unsupported compound assignment: SIGNED_RIGHT_SHIFT");
-            case IUSHR, LUSHR -> throw new JavaViolationException(
-                    "Unsupported compound assignment: UNSIGNED_RIGHT_SHIFT");
-            default -> throw new JavaViolationException("Unsupported compound assignment: " + op);
-        };
-    }
-
-    static boolean sameField(java.lang.classfile.instruction.FieldInstruction a,
-                             java.lang.classfile.instruction.FieldInstruction b) {
-        return a.owner().asInternalName().equals(b.owner().asInternalName())
-                && a.name().equals(b.name());
     }
 
     /** Boolean materialization region ({@code &&} folds to $andThen). */
@@ -3004,6 +3002,8 @@ final class BodyTranslator {
         var guards = new ArrayList<AstNode<StmtExpr>>();
         // Everything after the first test runs only when the earlier tests pass.
         boolean conditional = false;
+        boolean wasSpilling = spilling;
+        spilling = false;
         try {
             for (int j = k; j < p; j++) {
                 CodeElement el = seq.get(j);
@@ -3019,6 +3019,7 @@ final class BodyTranslator {
                 }
             }
         } finally {
+            spilling = wasSpilling;
             if (conditional) {
                 exitConditional();
             }

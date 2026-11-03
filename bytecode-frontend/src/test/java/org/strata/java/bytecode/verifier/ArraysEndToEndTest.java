@@ -493,10 +493,7 @@ class ArraysEndToEndTest {
         assertEquals(List.of(new HighType.TInt()), news.get(0).typeArgs().stream().map(AstNode::val).toList());
         assertFalse(fresh[0], "no Fresh");
         assertFalse(names.stream().anyMatch(n -> n.contains("JArray::create")), names::toString);
-        assertFalse(wrapperCalls.isEmpty());
-        for (var c : wrapperCalls) {
-            assertEquals(List.of(new HighType.TInt()), c.typeArgs().stream().map(AstNode::val).toList());
-        }
+        assertTrue(wrapperCalls.isEmpty(), wrapperCalls::toString);
         // The model's set and a program modifies(a) are field-granular.
         var setTargets = modifiesTargets(procedureNamed(p, "set"));
         assertEquals(1, setTargets.size());

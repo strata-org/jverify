@@ -69,6 +69,7 @@ final class LaurelTrees {
             case Variable.Local l -> l;
             case Variable.Declare d -> d;
             case Variable.Field f -> new Variable.Field(rerange(f.target(), range, stop), f.fieldName());
+            case Variable.Stack st -> st;
         };
         return new AstNode<>(v, range);
     }
@@ -102,6 +103,7 @@ final class LaurelTrees {
                 case Variable.Local l -> l;
                 case Variable.Declare d -> d;
                 case Variable.Field f -> new Variable.Field(rerange(f.target(), range, stop), f.fieldName());
+                case Variable.Stack st -> st;
             });
             case StmtExpr.Assign n -> new StmtExpr.Assign(rerangeVars(n.targets(), range, stop),
                     rerange(n.value(), range, stop));
@@ -269,40 +271,11 @@ final class LaurelTrees {
 
     // --- Negation over $op StaticCalls ---
 
-    /** The flipped relational/equality proc name, or null when not flippable. */
-    private static String flippedProc(String proc, boolean unordered) {
-        return switch (proc) {
-            case "$eq" -> "$neq";      // equality flips safely even on NaN
-            case "$neq" -> "$eq";
-            case "$lt" -> unordered ? null : "$ge";
-            case "$ge" -> unordered ? null : "$lt";
-            case "$gt" -> unordered ? null : "$le";
-            case "$le" -> unordered ? null : "$gt";
-            default -> null;
-        };
-    }
-
-    /**
-     * Logical negation of a condition: a
-     * {@code $not} unwraps; a flippable comparison flips its operator —
-     * unless the NaN-unordered marker forbids it (float/double relationals:
-     * {@code !(x < 0.0)} holds for NaN while {@code x >= 0.0} does not) —
-     * anything else wraps in {@code $not}. {@code unordered} is an
-     * identity-based set of comparison values marked by the translator.
-     */
-    static AstNode<StmtExpr> negate(AstNode<StmtExpr> e, Set<StmtExpr> unordered) {
-        if (e.val() instanceof StmtExpr.StaticCall call) {
-            String proc = call.callee().text();
-            if (proc.equals("$not") && call.arguments().size() == 1) {
-                return call.arguments().get(0);
-            }
-            if (call.arguments().size() == 2) {
-                String flipped = flippedProc(proc, unordered.contains(e.val()));
-                if (flipped != null) {
-                    return new AstNode<>(new StmtExpr.StaticCall(
-                            LaurelFactory.reservedIdent(flipped), call.arguments(), List.of()), e.source());
-                }
-            }
+    /** Logical negation of a condition: a {@code $not} unwraps, anything else wraps in {@code $not}. */
+    static AstNode<StmtExpr> negate(AstNode<StmtExpr> e) {
+        if (e.val() instanceof StmtExpr.StaticCall call && call.callee().text().equals("$not")
+                && call.arguments().size() == 1) {
+            return call.arguments().get(0);
         }
         return new AstNode<>(new StmtExpr.StaticCall(LaurelFactory.reservedIdent("$not"), List.of(e), List.of()), e.source());
     }

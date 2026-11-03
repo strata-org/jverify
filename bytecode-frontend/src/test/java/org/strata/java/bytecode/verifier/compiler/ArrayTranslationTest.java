@@ -8,6 +8,7 @@ import org.strata.jverify.laurel.Procedure;
 import org.strata.jverify.laurel.LaurelProgram;
 import org.strata.jverify.laurel.StmtExpr;
 import org.strata.jverify.laurel.TypeDefinition;
+import org.strata.jverify.laurel.Variable;
 import org.strata.jverify.verifier.SourceFile;
 import org.strata.java.bytecode.frontend.BytecodeFrontend;
 
@@ -152,7 +153,7 @@ class ArrayTranslationTest {
     }
 
     @Test
-    void allocationInATernaryArmRefusesConditional(@TempDir Path tmp) throws Exception {
+    void allocationInATernaryArmTranslates(@TempDir Path tmp) throws Exception {
         var t = translate(tmp, "Cond", """
                 public class Cond {
                     static int c(boolean c) {
@@ -162,8 +163,8 @@ class ArrayTranslationTest {
                     static int ok(int x) { return x; }
                 }
                 """);
-        assertEquals(List.of("error: " + ArrayModel.CONDITIONAL), t.messages());
-        procedure(t.program(), "Cond::ok");
+        assertEquals(List.of(), t.messages());
+        procedure(t.program(), "Cond::c");
     }
 
     @Test
@@ -177,11 +178,11 @@ class ArrayTranslationTest {
                     }
                 }
                 """);
-        assertEquals(List.of("warning: instance method 'm' was not verified: " + ArrayModel.ORDER), t.messages());
+        assertEquals(List.of(), t.messages());
     }
 
     @Test
-    void readOfACallResultStaysAnExpression(@TempDir Path tmp) throws Exception {
+    void readOfACallResultIsBoundBeforeItIsUsed(@TempDir Path tmp) throws Exception {
         var t = translate(tmp, "Read", """
                 public class Read {
                     int x;
@@ -193,10 +194,66 @@ class ArrayTranslationTest {
                 """);
         assertEquals(List.of(), t.messages());
         var stmts = implementation(procedure(t.program(), "r"));
-        assertEquals(1, stmts.size(), stmts::toString);
-        var ret = assertInstanceOf(StmtExpr.Return.class, stmts.get(0).val());
-        assertEquals(1, ret.values().size(), ret::toString);
-        assertTrue(callsIn(ret.values().get(0), ArrayModel.GET_WRAPPER));
+        int read = indexOf(stmts, s -> s.val() instanceof StmtExpr.Assign a
+                && a.value().val() instanceof StmtExpr.Var v && v.var_() instanceof Variable.Field);
+        int call = indexOf(stmts, s -> s.val() instanceof StmtExpr.Assign a
+                && a.value().val() instanceof StmtExpr.StaticCall c && c.callee().text().endsWith("mk"));
+        int get = indexOf(stmts, ArrayTranslationTest::getCallIn);
+        assertTrue(0 <= read && read < call && call < get, stmts::toString);
+    }
+
+    private static boolean getCallIn(AstNode<StmtExpr> n) {
+        boolean[] found = {false};
+        LaurelTrees.map(n, x -> {
+            found[0] |= x.val() instanceof StmtExpr.InstanceCall c && c.callee().text().equals("get");
+            return x;
+        });
+        return found[0];
+    }
+
+    private static boolean lengthCallIn(AstNode<StmtExpr> n) {
+        boolean[] found = {false};
+        LaurelTrees.map(n, x -> {
+            found[0] |= x.val() instanceof StmtExpr.InstanceCall c && c.callee().text().equals("length");
+            return x;
+        });
+        return found[0];
+    }
+
+    private static int indexOf(List<AstNode<StmtExpr>> stmts,
+                               java.util.function.Predicate<AstNode<StmtExpr>> p) {
+        for (int i = 0; i < stmts.size(); i++) {
+            if (p.test(stmts.get(i))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    @Test
+    void fieldLengthInALoopConditionIsReadInsideTheLoop(@TempDir Path tmp) throws Exception {
+        var t = translate(tmp, "Loop", """
+                public class Loop {
+                    int[] f;
+                    int w() {
+                        int i = 0;
+                        while (i < this.f.length) {
+                            i++;
+                        }
+                        return i;
+                    }
+                }
+                """);
+        assertEquals(List.of(), t.messages());
+        var stmts = implementation(procedure(t.program(), "w"));
+        var loops = stmts.stream().filter(s -> s.val() instanceof StmtExpr.Block b && b.label().isPresent()).toList();
+        assertEquals(1, loops.size(), stmts::toString);
+        assertTrue(lengthCallIn(loops.get(0)), stmts::toString);
+        for (var s : stmts) {
+            if (s != loops.get(0)) {
+                assertFalse(lengthCallIn(s), stmts::toString);
+            }
+        }
     }
 
     @Test
@@ -282,7 +339,7 @@ class ArrayTranslationTest {
     }
 
     @Test
-    void allocationInAHeaderSpecificationRefusesSpecWrite(@TempDir Path tmp) throws Exception {
+    void allocationInAHeaderSpecificationRefusesItsPlacement(@TempDir Path tmp) throws Exception {
         var t = translate(tmp, "SpecAlloc", """
                 import static org.strata.jverify.JVerify.*;
                 public class SpecAlloc {
@@ -292,7 +349,7 @@ class ArrayTranslationTest {
                     }
                 }
                 """);
-        assertEquals(List.of("error: " + ArrayModel.SPEC_WRITE), t.messages());
+        assertEquals(List.of("error: call to contract method must come before the rest of the body"), t.messages());
     }
 
     @Test
@@ -467,8 +524,8 @@ class ArrayTranslationTest {
                 }
                 """);
         assertEquals(List.of(), t.messages());
-        assertTrue(callsIn(implementation(procedure(t.program(), "SameTernary::m")).get(0),
-                ArrayModel.GET_WRAPPER));
+        assertTrue(implementation(procedure(t.program(), "SameTernary::m")).stream()
+                .anyMatch(ArrayTranslationTest::getCallIn));
     }
 
     @Test

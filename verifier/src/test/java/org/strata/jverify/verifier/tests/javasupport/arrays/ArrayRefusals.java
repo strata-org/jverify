@@ -10,7 +10,7 @@ import java.util.function.IntFunction;
 import org.strata.jverify.testengine.JVerifyTest;
 import org.strata.jverify.*;
 import static org.strata.jverify.JVerify.*;
-@JVerifyTest(continueOnErrors = true, exitCode = 4, methodsInvalid = 1, errorCount = 4, methodsVerified = 3, methodsSkipped = 18)
+@JVerifyTest(continueOnErrors = true, exitCode = 4, methodsInvalid = 3, errorCount = 10, methodsVerified = 4, methodsSkipped = 15)
 class ArrayRefusals {
     static int ok(int[] a) {
         precondition(a.length > 0);
@@ -93,7 +93,6 @@ class ArrayRefusals {
     }
 
     static int conditional(boolean c) {
-//                                    ^ error: an array allocation or write inside a condition or conditional expression is not yet supported
         int[] a = c ? new int[1] : new int[2];
         return a.length;
     }
@@ -117,8 +116,10 @@ class ArrayRefusals {
     }
 
     static int order() {
-//                     ^ error: an array allocation or write inside an expression with an earlier call or field read is not yet supported
+//                     ^ Error: postcondition could not be proved
         return one() + new int[1].length;
+//             ^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+//             ^^^^^^^^^^^^^^^^^^^^^^^^^ Error: no int overflow on '+' could not be proved
     }
 
     static int valueUse(int[] a) {
@@ -129,8 +130,10 @@ class ArrayRefusals {
     }
 
     static void effectfulCompound(int[] a) {
-//                                         ^ error: compound assignment to an array element whose array or index is not a local variable or constant is not yet supported
         precondition(a.length > 1);
         a[one()] += 1;
+//      ^^^^^^^^^^^^^ Error: precondition does not hold
+//      ^^^^^^^^^^^^^ Error: int[] element range does not hold
+//      ^^^^^^^^^^^^^ Error: no int overflow on '+' does not hold
     }
 }

@@ -491,39 +491,6 @@ final class LaurelFactory {
         }
         return name;
     }
-
-    /**
-     * Register, once, the generic transparent wrappers for array reads on a
-     * receiver that is not a local variable (Strata rejects an instance call
-     * on a field read or call result): {@code java?array_length<E>(a:
-     * JArray<E>): int} = {@code a#length()} and {@code java?array_get<E>(a:
-     * JArray<E>, index: nat31): E} = {@code a#get(index)}, which requires
-     * {@code index < a#length()} with no summary, so a failure reads as the
-     * contract's own precondition. The caller registers the JArray
-     * composite.
-     */
-    void registerArrayWrappers() {
-        var e = new HighType.TVar(ident("E"));
-        var jarrayE = new HighType.Applied(node(new HighType.UserDefined(ident(ArrayModel.SORT))), List.of(node(e)));
-        var a = noRange(var_("a"));
-        if (!castHelpers.containsKey(ArrayModel.LENGTH_WRAPPER)) {
-            castHelpers.put(ArrayModel.LENGTH_WRAPPER, helperProcedure(ArrayModel.LENGTH_WRAPPER,
-                    List.of(ident("E")), List.of(param("a", jarrayE)), new HighType.TInt(), List.of(),
-                    returnBody(noRange(new StmtExpr.InstanceCall(a, ident("length"), List.of(), List.of())))));
-        }
-        if (!castHelpers.containsKey(ArrayModel.GET_WRAPPER)) {
-            var index = noRange(var_("index"));
-            var inBounds = new Condition(noRange(primitiveOp(new Operation.Lt(), index,
-                    noRange(new StmtExpr.InstanceCall(a, ident("length"), List.of(), List.of())))),
-                    Optional.empty(), new ConditionMode.Both());
-            castHelpers.put(ArrayModel.GET_WRAPPER, helperProcedure(ArrayModel.GET_WRAPPER,
-                    List.of(ident("E")),
-                    List.of(param("a", jarrayE), param("index", new HighType.UserDefined(ident("nat31")))),
-                    e, List.of(inBounds),
-                    returnBody(noRange(new StmtExpr.InstanceCall(a, ident("get"), List.of(index), List.of())))));
-        }
-    }
-
     private static Body returnBody(AstNode<StmtExpr> value) {
         return new Body.Transparent(noRange(new StmtExpr.Return(List.of(value))));
     }

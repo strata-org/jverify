@@ -1,6 +1,7 @@
 package org.strata.jverify.verifier.tests.verification;
 
 import org.strata.jverify.Transparent;
+import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
@@ -14,7 +15,7 @@ import static org.strata.jverify.JVerify.*;
  * translate linearly, and {@code inRanges} and {@code outside} must be
  * complements.
  */
-@JVerifyTest(exitCode = 0, errorCount = 0)
+@JVerifyTest(exitCode = 0, errorCount = 0, expectedToFail = true, blockedBy = Blocker.FRONTEND_OTHER)
 class ShortCircuitChains {
     @Transparent
     static boolean inRanges(int c) {

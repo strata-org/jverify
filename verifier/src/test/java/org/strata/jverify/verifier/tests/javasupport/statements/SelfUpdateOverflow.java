@@ -5,16 +5,15 @@ import org.strata.jverify.testengine.JVerifyTest;
 import static org.strata.jverify.JVerify.*;
 
 /**
- * Self-updates ({@code x++}, {@code x += c}) keep their IncrDecr /
- * CompoundAssign form instead of becoming checked-helper calls
- * (BodyTranslator.selfUpdateStep), so their overflow is caught by the
- * range constraint at the assignment after Strata eliminates the form.
+ * The overflow of a self-update ({@code x++}, {@code x += c}) is caught by
+ * the range constraint at the assignment.
  * This pins that the constraint fires for every target kind — int local,
- * instance field, long local (whose LADD goes through the checked helper
- * instead: bytecode has no long iinc), and array element — and that a
+ * instance field, long local and array element (whose update goes through
+ * the checked helper as well, so the operation's overflow obligation is
+ * reported next to the constraint: only an int local has iinc) — and that a
  * bound on the old value discharges each.
  */
-@JVerifyTest(exitCode = 4, errorCount = 10, methodsVerified = 6, methodsInvalid = 4)
+@JVerifyTest(exitCode = 4, errorCount = 11, methodsVerified = 6, methodsInvalid = 4)
 class SelfUpdateOverflow {
     static class Counter {
         int n;
@@ -38,6 +37,7 @@ class SelfUpdateOverflow {
         modifies(c);
         c.n++;
 //      ^^^^^^ Error: assertion could not be proved
+//      ^^^^^^ Error: no int overflow on '+' could not be proved
     }
 
     static void fieldIncrementBounded(Counter c) {

@@ -84,6 +84,7 @@ final class SwitchEmitter {
         int follow = dom.ipdom[swBlk];
         var arms = recoverArms(b, swBlk, stop, follow, v -> List.of(body.e(body.pinnedLongLiteral(v))));
         out.add(s.place(buildCascade(selector, arms), swBlk));
+        pushArmValues();
         return follow;
     }
 
@@ -133,18 +134,20 @@ final class SwitchEmitter {
         }
         int follow = dom.ipdom[p2Blk];
 
-        Integer vMerge = switchValueDiamond(p2Blk);
-        if (vMerge != null) {
-            body.stack.push(buildSwitchExprCascade(p2Blk, vMerge, selector,
-                    v -> idxToStrs.getOrDefault(v, List.of()).stream()
-                            .map(s -> body.e((StmtExpr) new StmtExpr.LiteralString(s))).toList()));
-            return vMerge;
-        }
         var arms = recoverArms(p2, p2Blk, stop, follow,
                 v -> idxToStrs.getOrDefault(v, List.of()).stream()
                         .map(s -> body.e((StmtExpr) new StmtExpr.LiteralString(s))).toList());
         out.add(s.place(buildCascade(selector, arms), p1Blk));
+        pushArmValues();
         return follow;
+    }
+
+    private int armValues = -1;
+
+    private void pushArmValues() {
+        for (int i = 0; i < armValues; i++) {
+            body.stack.push(BodyTranslator.stackRead(SourceMap.UNKNOWN_RANGE));
+        }
     }
 
     /** Recover a statement switch's arms (region per head; break sentinel; fall-through refusal). */
@@ -166,6 +169,8 @@ final class SwitchEmitter {
         ControlFlowStructurer.Ctx sw = new ControlFlowStructurer.Ctx(false, -1, follow, ARM_BREAK);
         s.ctxStack.push(sw);
         var raw = new ArrayList<Arm>();
+        int depth = body.stack.size();
+        int values = -1;
         for (int head : order) {
             Set<Integer> caseStop = new HashSet<>(stop);
             if (follow >= 0) {
@@ -176,13 +181,35 @@ final class SwitchEmitter {
                     caseStop.add(h);
                 }
             }
-            List<AstNode<StmtExpr>> bodyStmts = s.region(head, caseStop);
+            List<AstNode<StmtExpr>> bodyStmts = new ArrayList<>(s.region(head, caseStop));
+            if (follow >= 0 && s.lastStop == follow && !bodyStmts.isEmpty()
+                    && ControlFlowStructurer.fallsThroughStmt(bodyStmts.get(bodyStmts.size() - 1))) {
+                bodyStmts.add(s.exit(ARM_BREAK));
+            }
+            int left = body.stack.size() - depth;
+            if (left > 0) {
+                if (values >= 0 && values != left) {
+                    throw new JavaViolationException(
+                            "a switch whose arms leave different values is not yet supported");
+                }
+                values = left;
+                var vals = new ArrayList<AstNode<StmtExpr>>();
+                for (int i = 0; i < left; i++) {
+                    vals.add(0, body.stack.pop());
+                }
+                var pushes = new ArrayList<AstNode<StmtExpr>>();
+                s.pushInto(vals, pushes);
+                int at = !bodyStmts.isEmpty() && isArmBreak(bodyStmts.get(bodyStmts.size() - 1))
+                        ? bodyStmts.size() - 1 : bodyStmts.size();
+                bodyStmts.addAll(at, pushes);
+            }
             List<AstNode<StmtExpr>> labels = head != defBlk
                     ? labelsForValues(byTarget.get(head), labelsFor)
                     : List.of();
             raw.add(new Arm(labels, head == defBlk, bodyStmts));
         }
         s.ctxStack.pop();
+        armValues = values;
         return normalizeArms(raw);
     }
 
@@ -303,82 +330,4 @@ final class SwitchEmitter {
         return body.e(n.val());
     }
 
-    Integer switchValueDiamond(int swBlk) {
-        BasicBlock b = cfg.blocks.get(swBlk);
-        if (!b.isSwitch() || b.defaultCase < 0) {
-            return null;
-        }
-        int merge = dom.ipdom[swBlk];
-        if (merge < 0) {
-            return null;
-        }
-        Set<Integer> heads = new HashSet<>();
-        for (int[] c : b.cases) {
-            heads.add(c[1]);
-        }
-        heads.add(b.defaultCase);
-        for (int h : heads) {
-            if (h == merge) {
-                return null;
-            }
-            if (s.armIsValue(h, merge, new HashSet<>())) {
-                continue;
-            }
-            if (!dom.pdom[h].get(merge) || !mergeConsumesValue(merge)) {
-                return null;
-            }
-        }
-        return merge;
-    }
-
-    boolean mergeConsumesValue(int merge) {
-        BasicBlock m = cfg.blocks.get(merge);
-        if (m.instrs.isEmpty()) {
-            return false;
-        }
-        Instruction first = (Instruction) cfg.seq.get(m.instrs.get(0));
-        return first instanceof StoreInstruction
-                || first instanceof java.lang.classfile.instruction.ArrayStoreInstruction
-                || (first instanceof java.lang.classfile.instruction.ReturnInstruction r
-                        && r.opcode() != Opcode.RETURN)
-                || (first instanceof FieldInstruction fi
-                        && (fi.opcode() == Opcode.PUTFIELD || fi.opcode() == Opcode.PUTSTATIC))
-                || first instanceof InvokeInstruction;
-    }
-
-    void emitSwitchExpr(int swBlk, int merge, List<AstNode<StmtExpr>> out) {
-        BasicBlock b = cfg.blocks.get(swBlk);
-        AstNode<StmtExpr> selector = switchSelector(b, out, 1);
-        body.stack.push(buildSwitchExprCascade(swBlk, merge, selector,
-                v -> List.of(body.e(body.pinnedLongLiteral(v)))));
-    }
-
-    /** Build a switch-expression cascade: each arm a single value (block arms refuse). */
-    private AstNode<StmtExpr> buildSwitchExprCascade(int swBlk, int merge, AstNode<StmtExpr> selector,
-                                                     java.util.function.IntFunction<List<AstNode<StmtExpr>>> labelsFor) {
-        BasicBlock b = cfg.blocks.get(swBlk);
-        java.util.LinkedHashMap<Integer, List<Integer>> byTarget = new java.util.LinkedHashMap<>();
-        for (int[] c : b.cases) {
-            byTarget.computeIfAbsent(c[1], k -> new ArrayList<>()).add(c[0]);
-        }
-        int defBlk = b.defaultCase;
-        Set<Integer> heads = new HashSet<>(byTarget.keySet());
-        heads.add(defBlk);
-        List<Integer> order = new ArrayList<>(heads);
-        Collections.sort(order);
-
-        var arms = new ArrayList<Arm>();
-        for (int head : order) {
-            AstNode<StmtExpr> value;
-            if (s.armIsValue(head, merge, new HashSet<>())) {
-                value = s.evalArm(head, merge);
-            } else {
-                throw new JavaViolationException("Unsupported switch-expression arm (only single expressions)");
-            }
-            List<AstNode<StmtExpr>> labels = head != defBlk
-                    ? labelsForValues(byTarget.get(head), labelsFor) : List.of();
-            arms.add(new Arm(labels, head == defBlk, List.of(value)));
-        }
-        return buildCascade(selector, arms);
-    }
 }

@@ -69,12 +69,8 @@ final class ArrayModel {
     static final String SPEC_WRITE = "an array allocation or write inside a specification is not yet supported";
     static final String CONTRACT_WRITE = "an array allocation or write inside library contract code"
             + " is not yet supported";
-    static final String ORDER = "an array allocation or write inside an expression with an earlier call"
-            + " or field read is not yet supported";
     static final String VALUE_USE = "an array element assignment or increment used as a value"
             + " is not yet supported";
-    static final String EFFECTFUL_COMPOUND = "compound assignment to an array element whose array or index"
-            + " is not a local variable or constant is not yet supported";
     static final String NON_BOOLEAN_STORE = "a non-boolean value stored into a boolean[] is not yet supported";
     static final String UNAVAILABLE = "the JArray array model is unavailable";
 
@@ -91,20 +87,6 @@ final class ArrayModel {
     static final String PURE_LOAD_HELPER_PREFIX = "java?array_pure_load_";
     /** The element store helper prefix: {@code java?array_store_<suffix>(x: int): int}, range-checked. */
     static final String STORE_HELPER_PREFIX = "java?array_store_";
-    /** The generic read wrapper for a non-local receiver: {@code java?array_get<E>(a, index)}. */
-    static final String GET_WRAPPER = "java?array_get";
-    /** The generic length wrapper for a non-local receiver: {@code java?array_length<E>(a)}. */
-    static final String LENGTH_WRAPPER = "java?array_length";
-
-    /** The JArray member a generic wrapper calls ({@code get}, {@code length}), or null for any other callee. */
-    static String wrappedMember(String callee) {
-        return switch (callee) {
-            case GET_WRAPPER -> "get";
-            case LENGTH_WRAPPER -> "length";
-            default -> null;
-        };
-    }
-
     /**
      * True for a {@code Nullable} annotation of any package (the class
      * descriptor ends in {@code /Nullable;}, or is {@code LNullable;}).

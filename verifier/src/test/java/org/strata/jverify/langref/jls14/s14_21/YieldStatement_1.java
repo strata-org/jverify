@@ -1,12 +1,11 @@
 package org.strata.jverify.langref.jls14.s14_21;
 
-import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
 // JLS 14.21 -- The yield Statement: yields a value from a switch expression block.
-@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls14.s14_21.YieldStatement_1#run", expectedToFail = true, blockedBy = {Blocker.LANGREF_UNSUPPORTED})
+@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls14.s14_21.YieldStatement_1#run")
 class YieldStatement_1 {
     static void run() {
 

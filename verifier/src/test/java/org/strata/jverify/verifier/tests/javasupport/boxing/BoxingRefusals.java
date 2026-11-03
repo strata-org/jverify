@@ -13,7 +13,7 @@ import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(continueOnErrors = true, exitCode = 0, methodsInvalid = 0, errorCount = 0, methodsVerified = 9, methodsSkipped = 27)
+@JVerifyTest(continueOnErrors = true, exitCode = 0, methodsInvalid = 0, errorCount = 0, methodsVerified = 10, methodsSkipped = 26)
 class BoxingRefusals {
     static boolean sameBox(int x) {
         Integer a = x;
@@ -67,7 +67,6 @@ class BoxingRefusals {
     }
 
     static boolean equalsCallResult(Integer a) {
-//                                             ^ error: 'Integer.equals' on an argument that is not a local variable is not yet supported
         return a.equals(anObject());
     }
 

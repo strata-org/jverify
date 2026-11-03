@@ -23,9 +23,6 @@ import java.lang.classfile.instruction.FieldInstruction;
 import java.lang.classfile.instruction.IncrementInstruction;
 import java.lang.classfile.instruction.InvokeInstruction;
 import java.lang.classfile.instruction.LoadInstruction;
-import java.lang.classfile.instruction.NewMultiArrayInstruction;
-import java.lang.classfile.instruction.NewPrimitiveArrayInstruction;
-import java.lang.classfile.instruction.NewReferenceArrayInstruction;
 import java.lang.classfile.instruction.StackInstruction;
 import java.lang.classfile.instruction.StoreInstruction;
 import java.lang.classfile.instruction.TypeCheckInstruction;
@@ -42,7 +39,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.TreeSet;
 
 /**
  * The control-flow structurer: the region walker over the CFG, emitting
@@ -104,6 +100,27 @@ final class ControlFlowStructurer {
     final Set<AstNode<StmtExpr>> condStmts = Collections.newSetFromMap(new IdentityHashMap<>());
     int guard = 0;
     int depth = 0;
+    int lastStop = -1;
+
+    static final class Merge {
+        final String label;
+        final int base;
+        final List<AstNode<StmtExpr>> baseStack;
+        boolean used;
+        final List<List<AstNode<StmtExpr>>> values = new ArrayList<>();
+        final List<List<AstNode<StmtExpr>>> slots = new ArrayList<>();
+
+        Merge(String label, List<AstNode<StmtExpr>> baseStack) {
+            this.label = label;
+            this.base = baseStack.size();
+            this.baseStack = baseStack;
+        }
+    }
+
+    final Map<Integer, Merge> merges = new HashMap<>();
+    final boolean[] reachable;
+    final int[] rpo;
+    final List<List<Integer>> domChildren = new ArrayList<>();
 
     /** Per-construct emitters around this region walker. */
     final LoopEmitter loops;
@@ -116,6 +133,9 @@ final class ControlFlowStructurer {
         this.body = body;
         this.ctx = ctx;
         this.visited = new boolean[cfg.blocks.size()];
+        this.reachable = new boolean[cfg.blocks.size()];
+        this.rpo = new int[cfg.blocks.size()];
+        orderBlocks();
         for (Trap e : cfg.excs) {
             triesByStart.computeIfAbsent(e.startBlk(), k -> new ArrayList<>()).add(e);
         }
@@ -187,6 +207,43 @@ final class ControlFlowStructurer {
             return body.crt.stream().anyMatch(r -> r.startPc() == pc);
         }
         return body.lines != null && body.lines.startsAt(pc);
+    }
+
+    private void orderBlocks() {
+        int n = cfg.blocks.size();
+        java.util.Arrays.fill(rpo, -1);
+        for (int i = 0; i < n; i++) {
+            domChildren.add(new ArrayList<>());
+        }
+        if (n == 0) {
+            return;
+        }
+        List<Integer> post = new ArrayList<>();
+        Deque<int[]> work = new ArrayDeque<>();
+        reachable[0] = true;
+        work.push(new int[] {0, 0});
+        while (!work.isEmpty()) {
+            int[] top = work.peek();
+            List<Integer> succ = cfg.blocks.get(top[0]).succ;
+            if (top[1] < succ.size()) {
+                int s = succ.get(top[1]++);
+                if (!reachable[s]) {
+                    reachable[s] = true;
+                    work.push(new int[] {s, 0});
+                }
+            } else {
+                post.add(work.pop()[0]);
+            }
+        }
+        for (int i = 0; i < post.size(); i++) {
+            rpo[post.get(i)] = post.size() - 1 - i;
+        }
+        for (int m = 0; m < n; m++) {
+            int d = dom.idom[m];
+            if (reachable[m] && d >= 0 && d != m && reachable[d]) {
+                domChildren.get(d).add(m);
+            }
+        }
     }
 
     /** The structured method body as a Laurel block statement list. */
@@ -271,30 +328,8 @@ final class ControlFlowStructurer {
                 cur = switches.emitStringSwitch(cur, stop, out);
                 continue;
             }
-            Integer smerge = switches.switchValueDiamond(cur);
-            if (smerge != null) {
-                switches.emitSwitchExpr(cur, smerge, out);
-                cur = smerge;
-                continue;
-            }
             if (b.isSwitch()) {
                 cur = switches.emitSwitch(cur, stop, out);
-                continue;
-            }
-
-            Integer merge = booleanDiamond(cur);
-            if (merge != null) {
-                emitDiamondValue(b, out);
-                cur = merge;
-                continue;
-            }
-
-            foldChainPatternBind(cur);
-
-            Integer tmerge = valueDiamond(cur);
-            if (tmerge != null) {
-                emitValueDiamond(cur, tmerge, out);
-                cur = tmerge;
                 continue;
             }
 
@@ -311,6 +346,7 @@ final class ControlFlowStructurer {
             AstNode<StmtExpr> je = loopEdge(b.id, next, viaGoto);
             if (je != null) {
                 addLoopJump(out, je);
+                lastStop = -1;
                 return out;
             }
             cur = next;
@@ -325,6 +361,7 @@ final class ControlFlowStructurer {
                 }
             }
         }
+        lastStop = cur;
         return out;
     }
 
@@ -601,7 +638,7 @@ final class ControlFlowStructurer {
         body.translateSpan(ins, elemIdxs(g), 0, n - 2);
         drainInto(out, mark);
         visited[condBlk] = true;
-        AstNode<StmtExpr> cond = LaurelTrees.negate(conditionOf(c, out), ctx.method.unordered);
+        AstNode<StmtExpr> cond = LaurelTrees.negate(conditionOf(c, out));
         visited[throwBlk] = true;
         AstNode<StmtExpr> msg = assertMessage(t);
         // Laurel's Assert has no detail-message slot; the message-bearing
@@ -679,37 +716,31 @@ final class ControlFlowStructurer {
         for (AstNode<StmtExpr> t : body.explicitImplicitThrows(cond)) {
             out.add(place(t, condBlk));
         }
-        int thenE = c.fall, elseE = c.branch;
         int follow = dom.ipdom[condBlk];
-        int[] exits = chainExits(condBlk, follow, stop);
-        if (exits != null) {
-            // `if ((a && b) || rest) S else E`: javac jumps from every operand
-            // to S or to E, so E is reached from several operands. Emitting
-            // each operand as its own `if` would copy E (and the operands after
-            // it) into every arm, doubling the output per operand. The chain is
-            // rebuilt as one expression, as for a value diamond, with reaching
-            // S standing for true and reaching E for false; S and E are then
-            // the two arms, emitted once each. Only the first operand's
-            // implicit exceptions were hoisted above: the others are evaluated
-            // conditionally and stay inside the expression.
-            cond = diamondValue(c, cond, Map.of(exits[0], true, exits[1], false), follow);
-            body.checkPlaceable(cond);
-            thenE = exits[0];
-            elseE = exits[1];
+        List<Integer> shared = sharedChildren(condBlk, follow, stop);
+        if (!shared.isEmpty()) {
+            return emitShared(cond, condBlk, shared, follow, stop, out);
         }
+        return emitBranches(cond, condBlk, follow, stop, out);
+    }
+
+    private int emitBranches(AstNode<StmtExpr> cond, int condBlk, int follow, Set<Integer> stop,
+                             List<AstNode<StmtExpr>> out) {
+        BasicBlock c = cfg.blocks.get(condBlk);
+        int thenE = c.fall, elseE = c.branch;
 
         Set<Integer> sub = plus(stop, follow);
         // An arm that leaves the region for an enclosing loop's header or exit,
         // other than by reaching the join, is that loop's goto/exit.
-        AstNode<StmtExpr> thenJ = armJump(thenE, follow, stop);
-        AstNode<StmtExpr> elseJ = armJump(elseE, follow, stop);
+        AstNode<StmtExpr> thenJ = armJump(thenE, follow, stop, condBlk);
+        AstNode<StmtExpr> elseJ = armJump(elseE, follow, stop, condBlk);
         if (thenJ != null && elseJ != null) {
             out.add(place(body.e(new StmtExpr.IfThenElse(cond, blockOf(List.of(thenJ)),
                     Optional.of(blockOf(List.of(elseJ))))), condBlk));
             return follow;
         }
         if (elseJ != null) {
-            out.add(place(body.e(new StmtExpr.IfThenElse(LaurelTrees.negate(cond, ctx.method.unordered),
+            out.add(place(body.e(new StmtExpr.IfThenElse(LaurelTrees.negate(cond),
                     blockOf(List.of(elseJ)), Optional.empty())), condBlk));
             return thenE;
         }
@@ -719,680 +750,334 @@ final class ControlFlowStructurer {
             return elseE;
         }
         if (elseE == follow || elseE < 0 || stop.contains(elseE)) {
-            List<AstNode<StmtExpr>> then = region(thenE, sub);
-            out.add(place(body.e(new StmtExpr.IfThenElse(cond, blockOf(then), Optional.empty())), condBlk));
+            out.add(place(skipUnless(cond, oneArm(thenE, sub, follow)), condBlk));
         } else if (thenE == follow || stop.contains(thenE)) {
-            List<AstNode<StmtExpr>> els = region(elseE, sub);
-            out.add(place(body.e(new StmtExpr.IfThenElse(LaurelTrees.negate(cond, ctx.method.unordered),
-                    blockOf(els), Optional.empty())), condBlk));
+            out.add(place(skipUnless(LaurelTrees.negate(cond), oneArm(elseE, sub, follow)), condBlk));
         } else {
-            List<AstNode<StmtExpr>> then = region(thenE, sub);
-            List<AstNode<StmtExpr>> els = region(elseE, sub);
-            out.add(place(body.e(new StmtExpr.IfThenElse(cond, blockOf(then),
-                    Optional.of(blockOf(els)))), condBlk));
+            int depth = body.stack.size();
+            List<AstNode<StmtExpr>> before = new ArrayList<>(body.stack);
+            List<AstNode<StmtExpr>> then = armRegion(thenE, sub, follow);
+            boolean thenLive = falls(then);
+            List<AstNode<StmtExpr>> thenVals = thenLive ? armValues(body.stack.size() - depth) : null;
+            if (!thenLive) {
+                restoreStack(before);
+            }
+            List<AstNode<StmtExpr>> els = armRegion(elseE, sub, follow);
+            boolean elseLive = falls(els);
+            List<AstNode<StmtExpr>> elseVals = elseLive ? armValues(body.stack.size() - depth) : null;
+            if (!elseLive) {
+                restoreStack(before);
+            }
+            if (thenVals != null && elseVals != null && thenVals.size() != elseVals.size()) {
+                throw differentValues();
+            }
+            int count = thenVals != null ? thenVals.size() : elseVals != null ? elseVals.size() : 0;
+            var reads = new ArrayList<AstNode<StmtExpr>>();
+            for (int i = 0; i < count; i++) {
+                AstNode<StmtExpr> read = BodyTranslator.stackRead(SourceMap.UNKNOWN_RANGE);
+                var column = new ArrayList<AstNode<StmtExpr>>();
+                if (thenVals != null) {
+                    column.add(thenVals.get(i));
+                }
+                if (elseVals != null) {
+                    column.add(elseVals.get(i));
+                }
+                boolean bool = column.stream().anyMatch(this::isBoolish)
+                        || (thenVals != null && elseVals != null
+                        && isIntLiteral(thenVals.get(i), 1) && isIntLiteral(elseVals.get(i), 0));
+                typeJoinRead(read, column, bool);
+                if (thenVals != null) {
+                    thenVals.set(i, column.get(0));
+                }
+                if (elseVals != null) {
+                    elseVals.set(i, column.get(column.size() - 1));
+                }
+                reads.add(read);
+            }
+            if (thenVals != null) {
+                pushInto(thenVals, then);
+            }
+            if (elseVals != null) {
+                pushInto(elseVals, els);
+            }
+            String join = ctx.freshLabel("join");
+            String other = ctx.freshLabel("else");
+            then.add(0, ifExit(LaurelTrees.negate(cond), other));
+            if (fallsThroughStmt(then.get(then.size() - 1))) {
+                then.add(exit(join));
+            }
+            els.add(0, labelled(then, other));
+            out.add(place(labelled(els, join), condBlk));
+            reads.forEach(body.stack::push);
         }
         return follow;
     }
 
-    /**
-     * The two blocks that the chain of condition blocks headed by
-     * {@code condBlk} decides between, in bytecode order (javac emits the then
-     * branch first), or null when {@code condBlk} does not head such a chain:
-     * fewer than two condition blocks, or not exactly two exits. A chain block
-     * is a condition block of the same source statement as the head (it does
-     * not start a statement of its own, so a nested {@code if}, an
-     * {@code assert} or a call statement before an inner {@code if} stays a
-     * statement), with no statements inside, that is not the join
-     * {@code follow}, not a block in {@code stop}, not a loop header, not the
-     * start of a try and not a boolean diamond; every other block the chain
-     * jumps to is an exit. A chain is also refused when a later operand's
-     * implicit exception (a division's ArithmeticException, a cast's
-     * ClassCastException) would be made an explicit throw here, because that
-     * throw is only emitted as a statement in front of an {@code if}: those
-     * operands keep their own {@code if}s, as before.
-     */
-    private int[] chainExits(int condBlk, int follow, Set<Integer> stop) {
-        Set<Integer> chain = new HashSet<>();
-        Set<Integer> exits = new TreeSet<>();
-        Deque<Integer> work = new ArrayDeque<>();
-        work.push(condBlk);
-        while (!work.isEmpty()) {
-            int id = work.pop();
-            if (chain.contains(id) || exits.contains(id)) {
-                continue;
+    private void typeJoinRead(AstNode<StmtExpr> read, List<AstNode<StmtExpr>> column, boolean bool) {
+        if (bool) {
+            column.replaceAll(v -> body.coerce(v, "Z"));
+            body.bools.add(read);
+        }
+        if (column.stream().anyMatch(body.heapReadValues::contains)) {
+            body.heapReadValues.add(read);
+        }
+        if (!column.isEmpty() && column.stream().allMatch(body::isUnboundedInt)) {
+            body.unboundedResults.add(read);
+        }
+        if (body.arrays.enabled()) {
+            for (int j = 1; j < column.size(); j++) {
+                typeArrayTernary(read, column.get(0), column.get(j));
             }
-            BasicBlock b = id >= 0 ? cfg.blocks.get(id) : null;
-            boolean inChain = id == condBlk
-                    || (b != null && b.isConditional() && !b.isSwitch() && id != follow && !stop.contains(id)
-                        && !dom.isLoopHeader(id) && !triesByStart.containsKey(id) && !blockHasStatement(b)
-                        && booleanDiamond(id) == null && isOperandBlock(b));
-            if (!inChain) {
-                exits.add(id);
-                continue;
-            }
-            if (id != condBlk && operandThrowsExplicitly(b)) {
-                return null;
-            }
-            chain.add(id);
-            work.push(b.fall);
-            work.push(b.branch);
-        }
-        if (chain.size() < 2 || exits.size() != 2) {
-            return null;
-        }
-        int[] result = new int[2];
-        int i = 0;
-        for (int exit : exits) {
-            result[i++] = exit;
-        }
-        return result;
-    }
-
-    /**
-     * Whether condition block {@code b} is an operand of the statement that
-     * started before it, rather than the start of a statement of its own, and
-     * one that can live inside a condition expression. With a
-     * CharacterRangeTable the statement test is exact; without one it falls
-     * back to the LineNumberTable, and a block that pops a value, increments
-     * a local or reads {@code $assertionsDisabled} is a statement
-     * ({@code foo();}, {@code i++;}, {@code assert}). An operand that
-     * allocates an array keeps its own {@code if}: an allocation inside a
-     * condition expression is refused, in front of its own {@code if} it is
-     * a statement as before.
-     */
-    private boolean isOperandBlock(BasicBlock b) {
-        if (b.instrs.isEmpty() || startsOwnStatement(b.instrs.get(0))) {
-            return false;
-        }
-        boolean noCrt = body.crt == null || body.crt.isEmpty();
-        for (int i : b.instrs) {
-            CodeElement in = cfg.seq.get(i);
-            if (in instanceof NewPrimitiveArrayInstruction || in instanceof NewReferenceArrayInstruction
-                    || in instanceof NewMultiArrayInstruction) {
-                return false;
-            }
-            if (noCrt && (in instanceof IncrementInstruction
-                    || (in instanceof StackInstruction s && (s.opcode() == Opcode.POP || s.opcode() == Opcode.POP2))
-                    || (in instanceof FieldInstruction fi
-                        && fi.name().stringValue().equals("$assertionsDisabled")))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /** Whether an implicit exception of an operation in {@code b} is made an explicit throw in this method. */
-    private boolean operandThrowsExplicitly(BasicBlock b) {
-        for (int i : b.instrs) {
-            CodeElement in = cfg.seq.get(i);
-            if (in instanceof Instruction ins) {
-                switch (ins.opcode()) {
-                    case IDIV, IREM, LDIV, LREM -> {
-                        if (body.mayThrowHere(BodyTranslator.ARITHMETIC_EXCEPTION)) {
-                            return true;
-                        }
-                    }
-                    case CHECKCAST -> {
-                        if (body.mayThrowHere(BodyTranslator.CLASS_CAST_EXCEPTION)) {
-                            return true;
-                        }
-                    }
-                    default -> {
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
-    private AstNode<StmtExpr> armJump(int target, int follow, Set<Integer> stop) {
-        return target >= 0 && target != follow && stop.contains(target) ? jumpTo(target) : null;
-    }
-
-    // --- diamonds / ternaries ---
-
-    Integer booleanDiamond(int condBlk) {
-        BasicBlock c = cfg.blocks.get(condBlk);
-        if (!c.isConditional()) {
-            return null;
-        }
-        int merge = dom.ipdom[condBlk];
-        if (merge < 0) {
-            return null;
-        }
-        BasicBlock t = cfg.blocks.get(c.fall), f = cfg.blocks.get(c.branch);
-        boolean tTrue = ops(t).equals(List.of(Opcode.ICONST_1, Opcode.GOTO)) && only(t.succ, merge);
-        boolean fFalse = ops(f).equals(List.of(Opcode.ICONST_0)) && only(f.succ, merge);
-        return (tTrue && fFalse) ? merge : null;
-    }
-
-    void emitDiamondValue(BasicBlock c, List<AstNode<StmtExpr>> out) {
-        visited[c.fall] = true;
-        visited[c.branch] = true;
-        AstNode<StmtExpr> v = conditionOf(c, out);
-        body.bools.add(v);
-        body.stack.push(v);
-    }
-
-    Integer valueDiamond(int condBlk) {
-        BasicBlock c = cfg.blocks.get(condBlk);
-        if (!c.isConditional()) {
-            return null;
-        }
-        int merge = dom.ipdom[condBlk];
-        if (merge < 0 || merge == condBlk || c.fall == merge || c.branch == merge) {
-            return null;
-        }
-        if (armIsValue(c.fall, merge, new HashSet<>()) && armIsValue(c.branch, merge, new HashSet<>())) {
-            return merge;
-        }
-        return null;
-    }
-
-    boolean armIsValue(int entry, int merge, Set<Integer> seen) {
-        return armIsValue(entry, merge, seen, new HashMap<>());
-    }
-
-    /**
-     * {@code memo} caches the answer per (entry, merge) for one top-level call.
-     * The walk recurses into both arms of every condition, and in a
-     * short-circuit chain both arms of each operand continue into the same
-     * rest of the chain, so without the memo a chain of n operands is walked
-     * 2^n times. Within one call {@link #skipLead} is fixed, so the cached
-     * answers stay valid; {@code seen} only guards against cycles, which
-     * javac never puts inside an expression.
-     */
-    private boolean armIsValue(int entry, int merge, Set<Integer> seen, Map<Long, Boolean> memo) {
-        long key = ((long) entry << 32) | (merge & 0xffffffffL);
-        Boolean known = memo.get(key);
-        if (known != null) {
-            return known;
-        }
-        boolean result = armIsValue0(entry, merge, seen, memo);
-        memo.put(key, result);
-        return result;
-    }
-
-    private boolean armIsValue0(int entry, int merge, Set<Integer> seen, Map<Long, Boolean> memo) {
-        int cur = entry;
-        while (cur != merge) {
-            if (cur < 0 || !seen.add(cur)) {
-                return false;
-            }
-            BasicBlock b = cfg.blocks.get(cur);
-            if (b.isSwitch() || blockHasStatement(b)) {
-                return false;
-            }
-            if (b.isConditional()) {
-                Integer bd = booleanDiamond(cur);
-                if (bd != null) {
-                    cur = bd;
-                    continue;
-                }
-                int m = dom.ipdom[cur];
-                if (m < 0 || m == cur) {
-                    return false;
-                }
-                if (!armIsValue(b.fall, m, new HashSet<>(seen), memo)
-                        || !armIsValue(b.branch, m, new HashSet<>(seen), memo)) {
-                    return false;
-                }
-                cur = m;
-            } else {
-                cur = b.gotoTarget >= 0 ? b.gotoTarget : b.fall;
-            }
-        }
-        return true;
-    }
-
-    boolean blockHasStatement(BasicBlock b) {
-        for (int i = skipLead.getOrDefault(b.id, 0); i < b.instrs.size(); i++) {
-            Instruction in = (Instruction) cfg.seq.get(b.instrs.get(i));
-            if (in instanceof IncrementInstruction inc) {
-                if (incAbsorbableInBlock(b, i, inc)) {
-                    continue;
-                }
-                return true;
-            }
-            if (in instanceof StoreInstruction || in instanceof java.lang.classfile.instruction.ArrayStoreInstruction
-                    || in instanceof java.lang.classfile.instruction.ReturnInstruction
-                    || in.opcode() == Opcode.ATHROW) {
-                return true;
-            }
-            if (in instanceof InvokeInstruction inv
-                    && inv.typeSymbol().returnType().descriptorString().equals("V")) {
-                return true;
-            }
-            if (in instanceof FieldInstruction fi
-                    && (fi.opcode() == Opcode.PUTFIELD || fi.opcode() == Opcode.PUTSTATIC)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean incAbsorbableInBlock(BasicBlock b, int at, IncrementInstruction inc) {
-        int c = inc.constant();
-        if (c != 1 && c != -1) {
-            return false;
-        }
-        for (int j = skipLead.getOrDefault(b.id, 0); j < b.instrs.size(); j++) {
-            if (j == at) {
-                continue;
-            }
-            if (cfg.seq.get(b.instrs.get(j)) instanceof LoadInstruction li && li.slot() == inc.slot()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    void foldChainPatternBind(int condBlk) {
-        BasicBlock c = cfg.blocks.get(condBlk);
-        if (!c.isConditional() || c.last.opcode() != Opcode.IFEQ) {
-            return;
-        }
-        int n = c.instrs.size();
-        if (n < 2 || !(insAt(c, n - 2) instanceof TypeCheckInstruction ti)
-                || ti.opcode() != Opcode.INSTANCEOF) {
-            return;
-        }
-        int fb = c.fall;
-        if (fb < 0 || fb >= cfg.blocks.size() || skipLead.containsKey(fb)) {
-            return;
-        }
-        BasicBlock b = cfg.blocks.get(fb);
-        if (b.instrs.size() < 4) {
-            return;
-        }
-        if (!(insAt(b, 0) instanceof LoadInstruction)) {
-            return;
-        }
-        if (!(insAt(b, 1) instanceof TypeCheckInstruction cc) || cc.opcode() != Opcode.CHECKCAST) {
-            return;
-        }
-        if (!(insAt(b, 2) instanceof StoreInstruction st)) {
-            return;
-        }
-        skipLead.put(fb, 3);
-        if (valueDiamond(condBlk) == null) {
-            skipLead.remove(fb);
         }
     }
 
-    void emitValueDiamond(int condBlk, int merge, List<AstNode<StmtExpr>> out) {
-        BasicBlock c = cfg.blocks.get(condBlk);
-        AstNode<StmtExpr> cond = conditionOf(c, out);
-        // A pattern-bind instanceof (foldChainPatternBind) cannot carry a
-        // binding in Laurel; the IsType/deferred marker refuses at placement,
-        // so an instanceof with a pattern refuses the method.
-        body.stack.push(diamondValue(c, cond, Map.of(), merge));
+    private static JavaViolationException differentValues() {
+        return new JavaViolationException(
+                "a conditional whose branches leave different values is not yet supported");
     }
 
-    // --- shared tails of short-circuit chains ---
-
-    /**
-     * The value of the diamond at condition block {@code c}, whose condition
-     * {@code cond} is already translated; every path from an arm ends at
-     * {@code merge} or at a block in {@code tails}.
-     *
-     * <p>javac compiles {@code (a && b) || rest} to jumps in which the block of
-     * {@code rest} is reached both when {@code a} fails and when {@code b}
-     * fails: it has two predecessors inside the diamond. Walking each arm to
-     * {@code merge} translates {@code rest} once per arm, so a chain of n such
-     * disjuncts doubles the Laurel program with every disjunct. Here a block
-     * reached by both arms is translated once and re-attached with the
-     * value the bytecode encodes: when every leaf the arms reach without
-     * passing through it is {@code iconst_1}, the diamond is
-     * {@code if head then 1 else rest}; when every such leaf is {@code iconst_0},
-     * it is {@code if head then rest else 0}. {@code head} is this diamond with
-     * reaching the shared block standing for the complementary literal, so it
-     * collapses to the chain before {@code rest}. {@link #buildTernary} then
-     * folds the ternary to {@code head || rest} or {@code head && rest} when
-     * {@code rest} is boolean, and keeps an {@code if} when it is not (the
-     * chain was the condition of an int-valued ternary). For
-     * {@code ite(c, X, Y)} with every leaf of X and Y either {@code 1} or the
-     * shared block, this is the identity
-     * {@code ite(c, X[rest], Y[rest]) = ite(ite(c, X[false], Y[false]), 1, rest)}
-     * (and dually for {@code 0}); the arms are still translated before the
-     * shared block, so evaluation order and short-circuiting are those of the
-     * bytecode. Shapes that are not chains of comparisons into literal sinks
-     * take the plain ternary, as before.
-     *
-     * <p>A chain of n operands has n shared blocks, one after the other. They
-     * are handled in a loop, not by recursing from each {@code rest} into the
-     * next, so the stack depth does not grow with the chain; the recursion
-     * into {@code head} only nests as deep as shared blocks nest.
-     *
-     * @param tails blocks outside this diamond that an arm may reach, each
-     *              mapped to the literal the enclosing factoring made it stand
-     *              for on this path
-     */
-    private AstNode<StmtExpr> diamondValue(BasicBlock c, AstNode<StmtExpr> cond, Map<Integer, Boolean> tails,
-                                           int merge) {
-        /** The value of the leaves other than the shared block: a literal, or the translated block they all reach. */
-        record Step(AstNode<StmtExpr> head, Leaf leaf, AstNode<StmtExpr> leafValue, int stmtsMark) {
-        }
-        List<Step> steps = new ArrayList<>();
-        AstNode<StmtExpr> last = null;
-        boolean inRest = false;
-        try {
-            while (last == null) {
-                Step step = null;
-                for (int shared : sharedBlocks(c, tails, merge)) {
-                    Leaf leaf = commonLeaf(c, shared, tails, merge);
-                    if (leaf == null) {
-                        continue;
-                    }
-                    Map<Integer, Boolean> inner = new HashMap<>(tails);
-                    AstNode<StmtExpr> leafValue = null;
-                    if (leaf.literal() != null) {
-                        inner.put(shared, !leaf.literal());
-                    } else {
-                        inner.put(leaf.block(), true);
-                        inner.put(shared, false);
-                    }
-                    AstNode<StmtExpr> head = diamondValue(c, cond, inner, merge);
-                    if (!inRest) {
-                        // The leaf block and the rest run only when the head decided: conditionally, like arms.
-                        body.enterConditional();
-                        inRest = true;
-                    }
-                    if (leaf.literal() == null) {
-                        leafValue = armValue(leaf.block(), tails, merge);
-                    }
-                    step = new Step(head, leaf, leafValue, body.stmts.size());
-                    steps.add(step);
-                    BasicBlock j = cfg.blocks.get(shared);
-                    int m = dom.ipdom[shared];
-                    boolean closed = m >= 0 && m != merge && !tails.containsKey(m);
-                    if (!j.isConditional() || booleanDiamond(shared) != null || closed) {
-                        // Not a condition whose paths end where this diamond's do: the rest is an arm.
-                        last = evalArm0(shared, tails, merge);
-                    } else {
-                        cond = translateCondition(j);
-                        c = j;
-                    }
-                    break;
-                }
-                if (step == null) {
-                    last = buildTernary(cond, armValue(c.fall, tails, merge), armValue(c.branch, tails, merge));
-                }
-            }
-        } finally {
-            if (inRest) {
-                body.exitConditional();
-            }
-        }
-        AstNode<StmtExpr> acc = last;
-        for (int i = steps.size() - 1; i >= 0; i--) {
-            Step step = steps.get(i);
-            acc = withArmStatements(acc, step.stmtsMark());
-            if (step.leaf().literal() == null) {
-                acc = buildTernary(step.head(), step.leafValue(), acc);
-            } else {
-                AstNode<StmtExpr> lit = body.e(body.pinnedLongLiteral(step.leaf().literal() ? 1 : 0));
-                body.noteDesc(lit, "I");
-                acc = step.leaf().literal() ? buildTernary(step.head(), lit, acc) : buildTernary(step.head(), acc, lit);
-            }
-        }
-        return acc;
-    }
-
-    /**
-     * What a leaf of a diamond stands for: the literal of an {@code iconst_1} /
-     * {@code iconst_0} sink or of a tail, or else the block the leaf is (a
-     * value block such as the {@code 5} of {@code chain ? 5 : 7}, or a
-     * statement block the chain of an {@code if} decides for).
-     */
-    private record Leaf(int block, Boolean literal) {
-        static Leaf of(boolean literal) {
-            return new Leaf(-1, literal);
-        }
-
-        static Leaf of(int block) {
-            return new Leaf(block, null);
-        }
-    }
-
-    /** Translate the instructions of condition block {@code c} before its jump and materialize the jump's comparison. */
-    private AstNode<StmtExpr> translateCondition(BasicBlock c) {
-        visited[c.id] = true;
-        body.pos = c.instrs.isEmpty() ? body.pos : c.instrs.get(0);
-        List<CodeElement> ins = elems(c);
-        body.translateSpan(ins, elemIdxs(c), 0, ins.size() - 1);
-        return body.materializeComparison(c.last.opcode());
-    }
-
-
-    /**
-     * The blocks reachable from an arm of {@code c} without entering
-     * {@code merge} or a tail, as candidates for the block to factor out. A
-     * block reached from one arm only is a valid candidate too (the other
-     * arm's leaves are then the ones that must agree): it lets a chain with
-     * no shared block, {@code a && b && c}, be handled in the loop rather than
-     * by recursing once per operand. Candidates whose own value the chain
-     * decides for come first, last in bytecode order first: value blocks other
-     * than {@code iconst_1}/{@code iconst_0} sinks, and conditions reached from
-     * both arms whose arms are not conditions (a ternary of its own, the
-     * {@code x} of {@code chain ? x : y}). With them first, the whole chain
-     * becomes the condition of one {@code if}, and javac puts {@code y} after
-     * {@code x}. Then the condition blocks, nearest first. Literal sinks are
-     * leaves, never candidates: translating a chain as
-     * {@code if chain then 1 else 0} would lose its boolean type.
-     */
-    private List<Integer> sharedBlocks(BasicBlock c, Map<Integer, Boolean> tails, int merge) {
-        Set<Integer> stop = new HashSet<>(tails.keySet());
-        stop.add(merge);
-        if (isLeafFor(c.fall, stop) && isLeafFor(c.branch, stop)) {
-            // Both arms are leaves: the plain ternary is already as small as it gets, and
-            // factoring would only reorder it (`if d <= 0 then 1 else 2` for `d > 0 ? 2 : 1`).
+    private List<Integer> sharedChildren(int condBlk, int follow, Set<Integer> stop) {
+        if (!reachable[condBlk]) {
             return List.of();
         }
-        Set<Integer> fromFall = reachable(c.fall, stop);
-        Set<Integer> fromBranch = reachable(c.branch, stop);
-        Set<Integer> all = new HashSet<>(fromFall);
-        all.addAll(fromBranch);
-        List<Integer> values = new ArrayList<>();
-        List<Integer> conditions = new ArrayList<>();
-        for (int b : all) {
-            BasicBlock block = cfg.blocks.get(b);
-            if (block.isConditional()) {
-                if (isTerminalCondition(b)) {
-                    values.add(b);
-                } else {
-                    conditions.add(b);
-                }
-            } else if (!block.isSwitch() && literalSink(block, merge) == null) {
-                values.add(b);
+        for (Ctx c : ctxStack) {
+            if (!c.loop) {
+                return List.of();
             }
         }
-        values.sort(Collections.reverseOrder());
-        Collections.sort(conditions);
-        values.addAll(conditions);
+        Set<Integer> loopBody = null;
+        for (Ctx c : ctxStack) {
+            if (c.loop) {
+                loopBody = dom.loops.get(c.header);
+                break;
+            }
+        }
+        List<Integer> r = new ArrayList<>();
+        for (int m : domChildren.get(condBlk)) {
+            if (m == follow || stop.contains(m) || visited[m] || merges.containsKey(m)
+                    || (loopBody != null && !loopBody.contains(m)) || jumpTo(m) != null) {
+                continue;
+            }
+            int forward = 0;
+            for (int p : cfg.blocks.get(m).preds) {
+                if (reachable[p] && !dom.dominates(m, p)) {
+                    forward++;
+                }
+            }
+            if (forward >= 2) {
+                r.add(m);
+            }
+        }
+        r.sort((a, b) -> Integer.compare(rpo[a], rpo[b]));
+        return r;
+    }
+
+    private int emitShared(AstNode<StmtExpr> cond, int condBlk, List<Integer> shared, int follow,
+                           Set<Integer> stop, List<AstNode<StmtExpr>> out) {
+        List<AstNode<StmtExpr>> baseStack = new ArrayList<>(body.stack);
+        boolean ownFollow = follow >= 0 && !merges.containsKey(follow) && jumpTo(follow) == null;
+        List<Integer> labelledBlocks = new ArrayList<>(shared);
+        if (ownFollow) {
+            labelledBlocks.add(follow);
+        }
+        Map<Integer, Merge> shadowed = new HashMap<>();
+        for (int m : labelledBlocks) {
+            shadowed.put(m, merges.put(m, new Merge(ctx.freshLabel("merge"), baseStack)));
+        }
+        try {
+            Set<Integer> inner = new HashSet<>(stop);
+            inner.addAll(shared);
+            if (follow >= 0) {
+                inner.add(follow);
+            }
+            int first = shared.get(0);
+            List<AstNode<StmtExpr>> code = new ArrayList<>();
+            int next = emitBranches(cond, condBlk, first, inner, code);
+            if (next >= 0 && next != first) {
+                code.addAll(armRegion(next, inner, first));
+            }
+            for (int i = 0; i < shared.size(); i++) {
+                int m = shared.get(i);
+                inner.remove(m);
+                code = closeMerge(m, code, condBlk);
+                boolean last = i == shared.size() - 1;
+                if (last && !(ownFollow && merges.get(follow).used)) {
+                    out.addAll(code);
+                    return m;
+                }
+                code.addAll(armRegion(m, inner, last ? follow : shared.get(i + 1)));
+            }
+            out.addAll(closeMerge(follow, code, condBlk));
+            return follow;
+        } finally {
+            for (int m : labelledBlocks) {
+                Merge prev = shadowed.get(m);
+                if (prev == null) {
+                    merges.remove(m);
+                } else {
+                    merges.put(m, prev);
+                }
+            }
+        }
+    }
+
+    private List<AstNode<StmtExpr>> closeMerge(int m, List<AstNode<StmtExpr>> code, int blk) {
+        Merge e = merges.get(m);
+        List<List<AstNode<StmtExpr>>> paths = new ArrayList<>(e.values);
+        List<AstNode<StmtExpr>> natural = null;
+        if (falls(code)) {
+            int k = body.stack.size() - e.base;
+            if (k < 0) {
+                throw differentValues();
+            }
+            natural = armValues(k);
+            paths.add(natural);
+        }
+        restoreStack(e.baseStack);
+        var reads = new ArrayList<AstNode<StmtExpr>>();
+        int k = paths.isEmpty() ? 0 : paths.get(0).size();
+        for (List<AstNode<StmtExpr>> p : paths) {
+            if (p.size() != k) {
+                throw differentValues();
+            }
+        }
+        for (int i = 0; i < k; i++) {
+            AstNode<StmtExpr> read = BodyTranslator.stackRead(SourceMap.UNKNOWN_RANGE);
+            var column = new ArrayList<AstNode<StmtExpr>>();
+            for (List<AstNode<StmtExpr>> p : paths) {
+                column.add(p.get(i));
+            }
+            boolean bool = column.stream().anyMatch(this::isBoolish)
+                    || (column.stream().allMatch(v -> isIntLiteral(v, 0) || isIntLiteral(v, 1))
+                    && column.stream().anyMatch(v -> isIntLiteral(v, 0))
+                    && column.stream().anyMatch(v -> isIntLiteral(v, 1)));
+            typeJoinRead(read, column, bool);
+            for (int j = 0; j < paths.size(); j++) {
+                paths.get(j).set(i, column.get(j));
+            }
+            reads.add(read);
+        }
+        if (k > 0) {
+            for (int j = 0; j < e.slots.size(); j++) {
+                var pushes = new ArrayList<AstNode<StmtExpr>>();
+                pushInto(e.values.get(j), pushes);
+                e.slots.get(j).addAll(0, pushes);
+            }
+            if (natural != null) {
+                pushInto(natural, code);
+            }
+        }
+        List<AstNode<StmtExpr>> result = new ArrayList<>();
+        if (e.used) {
+            if (!code.isEmpty() && code.get(code.size() - 1).val() instanceof StmtExpr.Goto g
+                    && g.target().equals(e.label) && g.destination() instanceof GotoDestination.BlockEnd) {
+                code.remove(code.size() - 1);
+            }
+            result.add(place(labelled(code, e.label), blk));
+        } else {
+            result.addAll(code);
+        }
+        reads.forEach(body.stack::push);
+        return result;
+    }
+
+    private AstNode<StmtExpr> mergeExit(int target, int blk) {
+        Merge e = merges.get(target);
+        e.used = true;
+        int k = body.stack.size() - e.base;
+        if (k < 0) {
+            throw differentValues();
+        }
+        var vals = new ArrayList<AstNode<StmtExpr>>();
+        var it = body.stack.iterator();
+        for (int i = 0; i < k; i++) {
+            vals.add(0, it.next());
+        }
+        e.values.add(vals);
+        if (k == 0) {
+            e.slots.add(new ArrayList<>());
+            return exit(e.label);
+        }
+        AstNode<StmtExpr> slot = place(blockOf(List.of(exit(e.label))), blk);
+        e.slots.add(((StmtExpr.Block) slot.val()).statements());
+        return slot;
+    }
+
+    private List<AstNode<StmtExpr>> armRegion(int entry, Set<Integer> stop, int join) {
+        List<AstNode<StmtExpr>> arm = new ArrayList<>(region(entry, stop));
+        int at = lastStop;
+        if (at >= 0 && at != join && merges.containsKey(at) && jumpTo(at) == null && falls(arm)) {
+            arm.add(mergeExit(at, at));
+        }
+        return arm;
+    }
+
+    private List<AstNode<StmtExpr>> oneArm(int entry, Set<Integer> stop, int join) {
+        List<AstNode<StmtExpr>> before = new ArrayList<>(body.stack);
+        List<AstNode<StmtExpr>> arm = armRegion(entry, stop, join);
+        if (!falls(arm)) {
+            restoreStack(before);
+        }
+        return arm;
+    }
+
+    private void restoreStack(List<AstNode<StmtExpr>> topFirst) {
+        body.stack.clear();
+        for (int i = topFirst.size() - 1; i >= 0; i--) {
+            body.stack.push(topFirst.get(i));
+        }
+    }
+
+    private static boolean falls(List<AstNode<StmtExpr>> stmts) {
+        return stmts.isEmpty() || fallsThroughStmt(stmts.get(stmts.size() - 1));
+    }
+
+    private static boolean isIntLiteral(AstNode<StmtExpr> v, int value) {
+        return v.val() instanceof StmtExpr.LiteralInt li && li.value() == value;
+    }
+
+    private AstNode<StmtExpr> ifExit(AstNode<StmtExpr> cond, String label) {
+        return body.e(new StmtExpr.IfThenElse(cond, blockOf(List.of(exit(label))), Optional.empty()));
+    }
+
+    private AstNode<StmtExpr> labelled(List<AstNode<StmtExpr>> stmts, String label) {
+        return body.e(new StmtExpr.Block(new ArrayList<>(stmts), Optional.of(label), List.of(), Optional.empty()));
+    }
+
+    private AstNode<StmtExpr> skipUnless(AstNode<StmtExpr> cond, List<AstNode<StmtExpr>> arm) {
+        String label = ctx.freshLabel("skip");
+        var stmts = new ArrayList<AstNode<StmtExpr>>();
+        stmts.add(ifExit(LaurelTrees.negate(cond), label));
+        stmts.addAll(arm);
+        return labelled(stmts, label);
+    }
+
+    private List<AstNode<StmtExpr>> armValues(int count) {
+        var values = new ArrayList<AstNode<StmtExpr>>();
+        for (int i = 0; i < count; i++) {
+            values.add(0, body.stack.pop());
+        }
         return values;
     }
 
-    /** Whether block {@code id} ends a path of the diamond: a stop (tail or merge), a non-condition, or a terminal condition. */
-    private boolean isLeafFor(int id, Set<Integer> stop) {
-        return id < 0 || stop.contains(id) || !cfg.blocks.get(id).isConditional() || isTerminalCondition(id);
+    void pushInto(List<AstNode<StmtExpr>> values, List<AstNode<StmtExpr>> arm) {
+        int mark = body.stmts.size();
+        for (AstNode<StmtExpr> v : values) {
+            body.pushValue(v);
+        }
+        arm.addAll(body.stmts.subList(mark, body.stmts.size()));
+        body.stmts.subList(mark, body.stmts.size()).clear();
     }
 
-    /**
-     * A condition block whose arms are not conditions and are reached only
-     * through it: a ternary of its own that the chain decides for (such as
-     * {@code d > 0 ? 5 : 7} in {@code chain ? (d > 0 ? 5 : 7) : 0}), not an
-     * operand of the chain. Treated as a leaf, like a value block. The last
-     * operand of a chain is not one: its sinks are reached from the other
-     * operands too.
-     */
-    private boolean isTerminalCondition(int b) {
-        BasicBlock block = cfg.blocks.get(b);
-        if (!block.isConditional()) {
-            return false;
-        }
-        for (int s : List.of(block.fall, block.branch)) {
-            BasicBlock succ = cfg.blocks.get(s);
-            if (succ.isConditional() || succ.preds.size() != 1) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /** The blocks reachable from {@code entry} (itself included) without entering a block in {@code stop}. */
-    private Set<Integer> reachable(int entry, Set<Integer> stop) {
-        Set<Integer> seen = new HashSet<>();
-        Deque<Integer> work = new ArrayDeque<>();
-        work.push(entry);
-        while (!work.isEmpty()) {
-            int b = work.pop();
-            if (b < 0 || stop.contains(b) || !seen.add(b)) {
-                continue;
-            }
-            for (int s : cfg.blocks.get(b).succ) {
-                work.push(s);
-            }
-        }
-        return seen;
-    }
-
-    /**
-     * What every leaf reachable from the arms of {@code c} without entering
-     * {@code shared} stands for: a tail's literal, a literal sink's constant,
-     * or one and the same block. Null when the leaves disagree, when there is
-     * none, or when a condition on the way jumps straight to {@code merge}:
-     * the shape is then not a short-circuit chain deciding between two
-     * outcomes.
-     */
-    private Leaf commonLeaf(BasicBlock c, int shared, Map<Integer, Boolean> tails, int merge) {
-        Leaf common = null;
-        Set<Integer> seen = new HashSet<>();
-        Deque<Integer> work = new ArrayDeque<>();
-        work.push(c.fall);
-        work.push(c.branch);
-        while (!work.isEmpty()) {
-            int id = work.pop();
-            if (id == shared || !seen.add(id)) {
-                continue;
-            }
-            Leaf leaf;
-            Boolean tail = tails.get(id);
-            if (tail != null) {
-                leaf = Leaf.of(tail);
-            } else if (id < 0 || id == merge) {
-                return null;    // a condition that jumps straight to the merge carries no value
-            } else {
-                BasicBlock b = cfg.blocks.get(id);
-                if (b.isConditional() && !isTerminalCondition(id)) {
-                    work.push(b.fall);
-                    work.push(b.branch);
-                    continue;
-                }
-                if (b.isSwitch()) {
-                    return null;
-                }
-                Boolean literal = b.isConditional() ? null : literalSink(b, merge);
-                leaf = literal != null ? Leaf.of(literal) : Leaf.of(id);
-            }
-            if (common != null && !common.equals(leaf)) {
-                return null;
-            }
-            common = leaf;
-        }
-        return common;
-    }
-
-    /** The constant of a literal sink, {@code iconst_1 [goto]} or {@code iconst_0 [goto]} into {@code merge}; else null. */
-    private Boolean literalSink(BasicBlock b, int merge) {
-        if (!only(b.succ, merge)) {
+    private AstNode<StmtExpr> armJump(int target, int follow, Set<Integer> stop, int blk) {
+        if (target < 0 || target == follow || !stop.contains(target)) {
             return null;
         }
-        List<Opcode> o = ops(b);
-        if (o.size() == 2 && o.get(1) == Opcode.GOTO) {
-            o = o.subList(0, 1);
-        }
-        if (o.equals(List.of(Opcode.ICONST_1))) {
-            return true;
-        }
-        if (o.equals(List.of(Opcode.ICONST_0))) {
-            return false;
-        }
-        return null;
+        AstNode<StmtExpr> j = jumpTo(target);
+        return j == null && merges.containsKey(target) ? mergeExit(target, blk) : j;
     }
 
-    private AstNode<StmtExpr> boolLiteral(boolean value) {
-        AstNode<StmtExpr> lit = body.e(new StmtExpr.LiteralBool(value));
-        body.noteDesc(lit, "Z");
-        body.bools.add(lit);
-        return lit;
-    }
-
-    AstNode<StmtExpr> armValue(int entry, Map<Integer, Boolean> tails, int merge) {
-        int mark = body.stmts.size();
-        return withArmStatements(evalArm(entry, tails, merge), mark);
-    }
-
-    /** Arm value {@code v} together with the statements emitted since {@code mark}, as a block if there are any. */
-    private AstNode<StmtExpr> withArmStatements(AstNode<StmtExpr> v, int mark) {
-        if (body.stmts.size() == mark) {
-            return v;
-        }
-        var stmts = new ArrayList<>(body.stmts.subList(mark, body.stmts.size()));
-        body.stmts.subList(mark, body.stmts.size()).clear();
-        stmts.add(v);
-        AstNode<StmtExpr> block = body.e(new StmtExpr.Block(stmts, Optional.empty(), List.of(), Optional.empty()));
-        if (isBoolish(v)) {
-            body.bools.add(block);
-        }
-        if (body.heapReadValues.contains(v)) {
-            body.heapReadValues.add(block);
-        }
-        return block;
-    }
-
-    AstNode<StmtExpr> buildTernary(AstNode<StmtExpr> cond, AstNode<StmtExpr> thenVal, AstNode<StmtExpr> elseVal) {
-        boolean boolish = isBoolish(thenVal) || isBoolish(elseVal);
-        if (boolish) {
-            thenVal = body.coerce(thenVal, "Z");
-            elseVal = body.coerce(elseVal, "Z");
-        }
-        AstNode<StmtExpr> r;
-        if (boolish && LaurelTrees.isTrueLit(thenVal.val()) && LaurelTrees.isFalseLit(elseVal.val())) {
-            r = cond;
-        } else if (boolish && LaurelTrees.isFalseLit(thenVal.val()) && LaurelTrees.isTrueLit(elseVal.val())) {
-            r = LaurelTrees.negate(cond, ctx.method.unordered);
-        } else if (boolish && LaurelTrees.isFalseLit(elseVal.val())) {
-            r = body.e(LaurelFactory.primitiveOp(new Operation.AndThen(), cond, thenVal));
-        } else if (boolish && LaurelTrees.isTrueLit(thenVal.val())) {
-            r = body.e(LaurelFactory.primitiveOp(new Operation.OrElse(), cond, elseVal));
-        } else if (boolish && LaurelTrees.isTrueLit(elseVal.val())) {
-            r = body.e(LaurelFactory.primitiveOp(new Operation.OrElse(),
-                    LaurelTrees.negate(cond, ctx.method.unordered), thenVal));
-        } else if (boolish && LaurelTrees.isFalseLit(thenVal.val())) {
-            r = body.e(LaurelFactory.primitiveOp(new Operation.AndThen(),
-                    LaurelTrees.negate(cond, ctx.method.unordered), elseVal));
-        } else {
-            r = body.e(new StmtExpr.IfThenElse(cond, thenVal, Optional.of(elseVal)));
-        }
-        if (boolish) {
-            body.bools.add(r);
-        }
-        // Either arm may be a box read from the heap, so the result may be null.
-        if (body.heapReadValues.contains(thenVal) || body.heapReadValues.contains(elseVal)) {
-            body.heapReadValues.add(r);
-        }
-        if (body.arrays.enabled()) {
-            typeArrayTernary(r, thenVal, elseVal);
-        }
-        // A ternary whose arms are both @Unbounded stays mathematical, so
-        // `(c ? u + 1 : u) * 2` carries no int32 obligation. Both arms, not
-        // either: a bounded arm's value must keep its overflow checks.
-        if (body.isUnboundedInt(thenVal) && body.isUnboundedInt(elseVal)) {
-            body.unboundedResults.add(r);
-        }
-        return r;
-    }
+    // --- diamonds / ternaries ---
 
     /**
      * An array-valued conditional expression: both arms must have the same
@@ -1419,80 +1104,6 @@ final class ControlFlowStructurer {
         if (t != null) {
             body.staticTypeOf.put(r, t);
         }
-    }
-
-    AstNode<StmtExpr> evalArm(int entry, int merge) {
-        return evalArm(entry, Map.of(), merge);
-    }
-
-    AstNode<StmtExpr> evalArm(int entry, Map<Integer, Boolean> tails, int merge) {
-        // A value arm runs only on its side of the condition.
-        body.enterConditional();
-        try {
-            return evalArm0(entry, tails, merge);
-        } finally {
-            body.exitConditional();
-        }
-    }
-
-    private AstNode<StmtExpr> evalArm0(int entry, Map<Integer, Boolean> tails, int merge) {
-        int cur = entry;
-        while (true) {
-            Boolean tail = tails.get(cur);
-            if (tail != null) {
-                // A block the enclosing diamondValue translates once (or, for the
-                // chain of an `if`, a branch it emits as a statement): on this path
-                // the chain so far has the literal it stands for.
-                return boolLiteral(tail);
-            }
-            if (cur == merge) {
-                break;
-            }
-            visited[cur] = true;
-            BasicBlock b = cfg.blocks.get(cur);
-            body.pos = b.instrs.isEmpty() ? body.pos : b.instrs.get(0);
-            if (b.isConditional()) {
-                Integer bd = booleanDiamond(cur);
-                if (bd != null) {
-                    visited[b.fall] = true;
-                    visited[b.branch] = true;
-                    List<CodeElement> ins = elems(b);
-                    body.translateSpan(ins, elemIdxs(b), 0, ins.size() - 1);
-                    AstNode<StmtExpr> v = body.materializeComparison(b.last.opcode());
-                    body.bools.add(v);
-                    body.stack.push(v);
-                    cur = bd;
-                } else {
-                    int m = dom.ipdom[cur];
-                    if (m >= 0 && m != merge && !tails.containsKey(m)) {
-                        // A ternary closed inside the arm: its value is then used by what follows.
-                        if (!tails.isEmpty()) {
-                            for (int reached : reachable(cur, Set.of(m))) {
-                                if (tails.containsKey(reached)) {
-                                    // Its value would be a tail's literal and the walk would go on past the tail.
-                                    throw new StructException("a shared block of a short-circuit chain inside a ternary");
-                                }
-                            }
-                        }
-                        body.stack.push(evalTernaryValue(cur, tails, m));
-                        cur = m;
-                    } else {
-                        // Its paths end where the arm's do: it is the rest of the arm.
-                        return evalTernaryValue(cur, tails, merge);
-                    }
-                }
-            } else {
-                List<CodeElement> ins = elems(b);
-                body.translateSpan(ins, elemIdxs(b), 0, ins.size());
-                cur = b.gotoTarget >= 0 ? b.gotoTarget : b.fall;
-            }
-        }
-        return body.stack.pop();
-    }
-
-    AstNode<StmtExpr> evalTernaryValue(int condBlk, Map<Integer, Boolean> tails, int merge) {
-        BasicBlock c = cfg.blocks.get(condBlk);
-        return diamondValue(c, translateCondition(c), tails, merge);
     }
 
     boolean isBoolish(AstNode<StmtExpr> e) {

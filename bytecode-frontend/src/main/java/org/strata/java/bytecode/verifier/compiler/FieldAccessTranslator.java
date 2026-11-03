@@ -125,9 +125,6 @@ final class FieldAccessTranslator {
                 boolean superWrite = isSuperFieldRead(fi, recv);
                 var target = new AstNode<Variable>(
                         new Variable.Field(recv, LaurelFactory.ident(fn)), SourceMap.UNKNOWN_RANGE);
-                if (b.asIncrementExprOn(target, v)) {
-                    return;
-                }
                 declareAccessedField(recv, fn);
                 if (superWrite) {
                     throw new JavaViolationException("Unsupported expression: SuperExpr");

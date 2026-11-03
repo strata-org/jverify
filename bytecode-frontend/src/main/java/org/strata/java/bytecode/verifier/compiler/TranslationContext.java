@@ -42,16 +42,6 @@ final class TranslationContext {
     LibraryContracts contracts = LibraryContracts.none();
     /** Translating a library contract member rather than a program method. */
     boolean contractMode;
-    /**
-     * A {@code preconditionOf(call)} awaiting its callee's translation: the
-     * placeholder's name -> the callee and the call's receiver/arguments. Resolved
-     * once every method is translated (BytecodeToLaurelCompiler.inlinePreconditionOf),
-     * because the callee may come later in the compilation.
-     */
-    record PendingPreconditionOf(String calleeFqn, java.lang.classfile.MethodModel callee,
-                                 AstNode<StmtExpr> receiver, List<AstNode<StmtExpr>> args) {
-    }
-    final Map<String, PendingPreconditionOf> pendingPreconditionOf = new java.util.LinkedHashMap<>();
     final Set<String> constructorCalls = new java.util.HashSet<>();
     /**
      * A lambda materialized as a value (BodyTranslator.materializeLambda) whose
@@ -135,12 +125,6 @@ final class TranslationContext {
         final Deque<LabelEntry> labelStack = new ArrayDeque<>();
         String pendingLabel;
 
-        /**
-         * Float/double comparison results whose relational negation is
-         * NaN-unsafe. Identity-based: marks the exact StmtExpr instances the
-         * translator built.
-         */
-        final Set<StmtExpr> unordered = Collections.newSetFromMap(new IdentityHashMap<>());
 
         /**
          * Nodes that were emitted as STATEMENTS: the rerange stop set, so a

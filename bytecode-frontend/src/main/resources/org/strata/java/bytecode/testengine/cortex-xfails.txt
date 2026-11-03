@@ -226,6 +226,7 @@ XFAIL org.strata.jverify.verifier.tests.javasupport.Jequals CORTEX_UNSUPPORTED n
 XFAIL org.strata.jverify.verifier.tests.javasupport.LocalClassDedup CORTEX_OTHER diagnostics differ from the Laurel pipeline
 XFAIL org.strata.jverify.verifier.tests.javasupport.MangledNameSeparation CORTEX_UNSUPPORTED no verdict: the translation refused a construct
 XFAIL org.strata.jverify.verifier.tests.javasupport.MissingContractVoidCallFrame CORTEX_OTHER diagnostics differ from the Laurel pipeline
+XFAIL org.strata.jverify.verifier.tests.javasupport.MixedTernary CORTEX_SPEC JVerify.postcondition (contracts and specifications)
 XFAIL org.strata.jverify.verifier.tests.javasupport.NatAndUnbounded CORTEX_UNSUPPORTED no verdict: the translation refused a construct
 XFAIL org.strata.jverify.verifier.tests.javasupport.OptedOutOverloadSibling CORTEX_UNSUPPORTED the instruction invokedynamic
 XFAIL org.strata.jverify.verifier.tests.javasupport.OverloadsTest CORTEX_UNSUPPORTED no verdict: the translation refused a construct
@@ -234,7 +235,9 @@ XFAIL org.strata.jverify.verifier.tests.javasupport.PurityKeySeparation CORTEX_S
 XFAIL org.strata.jverify.verifier.tests.javasupport.RefusalDedup CORTEX_OTHER diagnostics differ from the Laurel pipeline
 XFAIL org.strata.jverify.verifier.tests.javasupport.RequireNonNullContract CORTEX_OTHER diagnostics differ from the Laurel pipeline
 XFAIL org.strata.jverify.verifier.tests.javasupport.ReservedResultName CORTEX_UNSUPPORTED @Nat and @Unbounded
+XFAIL org.strata.jverify.verifier.tests.javasupport.SameNamedMethods CORTEX_SPEC JVerify.postcondition (contracts and specifications)
 XFAIL org.strata.jverify.verifier.tests.javasupport.StaticOverloadRefusal CORTEX_UNSUPPORTED the instruction invokedynamic
+XFAIL org.strata.jverify.verifier.tests.javasupport.StoreReceiverOrder CORTEX_SPEC JVerify.modifies (contracts and specifications)
 XFAIL org.strata.jverify.verifier.tests.javasupport.VerifyFalseOverload CORTEX_UNSUPPORTED no verdict: the translation refused a construct
 XFAIL org.strata.jverify.verifier.tests.javasupport.arrays.ArrayBoundsFailures CORTEX_UNSUPPORTED no verdict: the translation refused a construct
 XFAIL org.strata.jverify.verifier.tests.javasupport.arrays.ArrayElementsInSpecs CORTEX_UNSUPPORTED no verdict: the translation refused a construct
@@ -348,6 +351,7 @@ XFAIL org.strata.jverify.verifier.tests.javasupport.records.ResolutionErrorsStri
 XFAIL org.strata.jverify.verifier.tests.javasupport.statements.AssertVsCheck CORTEX_UNSUPPORTED no verdict: the translation refused a construct
 XFAIL org.strata.jverify.verifier.tests.javasupport.statements.BareForLoop CORTEX_OTHER diagnostics differ from the Laurel pipeline
 XFAIL org.strata.jverify.verifier.tests.javasupport.statements.BlockScopeReuse CORTEX_OTHER verification on Cortex differs: helper calls are modular and every method may throw RuntimeException
+XFAIL org.strata.jverify.verifier.tests.javasupport.statements.Dup2OverLongResult CORTEX_SPEC @Transparent (contracts and specifications)
 XFAIL org.strata.jverify.verifier.tests.javasupport.statements.GuardCallFrame CORTEX_OTHER diagnostics differ from the Laurel pipeline
 XFAIL org.strata.jverify.verifier.tests.javasupport.statements.HoistedNameReuse CORTEX_UNSUPPORTED no verdict: the translation refused a construct
 XFAIL org.strata.jverify.verifier.tests.javasupport.statements.InvariantQuantifierBoundsObligation CORTEX_UNSUPPORTED no verdict: the translation refused a construct

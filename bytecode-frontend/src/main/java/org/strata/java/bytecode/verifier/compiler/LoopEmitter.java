@@ -77,7 +77,8 @@ final class LoopEmitter {
     /**
      * Where control continues after the loop: the header's out-of-loop
      * successor for a test at the top, else the latch's for a test at the
-     * bottom, else the first edge leaving the body.
+     * bottom, else the header's post-dominator outside the body, else the
+     * first edge leaving the body.
      */
     private int loopExit(int header, Set<Integer> bodyBlocks) {
         int fromHeader = soleExit(cfg.blocks.get(header), bodyBlocks);
@@ -90,6 +91,10 @@ final class LoopEmitter {
             if (fromLatch >= 0) {
                 return fromLatch;
             }
+        }
+        int post = dom.ipdom[header];
+        if (post >= 0 && !bodyBlocks.contains(post)) {
+            return post;
         }
         return s.firstExit(bodyBlocks);
     }
@@ -196,13 +201,29 @@ final class LoopEmitter {
         boolean found = false;
         for (int i = 0; i < stmts.size(); i++) {
             AstNode<StmtExpr> st = stmts.get(i);
-            if (body.specStmts.get(st) != null) {
+            if (body.specStmts.get(st) != null || markerAfterPushes(stmts, i)) {
                 return consumeLeadingMarkers(stmts.subList(i, stmts.size()), invariants, scan) > 0 || found;
+            }
+            if (body.isContractStep(st)) {
+                continue;
+            }
+            if (st.val() instanceof StmtExpr.Block blk && blk.label().isPresent()
+                    && (s.condStmts.contains(st) || i == stmts.size() - 1)
+                    && !blk.statements().isEmpty() && isJumpGuard(blk.statements().get(0), blk.label().get())) {
+                List<AstNode<StmtExpr>> inner = new ArrayList<>(blk.statements().subList(1, blk.statements().size()));
+                collectWrites(blk.statements().get(0), scan.written);
+                if (scanPastHeader(inner, invariants, label, scan)) {
+                    inner.add(0, blk.statements().get(0));
+                    stmts.set(i, new AstNode<>(new StmtExpr.Block(inner, blk.label(), blk.invariants(),
+                            blk.decreases()), st.source()));
+                    found = true;
+                }
+                continue;
             }
             boolean jumpGuard = isJumpGuard(st, label);
             boolean headerTest = !jumpGuard && i == stmts.size() - 1 && isHeaderTest(st, label);
             if (!jumpGuard && !headerTest && !s.condStmts.contains(st)) {
-                if (recordSnapshot(st, scan)) {
+                if (recordSnapshot(st, i > 0 ? stmts.get(i - 1) : null, scan)) {
                     continue;   // a counter snapshot: part of the header
                 }
                 return found;   // neither condition-emitted nor a header-shaped test: past the header
@@ -314,7 +335,7 @@ final class LoopEmitter {
      * capture refers to the plain source name, which would no longer match)
      * or a {@code $}/{@code t$} translator temp.
      */
-    private static boolean recordSnapshot(AstNode<StmtExpr> st, HeaderScan scan) {
+    private static boolean recordSnapshot(AstNode<StmtExpr> st, AstNode<StmtExpr> prev, HeaderScan scan) {
         if (!(st.val() instanceof StmtExpr.Assign a) || a.targets().size() != 1) {
             return false;
         }
@@ -322,11 +343,16 @@ final class LoopEmitter {
             case Variable.Local l -> l.name().text();
             case Variable.Declare d -> d.parameter().name().text();
             case Variable.Field f -> null;
+            case Variable.Stack k -> null;
         };
         if (lhs == null || lhs.indexOf('@') >= 0 || lhs.indexOf('$') >= 0) {
             return false;
         }
         AstNode<StmtExpr> value = ArrayAccessTranslator.stripLoadFacts(a.value());
+        if (BodyTranslator.isStackRead(value) && prev != null && prev.val() instanceof StmtExpr.Assign push
+                && push.targets().size() == 1 && push.targets().get(0).val() instanceof Variable.Stack) {
+            value = ArrayAccessTranslator.stripLoadFacts(push.value());
+        }
         if (!(value.val() instanceof StmtExpr.Var v && v.var_() instanceof Variable.Local src)) {
             return false;
         }
@@ -380,6 +406,8 @@ final class LoopEmitter {
             case Variable.Declare d -> out.add(d.parameter().name().text());
             case Variable.Field f -> {
             }
+            case Variable.Stack k -> {
+            }
         }
     }
 
@@ -400,14 +428,36 @@ final class LoopEmitter {
         });
     }
 
+    private static boolean sameModuloLabels(AstNode<StmtExpr> a, AstNode<StmtExpr> b) {
+        java.util.function.Function<AstNode<StmtExpr>, String> canon = n ->
+                n.toString().replaceAll("(skip|join|else)_\\d+", "L");
+        return canon.apply(a).equals(canon.apply(b));
+    }
+
+    private boolean markerAfterPushes(List<AstNode<StmtExpr>> stmts, int from) {
+        int j = from;
+        while (j < stmts.size() && body.isContractStep(stmts.get(j))) {
+            j++;
+        }
+        return j > from && j < stmts.size() && body.specStmts.containsKey(stmts.get(j));
+    }
+
     private int consumeLeadingMarkers(List<AstNode<StmtExpr>> stmts, List<AstNode<StmtExpr>> invariants,
                                       HeaderScan scan) {
-        int i = 0;
-        for (; i < stmts.size(); i++) {
+        int consumed = 0;
+        var queue = new java.util.ArrayList<AstNode<StmtExpr>>();
+        for (int i = 0; i < stmts.size(); i++) {
             var spec = body.specStmts.get(stmts.get(i));
+            if (spec == null && body.isContractStep(stmts.get(i))) {
+                queue.add(stmts.get(i));
+                continue;
+            }
             if (spec == null) {
                 break;
             }
+            var prefix = body.contractPrefix(queue);
+            queue.clear();
+            consumed = i + 1;
             // Consumed as a loop-contract clause: removed from the method
             // spec markers (the driver's refusal passes must not see it).
             body.specStmts.remove(stmts.get(i));
@@ -427,12 +477,14 @@ final class LoopEmitter {
                         arg = spec.args().get(0);
                         body.checkContractArg(arg);
                     }
+                    arg = ArrayAccessTranslator.pureLoads(BodyTranslator.withPrefix(prefix,
+                            body.coerce(ArrayAccessTranslator.pureLoads(arg, ctx.lf), "Z")), ctx.lf);
                     arg = applySnapshots(arg, scan.renames);
-                    arg = body.coerce(ArrayAccessTranslator.pureLoads(arg, ctx.lf), "Z");
+                    body.checkContractCode(arg);
                     AstNode<StmtExpr> inv = LaurelTrees.rerange(arg, argRange, ctx.method.statementNodes);
                     // A short-circuit || duplicates the body's marker run
                     // into each header test's arm: drop the extra copies.
-                    if (!invariants.contains(inv)) {
+                    if (invariants.stream().noneMatch(x -> sameModuloLabels(x, inv))) {
                         // Pinned: the loop's own placement must not restamp
                         // the invariant's argument-range subtree.
                         ctx.method.statementNodes.add(inv);
@@ -447,9 +499,9 @@ final class LoopEmitter {
                 }
             }
         }
-        if (i > 0) {
-            stmts.subList(0, i).clear();
+        if (consumed > 0) {
+            stmts.subList(0, consumed).clear();
         }
-        return i;
+        return consumed;
     }
 }

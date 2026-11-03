@@ -316,7 +316,6 @@ public class BytecodeToLaurelCompiler {
         // program method reaches are then refused too, and every refused
         // method's emitted procedure is dropped (an InstanceCall/StaticCall to
         // an unemitted procedure would die in Strata resolution).
-        inlinePreconditionOf();
         demoteCallersOfRefusedMethods();
         graph.pruneUnreachableLibraryMembers();
         stripCallsToUntranslatedConstructors();
@@ -346,7 +345,7 @@ public class BytecodeToLaurelCompiler {
         for (var typeName : new ArrayList<>(composites.referencedCompositeTypes)) {
             emitCompositeClosure(typeName, emittedComposites, types);
         }
-        List<Procedure> allProcedures = new ArrayList<>(emittedHelpers());
+        List<Procedure> allProcedures = new ArrayList<>(lf.castHelpers.values());
         allProcedures.addAll(composites.boxes.helpers.values());
         allProcedures.addAll(translationContext().missingContractProcs.values());
         allProcedures.addAll(procedures);
@@ -356,72 +355,6 @@ public class BytecodeToLaurelCompiler {
         knownUris.addAll(contracts.loadedUris());
         return new AnalysisResult(program,
                 positionResolver(java.util.Set.copyOf(knownUris)), methodStatuses);
-    }
-
-    /**
-     * The registered helper procedures, in first-use order, without an array
-     * wrapper that no emitted procedure calls: a wrapper calls a JArray
-     * member, which is emitted only while a surviving procedure reaches it.
-     */
-    private List<Procedure> emittedHelpers() {
-        if (!lf.castHelpers.containsKey(ArrayModel.GET_WRAPPER)
-                && !lf.castHelpers.containsKey(ArrayModel.LENGTH_WRAPPER)) {
-            return new ArrayList<>(lf.castHelpers.values());
-        }
-        var called = new java.util.HashSet<String>();
-        for (var p : procedures) {
-            collectProcedureCallees(p, called);
-        }
-        for (var procs : composites.instanceProcsBySort.values()) {
-            for (var p : procs) {
-                collectProcedureCallees(p, called);
-            }
-        }
-        var out = new ArrayList<Procedure>();
-        for (var e : lf.castHelpers.entrySet()) {
-            if (ArrayModel.wrappedMember(e.getKey()) == null || called.contains(e.getKey())) {
-                out.add(e.getValue());
-            }
-        }
-        return out;
-    }
-
-    /** The callee names of every call in {@code p}'s conditions, body, frames and throwsOn blocks. */
-    private static void collectProcedureCallees(Procedure p, java.util.Set<String> out) {
-        for (var c : p.preconditions()) {
-            collectCalleeNames(c.condition(), out);
-        }
-        switch (p.body()) {
-            case Body.Transparent t -> collectCalleeNames(t.body(), out);
-            case Body.Opaque o -> {
-                for (var c : o.postconditions()) {
-                    collectCalleeNames(c.condition(), out);
-                }
-                o.implementation().ifPresent(impl -> collectCalleeNames(impl, out));
-                for (var g : o.modifies()) {
-                    for (var t : g.targets()) {
-                        collectCalleeNames(t, out);
-                    }
-                    g.guard().ifPresent(guard -> collectCalleeNames(guard, out));
-                }
-            }
-            case Body.Abstract a -> {
-                for (var c : a.postconditions()) {
-                    collectCalleeNames(c.condition(), out);
-                }
-            }
-            default -> {
-            }
-        }
-        for (var block : p.throwsOn()) {
-            collectCalleeNames(block.guard(), out);
-            for (var c : block.postconditions()) {
-                collectCalleeNames(c.condition(), out);
-            }
-            for (var t : block.modifies()) {
-                collectCalleeNames(t, out);
-            }
-        }
     }
 
     /**
@@ -1629,6 +1562,11 @@ public class BytecodeToLaurelCompiler {
         }
     }
 
+    private static AstNode<StmtExpr> stackPush(AstNode<StmtExpr> value) {
+        return noRange(new StmtExpr.Assign(List.of(new AstNode<Variable>(new Variable.Stack(Optional.empty()),
+                value.source())), value));
+    }
+
     /** The hoisted local declarations as Laurel statements at the method top. */
     private List<AstNode<StmtExpr>> hoistedDeclStmts(
             org.strata.java.bytecode.frontend.MethodBody shape,
@@ -1733,7 +1671,11 @@ public class BytecodeToLaurelCompiler {
         }
         var stores = new java.util.LinkedHashMap<String, AstNode<StmtExpr>>();
         var assignedTwice = new java.util.HashSet<String>();
-        for (var stmt : implementation) {
+        var straight = withoutStack(implementation);
+        if (straight == null) {
+            return List.of();
+        }
+        for (var stmt : straight) {
             if (stmt.val() instanceof StmtExpr.Assign a && a.targets().size() == 1
                     && a.targets().get(0).val() instanceof Variable.Field fld && isSelf(fld.target())) {
                 if (stores.put(fld.fieldName().text(), a.value()) != null) {
@@ -1759,6 +1701,29 @@ public class BytecodeToLaurelCompiler {
             facts.add(new Condition(noRange(eq), Optional.empty(), new ConditionMode.Both()));
         }
         return facts;
+    }
+
+    private static List<AstNode<StmtExpr>> withoutStack(List<AstNode<StmtExpr>> stmts) {
+        var pushed = new ArrayList<AstNode<StmtExpr>>();
+        var out = new ArrayList<AstNode<StmtExpr>>();
+        for (var stmt : stmts) {
+            int reads = (int) BodyTranslator.countStackReads(stmt);
+            if (reads > pushed.size()) {
+                return null;
+            }
+            var window = new java.util.ArrayDeque<>(pushed.subList(pushed.size() - reads, pushed.size()));
+            pushed.subList(pushed.size() - reads, pushed.size()).clear();
+            AstNode<StmtExpr> resolved = LaurelTrees.map(stmt, x -> BodyTranslator.isStackRead(x) ? window.removeFirst() : x);
+            if (BodyTranslator.isPush(resolved) && resolved.val() instanceof StmtExpr.Assign a) {
+                if (a.targets().size() != 1) {
+                    return null;
+                }
+                pushed.add(a.value());
+            } else {
+                out.add(resolved);
+            }
+        }
+        return out;
     }
 
     private static boolean simpleValue(AstNode<StmtExpr> n, java.util.Set<String> params) {
@@ -2410,19 +2375,12 @@ public class BytecodeToLaurelCompiler {
 
     /**
      * Add the callee identifier of every InstanceCall/StaticCall in {@code
-     * n}'s subtree to {@code out}; an array wrapper also adds the JArray
-     * member it calls.
+     * n}'s subtree to {@code out}.
      */
     private static void collectCalleeNames(AstNode<StmtExpr> n, java.util.Set<String> out) {
         switch (n.val()) {
             case StmtExpr.InstanceCall c -> out.add(c.callee().text());
-            case StmtExpr.StaticCall c -> {
-                out.add(c.callee().text());
-                String member = ArrayModel.wrappedMember(c.callee().text());
-                if (member != null) {
-                    out.add(member);
-                }
-            }
+            case StmtExpr.StaticCall c -> out.add(c.callee().text());
             default -> {
             }
         }
@@ -2862,15 +2820,25 @@ public class BytecodeToLaurelCompiler {
         var throwsOns = new ArrayList<AstNode<StmtExpr>>();
         int hdr = 0;
         var ctorRest = new ArrayList<AstNode<StmtExpr>>();
+        var prefixes = new java.util.IdentityHashMap<AstNode<StmtExpr>, List<AstNode<StmtExpr>>>();
+        var queue = new ArrayList<AstNode<StmtExpr>>();
         for (; hdr < topStmts.size(); hdr++) {
             var spec = body.specStmts.get(topStmts.get(hdr));
+            if (spec == null && body.isContractStep(topStmts.get(hdr))) {
+                queue.add(topStmts.get(hdr));
+                continue;
+            }
             if (spec == null && isCtor) {
+                ctorRest.addAll(queue);
+                queue.clear();
                 ctorRest.add(topStmts.get(hdr));
                 continue;
             }
             if (spec == null) {
                 break;
             }
+            prefixes.put(topStmts.get(hdr), body.contractPrefix(queue));
+            queue.clear();
             switch (spec.name()) {
                 case "precondition" -> pres.add(topStmts.get(hdr));
                 case "postcondition" -> posts.add(topStmts.get(hdr));
@@ -2884,6 +2852,11 @@ public class BytecodeToLaurelCompiler {
                 default -> {
                 }
             }
+        }
+        if (isCtor) {
+            ctorRest.addAll(queue);
+        } else {
+            hdr -= queue.size();
         }
         if (!invs.isEmpty()) {
             throw new JavaViolationException("invariants are not allowed in a method");
@@ -2931,8 +2904,10 @@ public class BytecodeToLaurelCompiler {
                 converted = spec.args().get(0);
                 body.checkContractArg(converted);
             }
+            converted = ArrayAccessTranslator.pureLoads(BodyTranslator.withPrefix(prefixes.get(stmt),
+                    body.coerce(ArrayAccessTranslator.pureLoads(converted, lf), "Z")), lf);
+            body.checkContractCode(converted);
             BodyTranslator.refuseOld(converted, "a precondition");
-            converted = body.coerce(ArrayAccessTranslator.pureLoads(converted, lf), "Z");
             preconditions.add(new Condition(
                     LaurelTrees.rerange(converted, condRange, ctx.method.statementNodes),
                     Optional.empty(), new ConditionMode.Both()));
@@ -2945,13 +2920,29 @@ public class BytecodeToLaurelCompiler {
             if (abstractPrecondition) {
                 fnBody = new Body.Opaque(List.of(), Optional.empty(), List.of());
             } else {
+                var fnStmts = new ArrayList<AstNode<StmtExpr>>();
                 AstNode<StmtExpr> conj = null;
                 for (var c : preconditions) {
-                    conj = conj == null ? c.condition()
-                            : noRange(primitiveOp(new Operation.AndThen(), conj, c.condition()));
+                    var cond = c.condition();
+                    var prefix = cond.val() instanceof StmtExpr.Block b
+                            ? b.statements().subList(0, b.statements().size() - 1) : List.<AstNode<StmtExpr>>of();
+                    var value = cond.val() instanceof StmtExpr.Block b
+                            ? b.statements().get(b.statements().size() - 1) : cond;
+                    if (conj == null) {
+                        fnStmts.addAll(prefix);
+                        conj = value;
+                    } else {
+                        var then = new ArrayList<>(prefix);
+                        then.add(stackPush(value));
+                        fnStmts.add(noRange(new StmtExpr.IfThenElse(conj,
+                                noRange(new StmtExpr.Block(then, Optional.empty(), List.of(), Optional.empty())),
+                                Optional.of(stackPush(noRange(new StmtExpr.LiteralBool(false)))))));
+                        conj = BodyTranslator.stackRead(UNKNOWN_RANGE);
+                    }
                 }
-                fnBody = new Body.Transparent(noRange(new StmtExpr.Block(List.of(noRange(new StmtExpr.Return(
-                        List.of(conj == null ? noRange(new StmtExpr.LiteralBool(true)) : conj)))),
+                fnStmts.add(noRange(new StmtExpr.Return(
+                        List.of(conj == null ? noRange(new StmtExpr.LiteralBool(true)) : conj))));
+                fnBody = new Body.Transparent(noRange(new StmtExpr.Block(fnStmts,
                         Optional.empty(), List.of(), Optional.empty())));
             }
             var fn = new Procedure(ident(fnName), List.of(), inputs,
@@ -2970,9 +2961,9 @@ public class BytecodeToLaurelCompiler {
                 }
                 FileRange preRange = pres.isEmpty() ? UNKNOWN_RANGE : pres.get(0).source();
                 preconditions.clear();
-                preconditions.add(new Condition(node(new StmtExpr.InstanceCall(
+                preconditions.add(new Condition(BodyTranslator.pushedBefore(node(new StmtExpr.InstanceCall(
                         noRange(new StmtExpr.Var(new Variable.Local(inputs.get(0).name()))), ident(fnName), args, List.of()),
-                        preRange), Optional.empty(), new ConditionMode.Both()));
+                        preRange), BodyTranslator.stackRead(preRange)), Optional.empty(), new ConditionMode.Both()));
             }
         }
 
@@ -2999,7 +2990,9 @@ public class BytecodeToLaurelCompiler {
                 converted = spec.args().get(0);
                 body.checkContractArg(converted);
             }
-            converted = body.coerce(ArrayAccessTranslator.pureLoads(converted, lf), "Z");
+            converted = ArrayAccessTranslator.pureLoads(BodyTranslator.withPrefix(prefixes.get(stmt),
+                    body.coerce(ArrayAccessTranslator.pureLoads(converted, lf), "Z")), lf);
+            body.checkContractCode(converted);
             postconditions.add(new Condition(
                     LaurelTrees.rerange(converted, condRange, ctx.method.statementNodes),
                     Optional.empty(), new ConditionMode.Both()));
@@ -3038,6 +3031,9 @@ public class BytecodeToLaurelCompiler {
             }
             FileRange argRange = stmt.source();
             src.defaultRange = argRange;
+            if (!prefixes.get(stmt).isEmpty()) {
+                throw new JavaViolationException("a modifies clause may not call a method");
+            }
             var arg = spec.args().get(0);
             var argSpec = body.specStmts.get(arg);
             if (argSpec != null && argSpec.name().equals("everything")) {
@@ -3070,9 +3066,9 @@ public class BytecodeToLaurelCompiler {
             src.defaultRange = guardRange;
             var guardArg = spec.args().get(0);
             body.checkPlaceable(guardArg);
-            BodyTranslator.refuseOld(guardArg, "a throwsOn guard");
-            var guard = LaurelTrees.rerange(body.coerce(guardArg, "Z"), guardRange,
-                    ctx.method.statementNodes);
+            var guard = LaurelTrees.rerange(BodyTranslator.withPrefix(prefixes.get(stmt),
+                    body.coerce(guardArg, "Z")), guardRange, ctx.method.statementNodes);
+            BodyTranslator.refuseOld(guard, "a throwsOn guard");
             List<Condition> casePosts = new ArrayList<>();
             List<AstNode<StmtExpr>> caseModifies = new ArrayList<>();
             src.defaultRange = stmtRange;
@@ -3863,108 +3859,6 @@ public class BytecodeToLaurelCompiler {
             }
         }
         return null;
-    }
-
-    /**
-     * Replace every {@code preconditionOf} placeholder with its callee's preconditions,
-     * the callee's parameters substituted by the call's arguments (and its receiver for
-     * {@code self}), conjoined -- {@code true} when there are none. It has to wait
-     * until the callee is translated.
-     *
-     * <p>A callee with no procedure (it was refused) has no preconditions to inline.
-     * {@code true} would be sound only in a precondition, so the enclosing method is
-     * demoted instead, and the cascade demotes its callers.
-     */
-    private void inlinePreconditionOf() {
-        var ctx = translationContext();
-        if (ctx.pendingPreconditionOf.isEmpty()) {
-            return;
-        }
-        var replaced = new java.util.IdentityHashMap<Procedure, Procedure>();
-        for (var info : graph.methodInfos.values()) {
-            if (info.proc == null) {
-                continue;
-            }
-            boolean[] missing = {false};
-            Procedure p = info.proc;
-            java.util.function.UnaryOperator<AstNode<StmtExpr>> f = n -> {
-                if (!(n.val() instanceof StmtExpr.StaticCall c)
-                        || !ctx.pendingPreconditionOf.containsKey(c.callee().text())) {
-                    return n;
-                }
-                var pending = ctx.pendingPreconditionOf.get(c.callee().text());
-                Procedure callee = calleeProcedure(pending);
-                if (callee == null) {
-                    missing[0] = true;
-                    return node(new StmtExpr.LiteralBool(true), n.source());
-                }
-                return node(inlinedPreconditions(callee, pending), n.source());
-            };
-            var pre = p.preconditions().stream()
-                    .map(c -> new Condition(LaurelTrees.map(c.condition(), f), c.summary(), c.mode()))
-                    .toList();
-            Body body = switch (p.body()) {
-                case Body.Opaque o -> new Body.Opaque(o.postconditions().stream()
-                        .map(c -> new Condition(LaurelTrees.map(c.condition(), f), c.summary(), c.mode()))
-                        .toList(), o.implementation().map(i -> LaurelTrees.map(i, f)), o.modifies());
-                case Body.Transparent t -> new Body.Transparent(LaurelTrees.map(t.body(), f));
-                case Body.Abstract a -> new Body.Abstract(a.postconditions().stream()
-                        .map(c -> new Condition(LaurelTrees.map(c.condition(), f), c.summary(), c.mode()))
-                        .toList());
-                default -> p.body();
-            };
-            Procedure q = new Procedure(p.name(), p.typeArgs(), p.inputs(), p.outputs(), pre,
-                    p.contracts(), p.decreases(), body, p.invokeOn(), p.isInterpretEntry(), p.axioms(),
-                    p.throwsType(), p.throwsBinding(), p.throwsInferred(), p.throwsOn(), p.readsGlobals(), p.writesGlobals());
-            replaced.put(p, q);
-            info.proc = q;
-            if (missing[0]) {
-                info.refused = true;
-                reportRefusal(info, "preconditionOf names a method that could not be translated");
-            }
-        }
-        procedures.replaceAll(p -> replaced.getOrDefault(p, p));
-        composites.instanceProcsBySort.replaceAll((sort, procs) ->
-                new ArrayList<>(procs.stream().map(p -> replaced.getOrDefault(p, p)).toList()));
-    }
-
-    /** The emitted procedure of a pending {@code preconditionOf}'s callee, or null. */
-    private Procedure calleeProcedure(TranslationContext.PendingPreconditionOf pending) {
-        String name = pending.callee().methodName().stringValue();
-        String laurelName = name + resolver.overloadSuffix(pending.calleeFqn(), pending.callee());
-        for (var info : graph.methodInfos.values()) {
-            if (info.classFqn.equals(pending.calleeFqn()) && info.laurelName.equals(laurelName)
-                    && info.proc != null && !info.refused) {
-                return info.proc;
-            }
-        }
-        return null;
-    }
-
-    /** {@code callee}'s preconditions, conjoined, over the pending call's actual arguments. */
-    private StmtExpr inlinedPreconditions(Procedure callee, TranslationContext.PendingPreconditionOf pending) {
-        var actuals = new HashMap<String, AstNode<StmtExpr>>();
-        int a = 0;
-        for (var param : callee.inputs()) {
-            String pn = param.name().text();
-            if (pn.equals(LAUREL_SELF_BINDING) && pending.receiver() != null) {
-                actuals.put(pn, pending.receiver());
-            } else if (a < pending.args().size()) {
-                actuals.put(pn, pending.args().get(a++));
-            }
-        }
-        java.util.function.UnaryOperator<AstNode<StmtExpr>> subst = n ->
-                n.val() instanceof StmtExpr.Var v && v.var_() instanceof Variable.Local l
-                        && actuals.containsKey(l.name().text())
-                        ? actuals.get(l.name().text())
-                        : n;
-        AstNode<StmtExpr> acc = null;
-        for (var c : callee.preconditions()) {
-            var inst = LaurelTrees.map(c.condition(), subst);
-            acc = acc == null ? inst : node(LaurelFactory.primitiveOp(new Operation.AndThen(), acc, inst),
-                    inst.source());
-        }
-        return acc == null ? new StmtExpr.LiteralBool(true) : acc.val();
     }
 
     /**

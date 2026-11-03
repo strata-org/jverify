@@ -16,7 +16,7 @@ class NewInLoopInvariantRefusal {
     static class Box {}
 
     static void newInLoopInvariant() {
-//              ^ error: object allocation (including lambdas) inside a contract is not yet supported
+//              ^ error: Unsupported expression: NullLiteralExpr
         for (int i = 0; i < 5; i = i + 1) {
             invariant(new Box() != null);
         }

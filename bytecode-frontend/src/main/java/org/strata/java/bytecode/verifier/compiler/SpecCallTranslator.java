@@ -5,6 +5,7 @@ import org.strata.jverify.laurel.FileRange;
 import org.strata.jverify.laurel.HighType;
 import org.strata.jverify.laurel.Operation;
 import org.strata.jverify.laurel.ParameterOpt;
+import org.strata.jverify.laurel.ContractType;
 import org.strata.jverify.laurel.StmtExpr;
 import org.strata.jverify.laurel.Variable;
 
@@ -79,17 +80,8 @@ final class SpecCallTranslator {
                 if (argc != 2) {
                     throw new JavaViolationException("implies should have two arguments");
                 }
-                if (ctx.composites.arrays.enabled() && b.arrays.mentionsArrayCall(args.get(1))) {
-                    // An array read's bounds precondition holds only under the
-                    // antecedent: Laurel's implication guards it, `!a | b` does not.
-                    AstNode<StmtExpr> r = b.push(LaurelFactory.primitiveOp(new Operation.Implies(),
-                            b.coerce(args.get(0), "Z"), b.coerce(args.get(1), "Z")));
-                    b.bools.add(r);
-                    return;
-                }
-                var notA = LaurelFactory.primitiveOp(new Operation.Not(), b.coerce(args.get(0), "Z"));
-                AstNode<StmtExpr> r = b.push(LaurelFactory.primitiveOp(new Operation.Or(),
-                        b.e(notA), b.coerce(args.get(1), "Z")));
+                AstNode<StmtExpr> r = b.push(LaurelFactory.primitiveOp(new Operation.Implies(),
+                        b.coerce(args.get(0), "Z"), b.coerce(args.get(1), "Z")));
                 b.bools.add(r);
             }
             case "jequals" -> {
@@ -111,16 +103,8 @@ final class SpecCallTranslator {
                 b.bools.add(r);
             }
             case "preconditionOf" -> {
-                // The callee's preconditions, with its
-                // parameters replaced by the call's arguments. The callee may not be
-                // translated yet, so a placeholder stands in and is inlined after the
-                // whole compilation (BytecodeToLaurelCompiler.inlinePreconditionOf).
-                AstNode<StmtExpr> arg = argc == 1 ? args.get(0) : null;
-                if (arg != null) {
-                    arg = b.boxedValue.getOrDefault(arg, arg);
-                }
-                BodyTranslator.CalleeRef ref = arg != null ? b.calleeModels.get(arg.val()) : null;
-                if (ref == null) {
+                AstNode<StmtExpr> call = argc == 1 ? b.takeCall(args.get(0)) : null;
+                if (call == null) {
                     if (!ctx.method.info.quiet) {
                         ctx.reporter.reportError(ctx.src.uri,
                                 ctx.src.positionRange(b.stmtRange(b.pos, false)),
@@ -131,18 +115,7 @@ final class SpecCallTranslator {
                     b.bools.add(t);
                     break;
                 }
-                AstNode<StmtExpr> receiver = null;
-                List<AstNode<StmtExpr>> callArgs;
-                if (arg.val() instanceof StmtExpr.InstanceCall ic) {
-                    receiver = ic.target();
-                    callArgs = ic.arguments();
-                } else {
-                    callArgs = ((StmtExpr.StaticCall) arg.val()).arguments();
-                }
-                String id = "$preconditionOf$" + ctx.pendingPreconditionOf.size();
-                ctx.pendingPreconditionOf.put(id, new TranslationContext.PendingPreconditionOf(
-                        ref.declaringFqn(), ref.method(), receiver, callArgs));
-                AstNode<StmtExpr> r = b.push(new StmtExpr.StaticCall(LaurelFactory.reservedIdent(id), List.of(), List.of()));
+                AstNode<StmtExpr> r = b.push(new StmtExpr.ContractOf(new ContractType.Precondition(), call));
                 b.bools.add(r);
             }
             case "throwsOn" -> {
@@ -158,7 +131,8 @@ final class SpecCallTranslator {
             }
             default -> {
                 if (b.HEADER_SPEC_NAMES.contains(name) && isVoid) {
-                    // Header spec statement: marker consumed by contract extraction.
+                    args = name.equals("modifies") || name.equals("reads")
+                            ? args.stream().map(b::unspill).toList() : args;
                     AstNode<StmtExpr> arg = argc >= 1 ? args.get(0) : null;
                     args.forEach(b::refuseAllocTempMention);
                     AstNode<StmtExpr> raw = b.e(new StmtExpr.LiteralString("$spec$" + name));
@@ -392,7 +366,7 @@ final class SpecCallTranslator {
         if (lambda.isMethodRef()) {
             AstNode<StmtExpr> call = methodReferenceCall(lambda, extraRenames);
             if (call != null) {
-                return call;
+                return BodyTranslator.pushedBefore(call, BodyTranslator.stackRead(call.source()));
             }
             // Any other method reference in a spec position refuses with the
             // corpus-pinned JCLambda message (only literal lambdas are supported).
@@ -445,7 +419,7 @@ final class SpecCallTranslator {
                 } catch (StructException e) {
                     inner = new BodyTranslator(ctx, ish.slotName(), ish.slotDesc(), Set.of());
                     inner.cm = b.cm;
-                    inner.isInstance = !iStatic;   // as the primary path sets it: slot 0 is `this`
+                            inner.isInstance = !iStatic;   // as the primary path sets it: slot 0 is `this`
                     inner.locals = ish.locals();
                     inner.crt = ish.crt();
                     inner.seqToBci = MethodBodyFactory.bciTable(seq);
@@ -465,12 +439,14 @@ final class SpecCallTranslator {
                 inner.run(seq);
                 top = inner.stmts;
             }
-            // Expression body: exactly one Return with a value.
-            if (top.size() == 1
-                    && top.get(0).val() instanceof StmtExpr.Return ret
-                    && ret.values().size() == 1) {
-                AstNode<StmtExpr> v = ret.values().get(0);
-                b.checkContractArg(v);
+            var prefix = top.isEmpty() ? List.<AstNode<StmtExpr>>of() : top.subList(0, top.size() - 1);
+            BodyTranslator lambdaBody = inner;
+            if (!top.isEmpty()
+                    && top.get(top.size() - 1).val() instanceof StmtExpr.Return ret
+                    && ret.values().size() == 1
+                    && prefix.stream().allMatch(lambdaBody::isContractStep)) {
+                AstNode<StmtExpr> v = BodyTranslator.withPrefix(lambdaBody.contractPrefix(prefix), ret.values().get(0));
+                b.checkContractCode(v);
                 return v;
             }
             throw new JavaViolationException("Unsupported lambda body");

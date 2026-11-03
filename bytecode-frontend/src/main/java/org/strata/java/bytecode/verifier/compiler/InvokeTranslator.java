@@ -121,6 +121,9 @@ final class InvokeTranslator {
             List<AstNode<StmtExpr>> ctorArgs = args;
             if (outer != null) {
                 ctorArgs = args.subList(1, args.size());
+                if (BodyTranslator.isStackRead(outer) && b.unspill(outer) == outer) {
+                    b.discard(outer);
+                }
             }
             // Allocation: refused in a contract (checked at
             // spec-consumption), the sort registered, ctor args
@@ -141,13 +144,18 @@ final class InvokeTranslator {
                 var decl = b.e(new StmtExpr.Assign(List.of(new AstNode<org.strata.jverify.laurel.Variable>(
                         new org.strata.jverify.laurel.Variable.Declare(new org.strata.jverify.laurel.ParameterOpt(
                                 LaurelFactory.ident(tmp), Optional.empty())), SourceMap.UNKNOWN_RANGE)), alloc));
-                var init = b.e(new StmtExpr.InstanceCall(b.e(LaurelFactory.var_(tmp)), LaurelFactory.ident(nm),
-                        ctorArgs, List.of()));
-                AstNode<StmtExpr> nw = b.push(new StmtExpr.Block(List.of(decl, init, b.e(LaurelFactory.var_(tmp))),
-                        Optional.empty(), List.of(), Optional.empty()));
+                b.addStmt(decl.val());
+                b.addStmt(new StmtExpr.InstanceCall(b.e(LaurelFactory.var_(tmp)), LaurelFactory.ident(nm), ctorArgs, List.of()));
+                AstNode<StmtExpr> nw = b.push(LaurelFactory.var_(tmp));
                 b.callNodes.add(nw);
                 b.staticTypeOf.put(nw, t);
                 return;
+            }
+            for (int i = ctorArgs.size() - 1; i >= 0; i--) {
+                AstNode<StmtExpr> arg = ctorArgs.get(i);
+                if (BodyTranslator.isStackRead(arg) && b.unspill(arg) == arg) {
+                    b.discard(arg);
+                }
             }
             AstNode<StmtExpr> nw = b.push(new StmtExpr.New(LaurelFactory.ident(sortName),
                     newTypeArgs(sortName, d, ctorArgs)));
@@ -409,8 +417,10 @@ final class InvokeTranslator {
                 }
                 var eq = LaurelFactory.primitiveOp(new Operation.Eq(),
                         LaurelFactory.noRange(LaurelFactory.reservedVar_(LaurelFactory.LAUREL_RESULT_BINDING)),
-                        LaurelFactory.noRange(new StmtExpr.StaticCall(LaurelFactory.ident(procName), callArgs, List.of())));
-                posts.add(new org.strata.jverify.laurel.Condition(LaurelFactory.noRange(eq), Optional.empty(),
+                        BodyTranslator.stackRead(SourceMap.UNKNOWN_RANGE));
+                posts.add(new org.strata.jverify.laurel.Condition(BodyTranslator.pushedBefore(
+                        LaurelFactory.noRange(new StmtExpr.StaticCall(LaurelFactory.ident(procName), callArgs, List.of())),
+                        LaurelFactory.noRange(eq)), Optional.empty(),
                         new org.strata.jverify.laurel.ConditionMode.Both()));
             }
             ctx.missingContractProcs.put(procName, new org.strata.jverify.laurel.Procedure(
@@ -667,8 +677,9 @@ final class InvokeTranslator {
                     throw new JavaViolationException("A throwsOn case's " + bareName
                             + " clause must have exactly one argument");
                 }
-                b.refuseAllocTempMention(args.get(0));
-                spec.links().add(new BodyTranslator.SpecLink(bareName, args.get(0), b.lambdas.get(args.get(0))));
+                AstNode<StmtExpr> linkArg = bareName.equals("modifies") ? b.unspill(args.get(0)) : args.get(0);
+                b.refuseAllocTempMention(linkArg);
+                spec.links().add(new BodyTranslator.SpecLink(bareName, linkArg, b.lambdas.get(linkArg)));
                 b.stack.push(recv);    // the chain returns the handle
                 return;
             }
@@ -701,15 +712,15 @@ final class InvokeTranslator {
             throw new JavaViolationException("Unsupported call: " + bareName);
         }
         // Freshly-allocated receiver.
-        if (recv.val() instanceof StmtExpr.New) {
+        if (b.origin(recv).val() instanceof StmtExpr.New) {
             throw new JavaViolationException(
                     "method call on a freshly-allocated receiver is not yet supported");
         }
         // Contract code: Strata rejects an instance call whose receiver is
         // another call's result (`chars.drop(n).take(m)`), so the member
         // that contains one is refused.
-        if (ctx.contractMode && (recv.val() instanceof StmtExpr.InstanceCall
-                || recv.val() instanceof StmtExpr.StaticCall)) {
+        if (ctx.contractMode && (b.origin(recv).val() instanceof StmtExpr.InstanceCall
+                || b.origin(recv).val() instanceof StmtExpr.StaticCall)) {
             throw new JavaViolationException("call to '" + bareName
                     + "' on the result of another call is not yet supported");
         }
@@ -795,16 +806,13 @@ final class InvokeTranslator {
         return false;
     }
 
-    /**
-     * The primitive {@code n} boxes: the boxed value itself when {@code n} is
-     * a box this method just made ({@link BodyTranslator#boxedValue}), so
-     * {@code Integer.valueOf(x).intValue()} allocates nothing, else a read of
-     * its value field.
-     */
+    /** The primitive {@code n} boxes: the boxed value when {@code n} is a box just pushed, else a read of its value field. */
     private AstNode<StmtExpr> unboxed(BoxModel.Wrapper w, AstNode<StmtExpr> n) {
-        AstNode<StmtExpr> value = b.boxedValue.get(n);
-        if (value != null && w.descriptor().equals(b.descOf.get(n))) {
-            return value;
+        if (w.descriptor().equals(b.descOf.get(n))) {
+            AstNode<StmtExpr> value = b.boxedOperand(n);
+            if (value != null) {
+                return value;
+            }
         }
         return b.e(ctx.composites.boxes.unbox(w, n));
     }
@@ -818,10 +826,16 @@ final class InvokeTranslator {
      */
     private StmtExpr boxEquals(BoxModel.Wrapper w, AstNode<StmtExpr> recv, AstNode<StmtExpr> arg) {
         var boxes = ctx.composites.boxes;
-        AstNode<StmtExpr> mine = unboxed(w, recv);
         if (w.descriptor().equals(b.descOf.get(arg))) {
-            return LaurelFactory.primitiveOp(new Operation.Eq(), mine, unboxed(w, arg));
+            return LaurelFactory.primitiveOp(new Operation.Eq(), unboxed(w, recv), unboxed(w, arg));
         }
+        if (BodyTranslator.isStackRead(arg)) {
+            arg = b.nameRead(arg);
+            if (BodyTranslator.isStackRead(recv)) {
+                recv = b.nameRead(recv);
+            }
+        }
+        AstNode<StmtExpr> mine = unboxed(w, recv);
         if (!(arg.val() instanceof StmtExpr.Var v && v.var_() instanceof Variable.Local)) {
             throw new JavaViolationException("'" + w.simpleName()
                     + ".equals' on an argument that is not a local variable is not yet supported");
@@ -848,7 +862,8 @@ final class InvokeTranslator {
                                              List<AstNode<StmtExpr>> args,
                                              java.lang.constant.MethodTypeDesc d) {
         if (receiverFqn == null || recv.val() instanceof StmtExpr.LiteralString
-                || recv.val() instanceof StmtExpr.InstanceCall || recv.val() instanceof StmtExpr.StaticCall
+                || b.origin(recv).val() instanceof StmtExpr.InstanceCall
+                || b.origin(recv).val() instanceof StmtExpr.StaticCall
                 || b.typeVarValues.contains(recv)
                 || ctx.resolver.programClassModels.containsKey(receiverFqn)) {
             return null;
@@ -1171,6 +1186,7 @@ final class InvokeTranslator {
                 String name = ref.nameAndType().name().stringValue();
                 String desc = ref.nameAndType().type().stringValue();
                 boolean isLambdaImpl = name.startsWith("lambda$") && b.cm != null;
+                captures.forEach(b::unspill);
                 AstNode<StmtExpr> handle = b.push(new StmtExpr.LiteralString("$lambda"));
                 String ret = indy.typeSymbol().returnType().descriptorString();
                 String sam = ret.startsWith("L") ? JavaNames.dottedFqn(ret.substring(1, ret.length() - 1)) : null;

@@ -157,7 +157,8 @@ final class ArrayAccessTranslator {
     /** A local whose declared Laurel type is a bounded primitive (so it needs no int32 binding). */
     private boolean isBoundedLocal(AstNode<StmtExpr> n) {
         TypeRef t = b.staticTypeOf.get(n);
-        return isLocal(n) && t != null && t.kind() == TypeRef.Kind.PRIMITIVE && !t.isUnbounded();
+        return n.val() instanceof StmtExpr.Var v && v.var_() instanceof Variable.Local
+                && t != null && t.kind() == TypeRef.Kind.PRIMITIVE && !t.isUnbounded();
     }
 
     // --- Loads, stores, length ---
@@ -189,22 +190,14 @@ final class ArrayAccessTranslator {
 
     private AstNode<StmtExpr> elementRead(AstNode<StmtExpr> arr, AstNode<StmtExpr> index,
                                           ArrayModel.ElementKind k, ContractMember get) {
-        AstNode<StmtExpr> call;
-        if (isLocal(arr)) {
-            call = b.e(new StmtExpr.InstanceCall(arr, LaurelFactory.ident("get"), List.of(index), List.of()));
-        } else {
-            ctx.lf.registerArrayWrappers();
-            call = b.e(new StmtExpr.StaticCall(LaurelFactory.ident(ArrayModel.GET_WRAPPER), List.of(arr, index),
-                    List.of(LaurelFactory.node(k.carrier()))));
-        }
+        AstNode<StmtExpr> call = b.e(new StmtExpr.InstanceCall(arr, LaurelFactory.ident("get"), List.of(index), List.of()));
         record(get, call, "get");
         return call;
     }
 
     /**
      * {@code xastore}: the statement {@code a#set(i, java?array_store_<k>(v))}
-     * ({@code coerce(v, "Z")} for a boolean element). A receiver that is not
-     * a local is first bound to a minted local, {@code var t$W: JArray<E> := r}.
+     * ({@code coerce(v, "Z")} for a boolean element).
      */
     void store(ArrayStoreInstruction as) {
         AstNode<StmtExpr> value = b.stack.pop();
@@ -225,35 +218,20 @@ final class ArrayAccessTranslator {
             stored = b.e(new StmtExpr.StaticCall(
                     LaurelFactory.ident(ArrayModel.STORE_HELPER_PREFIX + k.helperSuffix()), List.of(value), List.of()));
         }
-        AstNode<StmtExpr> receiver = arr;
-        if (!isLocal(arr)) {
-            // Strata rejects an instance call on a field read or call result;
-            // Java evaluates the array reference first, as the binding does.
-            String w = b.mintTemp();
-            b.addStmt(declare(w, ctx.composites.arrays.jarrayOf(LaurelFactory.node(k.carrier())), arr));
-            receiver = b.e(local(w));
-        }
-        AstNode<StmtExpr> call = b.e(new StmtExpr.InstanceCall(receiver, LaurelFactory.ident("set"),
+        AstNode<StmtExpr> call = b.e(new StmtExpr.InstanceCall(arr, LaurelFactory.ident("set"),
                 List.of(index, stored), List.of()));
         record(set, call, "set");
         b.callNodes.add(call);
         b.addStmt(call.val());
     }
 
-    /** {@code arraylength}: {@code a#length()} on a local receiver, {@code java?array_length<E>(a)} otherwise. */
+    /** {@code arraylength}: {@code a#length()}. */
     void length() {
         ctx.composites.arrays.refuseInCodeWithoutDebugInfo();
         AstNode<StmtExpr> arr = b.stack.pop();
         ArrayModel.ElementKind k = receiverKind(arr, null);
         ContractMember length = ctx.composites.arrays.member("length");
-        AstNode<StmtExpr> call;
-        if (isLocal(arr)) {
-            call = b.e(new StmtExpr.InstanceCall(arr, LaurelFactory.ident("length"), List.of(), List.of()));
-        } else {
-            ctx.lf.registerArrayWrappers();
-            call = b.e(new StmtExpr.StaticCall(LaurelFactory.ident(ArrayModel.LENGTH_WRAPPER), List.of(arr),
-                    List.of(LaurelFactory.node(k.carrier()))));
-        }
+        AstNode<StmtExpr> call = b.e(new StmtExpr.InstanceCall(arr, LaurelFactory.ident("length"), List.of(), List.of()));
         record(length, call, "length");
         b.stack.push(call);
         b.noteDesc(call, "I");
@@ -380,19 +358,9 @@ final class ArrayAccessTranslator {
      * {@code dup2} before an {@code xaload} ({@code a[i] op= v}, {@code
      * a[i]++}): push the array and index again, so the load and the store
      * each get them.
-     *
-     * @throws JavaViolationException {@link ArrayModel#EFFECTFUL_COMPOUND}
-     *         unless both are side-effect free ({@link BodyTranslator#isSimple})
      */
     void duplicateIndexedPair() {
-        AstNode<StmtExpr> index = b.stack.pop();
-        AstNode<StmtExpr> arr = b.stack.peek();
-        b.stack.push(index);
-        if (!b.isSimple(arr) || !b.isSimple(index)) {
-            throw new JavaViolationException(ArrayModel.EFFECTFUL_COMPOUND);
-        }
-        b.stack.push(arr);
-        b.stack.push(index);
+        b.duplicate(2, 0, java.lang.classfile.Opcode.DUP2);
     }
 
     /**
@@ -437,31 +405,9 @@ final class ArrayAccessTranslator {
         if (ctx.contractMode) {
             throw new JavaViolationException(ArrayModel.CONTRACT_WRITE);
         }
-        for (AstNode<StmtExpr> pending : b.stack) {
-            if (!b.isSimple(pending)) {
-                throw new JavaViolationException(ArrayModel.ORDER);
-            }
-        }
     }
 
     // --- Specifications ---
-
-    /** True iff {@code n}'s subtree calls a JArray member or an array wrapper. */
-    boolean mentionsArrayCall(AstNode<StmtExpr> n) {
-        String key = b.calleeKeys.get(n.val());
-        if (key != null && key.startsWith(ArrayModel.SORT + "_")) {
-            return true;
-        }
-        if (n.val() instanceof StmtExpr.StaticCall c && ArrayModel.wrappedMember(c.callee().text()) != null) {
-            return true;
-        }
-        for (AstNode<StmtExpr> child : BodyTranslator.childrenOf(n.val())) {
-            if (mentionsArrayCall(child)) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     /**
      * {@code n} with every {@code java?array_load_*(x)} replaced by {@code x},
@@ -593,7 +539,7 @@ final class ArrayAccessTranslator {
     // --- Node helpers ---
 
     private static boolean isLocal(AstNode<StmtExpr> n) {
-        return n.val() instanceof StmtExpr.Var v && v.var_() instanceof Variable.Local;
+        return n.val() instanceof StmtExpr.Var v && (v.var_() instanceof Variable.Local || v.var_() instanceof Variable.Stack);
     }
 
     private static StmtExpr local(String name) {
