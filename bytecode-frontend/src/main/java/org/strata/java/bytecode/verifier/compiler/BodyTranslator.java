@@ -459,6 +459,9 @@ final class BodyTranslator {
             throw new JavaViolationException(
                     "object allocation (including lambdas) inside a contract is not yet supported");
         }
+        if (n.val() instanceof StmtExpr.StaticCall c && c.callee().text().startsWith(BoxModel.BOX_HELPER_PREFIX)) {
+            throw new JavaViolationException("boxing inside a contract is not yet supported");
+        }
     }
 
     /** The per-node refusal checks shared by the placement/contract walks. */
@@ -1366,9 +1369,9 @@ final class BodyTranslator {
 
     /**
      * The reference types whose Java identity is lost in translation -- the
-     * boxed primitives (translated as their primitive), {@code String} (a
-     * Laurel string) and {@code Record} -- together with their supertypes,
-     * whose values may be one of them.
+     * boxed primitives (allocated afresh by {@link BoxModel}, where Java reuses
+     * cached boxes), {@code String} (a Laurel string) and {@code Record} --
+     * together with their supertypes, whose values may be one of them.
      */
     private static final Set<String> VALUE_TRANSLATED_TYPES = Set.of(
             "java.lang.Boolean", "java.lang.Byte", "java.lang.Short", "java.lang.Character",
@@ -1394,8 +1397,10 @@ final class BodyTranslator {
      *
      * <p>A generic call's result carries the ERASED descriptor ({@code Object})
      * until a checkcast recovers its type, so it is not accused
-     * (ErasedResultEquality). The cost: {@code id("a") == id("b")}, with no cast
-     * in between, is accepted.
+     * (ErasedResultEquality), unless the call is passed a box
+     * ({@link #erasedBoxResults}). The cost: {@code id("a") == id("b")}, with
+     * no cast in between, is accepted, and so is a box that reaches a generic
+     * result another way, such as a field of a generic class.
      */
     private void refuseUnsoundReferenceEquality(String op) {
         if (ctx.contractMode || stack.size() < 2) {
@@ -1404,12 +1409,37 @@ final class BodyTranslator {
         var it = stack.iterator();
         AstNode<StmtExpr> b = it.next();
         AstNode<StmtExpr> a = it.next();
-        if (keepsReferenceIdentity(a) || keepsReferenceIdentity(b)
-                || erasedResults.contains(a.val()) || erasedResults.contains(b.val())) {
+        if (keepsReferenceIdentity(a) || keepsReferenceIdentity(b)) {
+            return;
+        }
+        if (mayHoldModelledBox(a) || mayHoldModelledBox(b)) {
+            // Java caches the boxes of small values, so whether two boxes are one
+            // object depends on the value: BoxModel allocates every box.
+            reportConstructError(ctx.src.pointOf(comparisonRange()),
+                    "'" + op + "' on boxed values is not yet supported: their identity depends on the box cache");
+            return;
+        }
+        if (erasedResults.contains(a.val()) || erasedResults.contains(b.val())) {
             return;
         }
         reportConstructError(ctx.src.pointOf(comparisonRange()),
                 "'" + op + "' is only allowed when at least one operand's type is impure");
+    }
+
+    /**
+     * Whether {@code n} may be a box {@link BoxModel} translates: its static
+     * type is a modelled wrapper class, or it is a generic call's erased result
+     * whose arguments or receiver include one ({@link #erasedBoxResults}).
+     */
+    private boolean mayHoldModelledBox(AstNode<StmtExpr> n) {
+        return isModelledBox(n) || erasedBoxResults.contains(n.val());
+    }
+
+    /** Whether {@code n}'s static type is a wrapper class {@link BoxModel} translates. */
+    boolean isModelledBox(AstNode<StmtExpr> n) {
+        String desc = descOf.get(n);
+        return desc != null && desc.startsWith("L") && desc.endsWith(";")
+                && ctx.composites.boxes.models(BoxModel.wrapperOf(desc.substring(1, desc.length() - 1)));
     }
 
     /**
@@ -1533,10 +1563,13 @@ final class BodyTranslator {
     /** User call nodes -> their callee, for {@code preconditionOf} (see SpecCallTranslator). */
     final Map<StmtExpr, CalleeRef> calleeModels = new IdentityHashMap<>();
     /**
-     * Boxing markers -> the primitive value they box. javac wraps an int-returning
-     * call in {@code Integer.valueOf} before passing it to {@code preconditionOf(Object)};
-     * there the box is the identity, so the marker is unwrapped. Anywhere else the
-     * marker refuses exactly as the unknown box class did before.
+     * Boxes -> the primitive value they box. A box of a class {@link BoxModel}
+     * translates is a call of its boxing helper, and a consumer that only needs
+     * the primitive takes it from here (InvokeTranslator.unboxed). Any other
+     * box is a {@code $box} marker: javac wraps an int-returning call in
+     * {@code Integer.valueOf} before passing it to {@code preconditionOf(Object)},
+     * where the box is the identity, so the marker is unwrapped. Anywhere else
+     * the marker refuses as a call to an unknown class.
      */
     final Map<AstNode<StmtExpr>, AstNode<StmtExpr>> boxedValue = new IdentityHashMap<>();
     /**
@@ -1556,6 +1589,14 @@ final class BodyTranslator {
      * provenance has to be carried here.
      */
     final java.util.Set<StmtExpr> erasedResults =
+            java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+
+    /**
+     * The {@link #erasedResults} of calls that are passed a modelled box (as an
+     * argument or the receiver), so the result may be that box: {@code id(1)}
+     * for {@code <T> T id(T x)}. Reference comparison refuses them as boxes.
+     */
+    final java.util.Set<StmtExpr> erasedBoxResults =
             java.util.Collections.newSetFromMap(new IdentityHashMap<>());
 
     /**
@@ -2063,14 +2104,27 @@ final class BodyTranslator {
                 erasedResults.remove(v.val());
                 return;
             }
+            BoxModel.Wrapper box = BoxModel.wrapperOf(tc.type().asInternalName());
+            if (!ctx.contractMode && ctx.composites.boxes.models(box)) {
+                // A cast to a box class is a downcast to its composite (BoxModel).
+                var boxType = LaurelFactory.node(new HighType.UserDefined(
+                        LaurelFactory.ident(ctx.composites.boxes.declare(box))));
+                AstNode<StmtExpr> n = push(new StmtExpr.AsType(v, boxType));
+                staticTypeOf.put(n, t);
+                noteDesc(n, box.descriptor());
+                implicitThrows.put(n, new ImplicitThrow(
+                        e(LaurelFactory.primitiveOp(new Operation.Not(), e(new StmtExpr.IsType(v, boxType)))),
+                        CLASS_CAST_EXCEPTION));
+                return;
+            }
             // A reference DOWNCAST is Laurel's `as`, whose embedded type test
             // becomes a real obligation. It applies to exception types and to any
             // composite THIS compilation declares: every sort carries its
             // supertype closure and a runtime tag. An
             // UPCAST never reaches here: javac emits no instruction for it, so it
-            // is already the identity. A library target stays refused -- several
-            // (String, the boxed primitives) are modelled as Laurel values rather
-            // than composites, so `as` on one would collide with that encoding.
+            // is already the identity. Any other library target stays refused --
+            // String is modelled as a Laurel value rather than a composite, so
+            // `as` on it would collide with that encoding.
             if (fqn != null && (ctx.resolver.isThrowableSubtype(fqn)
                     || ctx.resolver.programClassModels.containsKey(fqn))) {
                 if (ctx.resolver.isThrowableSubtype(fqn)) {
@@ -2108,6 +2162,13 @@ final class BodyTranslator {
             // declares every sort's FULL supertype closure and Laurel keeps a runtime
             // tag per composite, so `is` decides properly for any composite this
             // compilation declares.
+            BoxModel.Wrapper box = BoxModel.wrapperOf(tc.type().asInternalName());
+            if (!ctx.contractMode && ctx.composites.boxes.models(box) && !patternBindTests.contains(tc)) {
+                AstNode<StmtExpr> n = push(new StmtExpr.IsType(v, LaurelFactory.node(new HighType.UserDefined(
+                        LaurelFactory.ident(ctx.composites.boxes.declare(box))))));
+                bools.add(n);
+                return;
+            }
             if (fqn == null || patternBindTests.contains(tc)
                     || !(ctx.resolver.isThrowableSubtype(fqn)
                             || ctx.resolver.programClassModels.containsKey(fqn))) {

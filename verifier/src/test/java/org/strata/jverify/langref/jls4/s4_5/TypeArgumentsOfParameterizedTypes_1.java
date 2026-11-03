@@ -7,7 +7,7 @@ import static org.strata.jverify.JVerify.*;
 
 // JLS 4.5.1 -- Type Arguments of Parameterized Types: a generic type instantiated
 // with concrete type arguments and with a wildcard type argument.
-@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls4.s4_5.TypeArgumentsOfParameterizedTypes_1#run", expectedToFail = true, blockedBy = {Blocker.LANGREF_UNSUPPORTED})
+@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls4.s4_5.TypeArgumentsOfParameterizedTypes_1#run", expectedToFail = true, blockedBy = {Blocker.LANGREF_INTERP_ERROR})
 class TypeArgumentsOfParameterizedTypes_1 {
     static void run() {
 

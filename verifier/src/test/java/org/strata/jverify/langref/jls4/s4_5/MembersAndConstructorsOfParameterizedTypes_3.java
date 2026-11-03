@@ -8,7 +8,7 @@ import static org.strata.jverify.JVerify.*;
 // JLS 4.5.2 -- Members and Constructors of Parameterized Types: a member field, a
 // member method, and a constructor whose signatures are obtained by substituting the
 // type arguments for the type parameters of the generic class.
-@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls4.s4_5.MembersAndConstructorsOfParameterizedTypes_3#run", expectedToFail = true, blockedBy = {Blocker.LANGREF_UNSUPPORTED})
+@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls4.s4_5.MembersAndConstructorsOfParameterizedTypes_3#run", expectedToFail = true, blockedBy = {Blocker.LANGREF_INTERP_ERROR})
 class MembersAndConstructorsOfParameterizedTypes_3 {
     static void run() {
 

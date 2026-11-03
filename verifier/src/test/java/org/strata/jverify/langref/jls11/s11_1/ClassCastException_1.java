@@ -7,7 +7,7 @@ import static org.strata.jverify.JVerify.*;
 
 // JLS 11.1.2 -- ClassCastException when a checked cast to an incompatible
 // reference type is performed at runtime.
-@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls11.s11_1.ClassCastException_1#run", expectedToFail = true, blockedBy = {Blocker.LANGREF_UNSUPPORTED})
+@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls11.s11_1.ClassCastException_1#run", expectedToFail = true, blockedBy = {Blocker.LANGREF_RESOLUTION_ERROR})
 class ClassCastException_1 {
     static void run() {
         Object o = "hi";

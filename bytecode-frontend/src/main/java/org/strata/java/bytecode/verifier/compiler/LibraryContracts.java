@@ -351,6 +351,15 @@ public final class LibraryContracts {
         return loadedBytes == null ? Map.of() : loadedBytes.index().aliases();
     }
 
+    /** True iff a loaded contract class has {@code fqn} as its contractee. */
+    boolean hasContractFor(String fqn) {
+        if (disabled) {
+            return false;
+        }
+        ensureLoaded();
+        return loadedBytes != null && loadedBytes.index().contractsByContractee().containsKey(fqn);
+    }
+
     /** The indexed contract class with this internal name, or null (also when not loaded). */
     ContractClass contractClassOf(String internalName) {
         return loadedBytes == null ? null : loadedBytes.index().contractsByInternal().get(internalName);

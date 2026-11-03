@@ -7,7 +7,7 @@ import static org.strata.jverify.JVerify.*;
 
 // JLS 15.16 -- Cast Expressions: a reference cast that fails the run-time type
 // check throws ClassCastException.
-@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls15.s15_16.CastExpression_BadCastCCE#run", expectedToFail = true, blockedBy = {Blocker.LANGREF_UNSUPPORTED})
+@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls15.s15_16.CastExpression_BadCastCCE#run", expectedToFail = true, blockedBy = {Blocker.LANGREF_RESOLUTION_ERROR})
 class CastExpression_BadCastCCE {
     static void run() {
 

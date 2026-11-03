@@ -8,7 +8,7 @@ import static org.strata.jverify.JVerify.*;
 // JLS 4.4 -- Type Variables: a type variable is an unqualified identifier used as a
 // type, introduced by a generic class/interface/method declaration. This exercises a
 // generic class with a type variable T and a generic method with its own type variable.
-@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls4.s4_4.TypeVariables_1#run", expectedToFail = true, blockedBy = {Blocker.LANGREF_UNSUPPORTED})
+@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls4.s4_4.TypeVariables_1#run", expectedToFail = true, blockedBy = {Blocker.LANGREF_INTERP_ERROR})
 class TypeVariables_1 {
     // Generic class introducing type variable T.
     static class Box<T> {

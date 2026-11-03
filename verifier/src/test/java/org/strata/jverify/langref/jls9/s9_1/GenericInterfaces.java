@@ -1,13 +1,12 @@
 package org.strata.jverify.langref.jls9.s9_1;
 
-import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
 // JLS 9.1.2 -- Generic Interfaces and Type Parameters: a generic interface
 // declared with a type parameter, implemented by a class and invoked.
-@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls9.s9_1.GenericInterfaces#run", expectedToFail = true, blockedBy = {Blocker.LANGREF_UNSUPPORTED})
+@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls9.s9_1.GenericInterfaces#run")
 class GenericInterfaces {
     static void run() {
         Box<Integer> b = new IntBox(7);

@@ -1,6 +1,5 @@
 package org.strata.jverify.langref.jls4.s4_8;
 
-import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
@@ -8,7 +7,7 @@ import static org.strata.jverify.JVerify.*;
 // JLS 4.8 -- Raw Types: the name of a generic type declaration used without any
 // accompanying type arguments. Exercises constructing and using a raw parameterized
 // type, where the type's members are seen at their erasures.
-@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls4.s4_8.RawTypes_3#run", expectedToFail = true, blockedBy = {Blocker.LANGREF_UNSUPPORTED})
+@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls4.s4_8.RawTypes_3#run")
 class RawTypes_3 {
     static void run() {
 

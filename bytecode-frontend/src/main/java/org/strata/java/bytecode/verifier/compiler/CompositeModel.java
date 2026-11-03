@@ -37,6 +37,8 @@ final class CompositeModel {
     final Map<String, List<String>> compositeTypeParams = new LinkedHashMap<>();
     /** The array model of this run. */
     final ArrayModel arrays;
+    /** The box model of this run. */
+    final BoxModel boxes;
 
     /**
      * One declared field: descriptor/signature-sourced type + finality, and
@@ -59,6 +61,7 @@ final class CompositeModel {
     CompositeModel(ClassResolver resolver, LibraryContracts contracts) {
         this.resolver = resolver;
         this.arrays = new ArrayModel(contracts, resolver, this);
+        this.boxes = new BoxModel(contracts, resolver, this);
     }
 
     /**
@@ -165,6 +168,10 @@ final class CompositeModel {
     List<String> directSupertypeSorts(String sortName) {
         if (lambdaSupertypes.containsKey(sortName)) {
             return lambdaSupertypes.get(sortName);
+        }
+        List<String> boxSupertypes = boxes.supertypeSorts(sortName);
+        if (boxSupertypes != null) {
+            return boxSupertypes;
         }
         var out = new ArrayList<String>();
         // An interface has no superclass edge: bytecode records Object as its

@@ -104,6 +104,17 @@ final class InvokeTranslator {
                 b.push(new StmtExpr.LiteralString(BodyTranslator.CONTRACT_EXCEPTION_MARKER));
                 return;
             }
+            BoxModel.Wrapper box = BoxModel.wrapperOf(g);
+            if (!ctx.contractMode && ctx.composites.boxes.models(box)) {
+                if (d.parameterCount() != 1 || !d.parameterType(0).descriptorString().equals(box.primitiveDesc)) {
+                    throw new JavaViolationException("constructor " + box.simpleName() + "("
+                            + String.join(", ", d.parameterList().stream()
+                                    .map(java.lang.constant.ClassDesc::displayName).toList())
+                            + ") is not yet supported");
+                }
+                pushBox(box, args.get(0));
+                return;
+            }
             // Inner-class enclosing-instance argument: dropped from the
             // constructor arguments.
             AstNode<StmtExpr> outer = innerCtorOuter(g, d, args);
@@ -479,6 +490,20 @@ final class InvokeTranslator {
                 };
     }
 
+    /**
+     * Push the box of {@code value} ({@link BoxModel#box}). The value it boxes
+     * is recorded in {@link BodyTranslator#boxedValue}, so a consumer that
+     * needs the primitive (an unboxing, {@code equals}, preconditionOf)
+     * unwraps it.
+     */
+    private void pushBox(BoxModel.Wrapper w, AstNode<StmtExpr> value) {
+        AstNode<StmtExpr> box = b.push(ctx.composites.boxes.box(w, value));
+        b.boxedValue.put(box, value);
+        b.callNodes.add(box);
+        b.noteDesc(box, w.descriptor());
+        b.staticTypeOf.put(box, TypeRef.ofDescriptor(w.descriptor()));
+    }
+
     /** Static user call. */
     private void staticInvoke(java.lang.classfile.instruction.InvokeInstruction inv,
                               String ownerInternal, String bareName,
@@ -499,6 +524,11 @@ final class InvokeTranslator {
         }
         TypeRef ownerRef = TypeRef.ofClassInternal(ownerInternal, false, false);
         String fqn = ctx.resolver.knownClasses.get(ownerRef.nameWithScope());
+        if (fqn == null && isPrimitiveBoxing(ownerInternal, bareName, d) && !ctx.contractMode
+                && ctx.composites.boxes.models(BoxModel.wrapperOf(ownerInternal))) {
+            pushBox(BoxModel.wrapperOf(ownerInternal), args.get(0));
+            return;
+        }
         if (fqn == null && isPrimitiveBoxing(ownerInternal, bareName, d)) {
             AstNode<StmtExpr> marker = b.push(new StmtExpr.LiteralString("$box"));
             b.boxedValue.put(marker, args.get(0));
@@ -650,6 +680,10 @@ final class InvokeTranslator {
                     "a throwsOn case clause must chain directly off throwsOn(...); calling '"
                             + bareName + "' on a captured handle detaches it from its case");
         }
+        BoxModel.Wrapper box = BoxModel.wrapperOf(ownerInternal);
+        if (!ctx.contractMode && ctx.composites.boxes.models(box) && boxMember(box, recv, bareName, args, d)) {
+            return;
+        }
         // String literal receiver: a literal is a Laurel string, not the
         // String composite, so the call always refuses. Warn when no contract
         // member matches, then check the args (an array-initializer argument
@@ -727,6 +761,65 @@ final class InvokeTranslator {
         b.calleeKeys.put(call.val(), Declarations.purityKey(callee.declaringFqn(), callee.method()));
         b.calleeModels.put(call.val(), new BodyTranslator.CalleeRef(callee.declaringFqn(), callee.method()));
         finishCall(call, callee.method().methodTypeSymbol(), callee.method(), returnsTypeVar(callee.method()));
+    }
+
+    /**
+     * A call of a modelled wrapper class's own method ({@link BoxModel}): its
+     * unboxing method, and {@code equals(Object)}. Any other method misses.
+     *
+     * @return whether the call was translated
+     */
+    private boolean boxMember(BoxModel.Wrapper w, AstNode<StmtExpr> recv, String bareName,
+                              List<AstNode<StmtExpr>> args, java.lang.constant.MethodTypeDesc d) {
+        if (bareName.equals(w.unboxName) && d.parameterCount() == 0) {
+            AstNode<StmtExpr> value = unboxed(w, recv);
+            b.stack.push(value);
+            b.noteDesc(value, w.primitiveDesc);
+            return true;
+        }
+        if (bareName.equals("equals") && d.descriptorString().equals("(Ljava/lang/Object;)Z")) {
+            b.noteDesc(b.push(boxEquals(w, recv, args.get(0))), "Z");
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * The primitive {@code n} boxes: the boxed value itself when {@code n} is
+     * a box this method just made ({@link BodyTranslator#boxedValue}), so
+     * {@code Integer.valueOf(x).intValue()} allocates nothing, else a read of
+     * its value field.
+     */
+    private AstNode<StmtExpr> unboxed(BoxModel.Wrapper w, AstNode<StmtExpr> n) {
+        AstNode<StmtExpr> value = b.boxedValue.get(n);
+        if (value != null && w.descriptor().equals(b.descOf.get(n))) {
+            return value;
+        }
+        return b.e(ctx.composites.boxes.unbox(w, n));
+    }
+
+    /**
+     * {@code recv.equals(arg)} on a box: the values compare equal when
+     * {@code arg} is a box of the same class, and the result is false for any
+     * other object. An argument statically typed as that class is such a box
+     * (a Laurel composite value is never null). Otherwise its class is tested,
+     * which reads it twice, so it must be a local.
+     */
+    private StmtExpr boxEquals(BoxModel.Wrapper w, AstNode<StmtExpr> recv, AstNode<StmtExpr> arg) {
+        var boxes = ctx.composites.boxes;
+        AstNode<StmtExpr> mine = unboxed(w, recv);
+        if (w.descriptor().equals(b.descOf.get(arg))) {
+            return LaurelFactory.primitiveOp(new Operation.Eq(), mine, unboxed(w, arg));
+        }
+        if (!(arg.val() instanceof StmtExpr.Var v && v.var_() instanceof Variable.Local)) {
+            throw new JavaViolationException("'" + w.simpleName()
+                    + ".equals' on an argument that is not a local variable is not yet supported");
+        }
+        var type = LaurelFactory.node(new HighType.UserDefined(LaurelFactory.ident(boxes.declare(w))));
+        AstNode<StmtExpr> theirs = b.e(boxes.unbox(w, b.e(new StmtExpr.AsType(arg, type))));
+        return new StmtExpr.IfThenElse(b.e(new StmtExpr.IsType(arg, type)),
+                b.e(LaurelFactory.primitiveOp(new Operation.Eq(), mine, theirs)),
+                Optional.of(b.e(new StmtExpr.LiteralBool(false))));
     }
 
     /**
@@ -854,8 +947,23 @@ final class InvokeTranslator {
             if (resultIsTypeVar) {
                 b.typeVarValues.add(call);
                 b.erasedResults.add(call.val());
+                if (passesModelledBox(call.val())) {
+                    b.erasedBoxResults.add(call.val());
+                }
             }
         }
+    }
+
+    /** Whether {@code call} is passed a modelled box as an argument or as its receiver. */
+    private boolean passesModelledBox(StmtExpr call) {
+        List<AstNode<StmtExpr>> operands = new ArrayList<>();
+        if (call instanceof StmtExpr.StaticCall sc) {
+            operands.addAll(sc.arguments());
+        } else if (call instanceof StmtExpr.InstanceCall ic) {
+            operands.add(ic.target());
+            operands.addAll(ic.arguments());
+        }
+        return operands.stream().anyMatch(o -> b.isModelledBox(o) || b.erasedBoxResults.contains(o.val()));
     }
 
     void invokeDynamic(java.lang.classfile.instruction.InvokeDynamicInstruction indy) {

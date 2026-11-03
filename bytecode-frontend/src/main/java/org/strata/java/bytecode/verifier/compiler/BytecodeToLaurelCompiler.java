@@ -331,6 +331,7 @@ public class BytecodeToLaurelCompiler {
             emitCompositeClosure(typeName, emittedComposites, types);
         }
         List<Procedure> allProcedures = new ArrayList<>(emittedHelpers());
+        allProcedures.addAll(composites.boxes.helpers.values());
         allProcedures.addAll(translationContext().missingContractProcs.values());
         allProcedures.addAll(procedures);
         var program = new LaurelProgram(allProcedures, List.of(), List.of(), types, List.of());
@@ -1573,9 +1574,9 @@ public class BytecodeToLaurelCompiler {
             }
             case StmtExpr.While w -> {
                 // A loop whose body allocates havocs the whole heap, which an
-                // empty frame cannot cover; an array allocation has no
-                // constructor call to count as the write.
-                if (allocatesArray(n)) {
+                // empty frame cannot cover; an array allocation or a box has
+                // no constructor call to count as the write.
+                if (allocatesArrayOrBox(n)) {
                     return true;
                 }
             }
@@ -1594,14 +1595,17 @@ public class BytecodeToLaurelCompiler {
         return false;
     }
 
-    /** {@code n}'s subtree allocates a JArray. */
-    private static boolean allocatesArray(AstNode<StmtExpr> n) {
+    /** {@code n}'s subtree allocates a JArray or calls a boxing helper ({@link BoxModel}). */
+    private static boolean allocatesArrayOrBox(AstNode<StmtExpr> n) {
         if (n.val() instanceof StmtExpr.New nw && nw.ref().text().equals(ArrayModel.SORT)
                 && !nw.typeArgs().isEmpty()) {
             return true;
         }
+        if (n.val() instanceof StmtExpr.StaticCall c && c.callee().text().startsWith(BoxModel.BOX_HELPER_PREFIX)) {
+            return true;
+        }
         for (var c : BodyTranslator.childrenOf(n.val())) {
-            if (allocatesArray(c)) {
+            if (allocatesArrayOrBox(c)) {
                 return true;
             }
         }
