@@ -17,7 +17,7 @@ public class NestedInstanceClass {
     public class InstanceNestee {
         void checkFalse() {
             check(false);
-//          ^^^^^^^^^^^^ Error: assertion could not be proved
+//          ^^^^^^^^^^^^ Error: assertion does not hold
         }
 
         void checkX() {

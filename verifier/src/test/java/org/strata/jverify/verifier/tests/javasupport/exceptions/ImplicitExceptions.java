@@ -352,7 +352,7 @@ class ImplicitExceptions {
 
     static ParseError castUncaught(AppException e) {
         return (ParseError) e;
-//      ^ Error: uncaught exception 'java.lang.ClassCastException' is not thrown could not be proved
+//      ^ Error: uncaught exception 'java.lang.ClassCastException' is not thrown does not hold
     }
 
     // --- Explicit, undeclared unchecked throws ---
