@@ -235,33 +235,32 @@ final class InvokeTranslator {
         if (ctx.resolver.classTypeParams(sortName).isEmpty()) {
             return List.of();
         }
-        var argTypes = new java.util.ArrayList<String>();
+        var argTypes = new java.util.ArrayList<TypeRef>();
         for (var a : ctorArgs) {
-            TypeRef at = b.staticTypeOf.get(a);
-            argTypes.add(at == null ? null : at.display());
+            argTypes.add(b.staticTypeOf.get(a));
         }
         var solved = ctx.resolver.inferNewTypeArgs(sortName, ctorDesc, argTypes);
         // A no-argument constructor determines nothing, so fall back to the
         // instantiation the DESTINATION declares. That is the other place the
         // classfile keeps it: the LocalVariableTypeTable entry of the local this
         // allocation is stored into (GenericNoArgConstructor).
-        List<String> fromDest = solved.stream().anyMatch(java.util.Objects::isNull)
+        List<TypeRef> fromDest = solved.stream().anyMatch(java.util.Objects::isNull)
                 ? destinationTypeArgs(sortName, solved.size())
                 : List.of();
         var out = new java.util.ArrayList<org.strata.jverify.laurel.AstNode<HighType>>();
         for (int i = 0; i < solved.size(); i++) {
-            String rendered = solved.get(i);
-            if (rendered == null && i < fromDest.size()) {
-                rendered = fromDest.get(i);
+            TypeRef arg = solved.get(i);
+            if (arg == null && i < fromDest.size()) {
+                arg = fromDest.get(i);
             }
-            if (rendered == null) {
+            if (arg == null) {
                 // Nothing in the classfile records this argument. Object is the
                 // erasure-equivalent instantiation, which keeps the emitted Laurel
                 // well formed; it is only reached for a type parameter that neither
                 // the constructor nor the destination mentions.
-                rendered = "Object";
+                arg = TypeRef.ofRendered("Object", false, false);
             }
-            out.add(LaurelFactory.node(TypeRef.ofRendered(TypeRef.readType(rendered), false, false)
+            out.add(LaurelFactory.node(arg
                     .toLaurel(ctx.typeParams, ctx.methodTypeParams,
                             ctx.resolver, ctx.composites)));
         }
@@ -275,18 +274,18 @@ final class InvokeTranslator {
      * is measured against the translator's current position. Empty when no such
      * local exists or its arity does not match.
      */
-    private List<String> destinationTypeArgs(String sortName, int arity) {
+    private List<TypeRef> destinationTypeArgs(String sortName, int arity) {
         if (b.locals == null) {
             return List.of();
         }
-        String best = null;
+        TypeRef best = null;
         int bestDistance = Integer.MAX_VALUE;
         for (var scopes : b.locals.bySlot.values()) {
             for (var s : scopes) {
-                if (s.genericType() == null) {
+                if (s.genericSig() == null) {
                     continue;
                 }
-                var declared = TypeRef.ofRendered(s.genericType(), false, false);
+                var declared = TypeRef.ofSignature(s.genericSig(), false, false);
                 if (declared.kind() != TypeRef.Kind.CLASS
                         || !ctx.resolver.qualifyTypeName(declared.nameWithScope(),
                                 s.desc() == null ? null : TypeRef.ofDescriptor(s.desc()).fqnFromContext()).equals(sortName)) {
@@ -295,11 +294,11 @@ final class InvokeTranslator {
                 int distance = s.start() - b.pos;
                 if (distance >= 0 && distance < bestDistance) {
                     bestDistance = distance;
-                    best = s.genericType();
+                    best = declared;
                 }
             }
         }
-        var args = best == null ? List.<String>of() : TypeRef.typeArguments(best);
+        var args = best == null ? List.<TypeRef>of() : best.typeArgs();
         return args.size() == arity ? args : List.of();
     }
 

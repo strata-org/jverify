@@ -838,9 +838,8 @@ public class BytecodeToLaurelCompiler {
             var sig = fm.findAttribute(java.lang.classfile.Attributes.signature()).orElse(null);
             if (sig != null) {
                 try {
-                    t = TypeRef.ofRendered(org.strata.java.bytecode.frontend.ClassfileQueries.renderSig(
-                            java.lang.classfile.Signature.parseFrom(sig.signature().stringValue())),
-                            isNat, isUnbounded);
+                    t = TypeRef.ofSignature(
+                            java.lang.classfile.Signature.parseFrom(sig.signature().stringValue()), isNat, isUnbounded);
                 } catch (RuntimeException ignore) {
                     // fall back to the descriptor
                 }
@@ -1637,8 +1636,8 @@ public class BytecodeToLaurelCompiler {
         var out = new ArrayList<AstNode<StmtExpr>>();
         for (var h : shape.hoisted()) {
             LaurelFactory.refuseReservedName(h.name());
-            TypeRef t = h.genericType() != null
-                    ? TypeRef.ofRendered(h.genericType(), false, false)
+            TypeRef t = h.genericSig() != null
+                    ? TypeRef.ofSignature(h.genericSig(), false, false)
                     : TypeRef.ofDescriptor(h.desc(), false, false);
             var param = new ParameterOpt(ident(h.name()),
                     Optional.of(node(t.toLaurel(ctx.typeParams, ctx.methodTypeParams,
@@ -2599,12 +2598,11 @@ public class BytecodeToLaurelCompiler {
             TypeRef t = null;
             if (sigArgs) {
                 try {
-                    String rendered = org.strata.java.bytecode.frontend.ClassfileQueries
-                            .renderSig(msig.arguments().get(i));
-                    if (va && rendered.endsWith("[]")) {
-                        rendered = rendered.substring(0, rendered.length() - 2);
+                    var argSig = msig.arguments().get(i);
+                    if (va && argSig instanceof java.lang.classfile.Signature.ArrayTypeSig a) {
+                        argSig = a.componentSignature();
                     }
-                    t = TypeRef.ofRendered(rendered, natP[i], unbP[i]);
+                    t = TypeRef.ofSignature(argSig, natP[i], unbP[i]);
                 } catch (RuntimeException ignore) {
                     // fall back to the descriptor
                 }
@@ -2628,8 +2626,7 @@ public class BytecodeToLaurelCompiler {
             TypeRef rt = null;
             if (msig != null) {
                 try {
-                    rt = TypeRef.ofRendered(org.strata.java.bytecode.frontend.ClassfileQueries
-                            .renderSig(msig.result()), natR, unbR);
+                    rt = TypeRef.ofSignature(msig.result(), natR, unbR);
                 } catch (RuntimeException ignore) {
                     // fall back to the descriptor
                 }
@@ -4112,8 +4109,7 @@ public class BytecodeToLaurelCompiler {
                 TypeRef t = null;
                 if (sigArgs) {
                     try {
-                        t = TypeRef.ofRendered(org.strata.java.bytecode.frontend.ClassfileQueries
-                                .renderSig(msig.arguments().get(i)), false, false);
+                        t = TypeRef.ofSignature(msig.arguments().get(i), false, false);
                     } catch (RuntimeException ignore) {
                         // fall back to the descriptor
                     }
@@ -4128,8 +4124,7 @@ public class BytecodeToLaurelCompiler {
                 TypeRef rt = null;
                 if (msig != null) {
                     try {
-                        rt = TypeRef.ofRendered(org.strata.java.bytecode.frontend.ClassfileQueries
-                                .renderSig(msig.result()), false, false);
+                        rt = TypeRef.ofSignature(msig.result(), false, false);
                     } catch (RuntimeException ignore) {
                         // fall back to the descriptor
                     }
@@ -4146,8 +4141,7 @@ public class BytecodeToLaurelCompiler {
                     TypeRef t = null;
                     if (sigArgs) {
                         try {
-                            t = TypeRef.ofRendered(org.strata.java.bytecode.frontend.ClassfileQueries
-                                    .renderSig(msig.arguments().get(i)), false, false);
+                            t = TypeRef.ofSignature(msig.arguments().get(i), false, false);
                         } catch (RuntimeException ignore) {
                             t = null;
                         }
@@ -4163,8 +4157,7 @@ public class BytecodeToLaurelCompiler {
                     TypeRef rt = null;
                     if (msig != null) {
                         try {
-                            rt = TypeRef.ofRendered(org.strata.java.bytecode.frontend.ClassfileQueries
-                                    .renderSig(msig.result()), false, false);
+                            rt = TypeRef.ofSignature(msig.result(), false, false);
                         } catch (RuntimeException ignore) {
                             rt = null;
                         }

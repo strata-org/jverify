@@ -26,15 +26,23 @@ import java.util.List;
  *                      ("Outer.Inner"); a scoped name is never a type var
  * @param isNat         carries a @Nat type-use annotation
  * @param isUnbounded   carries an @Unbounded type-use annotation
- * @param fqnFromContext the binary-derived fqn ('$' flattened to '.') when
- *                      this reference came from a descriptor; null for
- *                      rendered-signature references, which resolve through
- *                      the unit's imports ({@link ClassResolver#resolve})
+ * @param fqnFromContext the binary-derived fqn ('$' flattened to '.') of a
+ *                      class read from a descriptor or a generic signature;
+ *                      null for a rendering, which resolves through the unit's
+ *                      imports ({@link ClassResolver#resolve})
+ * @param typeArgs      the type arguments, each at the type a wildcard reads
+ *                      as ({@link #readType})
  */
 record TypeRef(Kind kind, String display, String nameWithScope, String simpleName,
-               boolean scoped, boolean isNat, boolean isUnbounded, String fqnFromContext) {
+               boolean scoped, boolean isNat, boolean isUnbounded, String fqnFromContext,
+               List<TypeRef> typeArgs) {
 
     enum Kind { PRIMITIVE, CLASS, ARRAY, OTHER }
+
+    TypeRef(Kind kind, String display, String nameWithScope, String simpleName,
+            boolean scoped, boolean isNat, boolean isUnbounded, String fqnFromContext) {
+        this(kind, display, nameWithScope, simpleName, scoped, isNat, isUnbounded, fqnFromContext, List.of());
+    }
 
     // --- Factories ---
 
@@ -85,8 +93,7 @@ record TypeRef(Kind kind, String display, String nameWithScope, String simpleNam
 
     /**
      * From a rendered generic-signature string ({@code
-     * ClassfileQueries.renderSig} output, stored on {@link
-     * org.strata.java.bytecode.frontend.Locals.Scope#genericType}),
+     * ClassfileQueries.renderSig} output),
      * e.g. {@code List<String>}, {@code T}, {@code Outer.Inner<T>[]}. The
      * name-with-scope strips type arguments; arrays classify as ARRAY.
      */
@@ -105,7 +112,27 @@ record TypeRef(Kind kind, String display, String nameWithScope, String simpleNam
         String noArgs = lt >= 0 ? r.substring(0, lt) : r;
         int lastDot = noArgs.lastIndexOf('.');
         String simple = lastDot >= 0 ? noArgs.substring(lastDot + 1) : noArgs;
-        return new TypeRef(Kind.CLASS, r, noArgs, simple, lastDot >= 0, isNat, isUnbounded, null);
+        return new TypeRef(Kind.CLASS, r, noArgs, simple, lastDot >= 0, isNat, isUnbounded, null,
+                typeArguments(r).stream().map(a -> ofRendered(readType(a), false, false)).toList());
+    }
+
+    /**
+     * From a generic signature: a class is the one its descriptor names ({@link #ofClassDesc}),
+     * displayed as the signature renders it, with the signature's type arguments, each at the
+     * type a wildcard reads as ({@link #readType}); any other type is its rendering.
+     */
+    static TypeRef ofSignature(java.lang.classfile.Signature s, boolean isNat, boolean isUnbounded) {
+        String rendered = org.strata.java.bytecode.frontend.ClassfileQueries.renderSig(s);
+        if (!(s instanceof java.lang.classfile.Signature.ClassTypeSig c)) {
+            return ofRendered(rendered, isNat, isUnbounded);
+        }
+        var args = c.typeArgs().stream().map(ta -> ta instanceof java.lang.classfile.Signature.TypeArg.Bounded b
+                && b.wildcardIndicator() != java.lang.classfile.Signature.TypeArg.Bounded.WildcardIndicator.SUPER
+                ? ofSignature(b.boundType(), false, false)
+                : ofRendered("Object", false, false)).toList();
+        TypeRef d = ofClassDesc(c.classDesc());
+        return new TypeRef(Kind.CLASS, rendered, d.nameWithScope, d.simpleName, d.scoped, isNat, isUnbounded,
+                d.fqnFromContext, args);
     }
 
     private static TypeRef primitive(String name, boolean isNat, boolean isUnbounded) {
@@ -191,13 +218,11 @@ record TypeRef(Kind kind, String display, String nameWithScope, String simpleNam
             // an Applied use site, which Strata monomorphizes. A library generic
             // stays a bare erased sort: no definition is emitted for it, so an
             // Applied over it would not resolve.
-            var args = typeArguments(display);
-            if (!args.isEmpty() && (resolver.programClassModels.containsKey(sortName)
-                    || resolver.classTypeParams(sortName).size() == args.size())) {
+            if (!typeArgs.isEmpty() && (resolver.programClassModels.containsKey(sortName)
+                    || resolver.classTypeParams(sortName).size() == typeArgs.size())) {
                 var applied = new java.util.ArrayList<org.strata.jverify.laurel.AstNode<HighType>>();
-                for (String arg : args) {
-                    applied.add(LaurelFactory.node(ofRendered(readType(arg), false, false)
-                            .toLaurel(typeParamsInScope, tvarNames, resolver, composites)));
+                for (TypeRef arg : typeArgs) {
+                    applied.add(LaurelFactory.node(arg.toLaurel(typeParamsInScope, tvarNames, resolver, composites)));
                 }
                 return new HighType.Applied(
                         LaurelFactory.node(new HighType.UserDefined(LaurelFactory.ident(sortName))),

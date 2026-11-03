@@ -697,8 +697,8 @@ final class BodyTranslator {
         if (locals != null) {
             Locals.Scope s = locals.at(slot, pos);
             if (s != null) {
-                if (s.genericType() != null) {
-                    return TypeRef.ofRendered(s.genericType(), isNat, isUnbounded);
+                if (s.genericSig() != null) {
+                    return TypeRef.ofSignature(s.genericSig(), isNat, isUnbounded);
                 }
                 return s.desc() != null ? TypeRef.ofDescriptor(s.desc(), isNat, isUnbounded) : null;
             }

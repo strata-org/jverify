@@ -14,10 +14,10 @@ import java.util.Map;
  * javac reuses one slot for several variables whose live ranges do not overlap.
  */
 public final class Locals {
-    public record Scope(int start, int end, String name, String desc, String genericType) { }
+    public record Scope(int start, int end, String name, String desc, Signature genericSig) { }
     public final Map<Integer,List<Scope>> bySlot = new HashMap<>();
-    public void add(int slot, int start, int end, String name, String desc, String genericType) {
-        bySlot.computeIfAbsent(slot, k -> new ArrayList<>()).add(new Scope(start, end, name, desc, genericType));
+    public void add(int slot, int start, int end, String name, String desc, Signature genericSig) {
+        bySlot.computeIfAbsent(slot, k -> new ArrayList<>()).add(new Scope(start, end, name, desc, genericSig));
     }
     /** The scope for {@code slot} covering {@code pos} (or the nearest one, to absorb the declaring store). */
     /**
@@ -44,11 +44,11 @@ public final class Locals {
     }
     public static Locals from(List<LocalVariable> lvs, List<LocalVariableType> lvts, Map<Label,Integer> labelPos) {
         // generic local types (LocalVariableTypeTable), keyed by slot@startScope
-        Map<String,String> generics = new HashMap<>();
+        Map<String,Signature> generics = new HashMap<>();
         for (LocalVariableType lvt : lvts) {
             Integer s = labelPos.get(lvt.startScope());
             if (s == null) continue;
-            try { generics.put(lvt.slot() + "@" + s, ClassfileQueries.renderSig(Signature.parseFrom(lvt.signature().stringValue()))); }
+            try { generics.put(lvt.slot() + "@" + s, Signature.parseFrom(lvt.signature().stringValue())); }
             catch (RuntimeException ignore) { }
         }
         Locals L = new Locals();

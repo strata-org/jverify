@@ -717,9 +717,9 @@ public final class MethodBodyFactory {
             if (sc == null && locals != null && locals.bySlot.containsKey(slot)) {
                 continue;   // synthetic (e.g. monitor temp)
             }
-            String genericType = sc != null ? sc.genericType() : null;
+            java.lang.classfile.Signature genericSig = sc != null ? sc.genericSig() : null;
             String desc = sc != null ? sc.desc() : slotDesc.get(slot);
-            if (genericType == null && desc == null) {
+            if (genericSig == null && desc == null) {
                 if (!noDebugNames) {
                     continue;   // no known type -> leave to the first store's `var`
                 }
@@ -759,7 +759,7 @@ public final class MethodBodyFactory {
                     } while (!usedNames.add(fresh));
                     nm = fresh;
                 }
-                out.add(new MethodBody.HoistedDecl(slot, dpos, key, nm, desc, genericType));
+                out.add(new MethodBody.HoistedDecl(slot, dpos, key, nm, desc, genericSig));
                 preDeclared.add(key);
             }
         }

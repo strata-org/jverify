@@ -541,21 +541,21 @@ final class ClassResolver {
      * constructor, or a parameter the constructor never mentions). The caller
      * decides what to do with an unresolved slot.
      */
-    List<String> inferNewTypeArgs(String fqn, java.lang.constant.MethodTypeDesc ctorDesc,
-                                  List<String> argRenderedTypes) {
+    List<TypeRef> inferNewTypeArgs(String fqn, java.lang.constant.MethodTypeDesc ctorDesc,
+                                   List<TypeRef> argTypes) {
         var params = classTypeParams(fqn);
         if (params.isEmpty()) {
             return List.of();
         }
-        var solved = new java.util.HashMap<String, String>();
+        var solved = new java.util.HashMap<String, TypeRef>();
         var ctorSig = constructorSignature(fqn, ctorDesc);
         if (ctorSig != null) {
-            int n = Math.min(ctorSig.arguments().size(), argRenderedTypes.size());
+            int n = Math.min(ctorSig.arguments().size(), argTypes.size());
             for (int i = 0; i < n; i++) {
-                unify(ctorSig.arguments().get(i), argRenderedTypes.get(i), params, solved);
+                unify(ctorSig.arguments().get(i), argTypes.get(i), params, solved);
             }
         }
-        var out = new java.util.ArrayList<String>();
+        var out = new java.util.ArrayList<TypeRef>();
         for (String p : params) {
             out.add(solved.get(p));
         }
@@ -590,26 +590,26 @@ final class ClassResolver {
 
     /**
      * Match one constructor parameter's generic signature against the actual
-     * argument's rendered type, binding any type parameter it names. A bare type
+     * argument's type, binding any type parameter it names. A bare type
      * variable binds to the whole argument type; a parameterised type recurses
      * pairwise into its arguments, so {@code Box<T>} against {@code Box<String>}
      * binds {@code T} to {@code String}. The first binding wins, matching javac's
      * left-to-right resolution.
      */
-    private static void unify(java.lang.classfile.Signature param, String actual,
-                              List<String> typeParams, java.util.Map<String, String> solved) {
+    private static void unify(java.lang.classfile.Signature param, TypeRef actual,
+                              List<String> typeParams, java.util.Map<String, TypeRef> solved) {
         if (actual == null) {
             return;
         }
         if (param instanceof java.lang.classfile.Signature.TypeVarSig tv) {
             if (typeParams.contains(tv.identifier())) {
-                solved.putIfAbsent(tv.identifier(), TypeRef.readType(actual));
+                solved.putIfAbsent(tv.identifier(), actual);
             }
             return;
         }
         if (param instanceof java.lang.classfile.Signature.ClassTypeSig cts
                 && !cts.typeArgs().isEmpty()) {
-            var actualArgs = TypeRef.typeArguments(actual);
+            var actualArgs = actual.typeArgs();
             if (actualArgs.size() != cts.typeArgs().size()) {
                 return;
             }

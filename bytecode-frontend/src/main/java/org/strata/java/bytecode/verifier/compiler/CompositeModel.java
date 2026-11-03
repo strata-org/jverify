@@ -220,7 +220,7 @@ final class CompositeModel {
                 continue;
             }
             try {
-                var t = TypeRef.ofRendered(org.strata.java.bytecode.frontend.ClassfileQueries.renderSig(st), false, false);
+                var t = TypeRef.ofSignature(st, false, false);
                 out.put(parentSort, t.toLaurel(typeParams, resolver, this));
             } catch (RuntimeException ignore) {
                 continue;

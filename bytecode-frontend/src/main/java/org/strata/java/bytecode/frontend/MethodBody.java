@@ -47,5 +47,5 @@ public record MethodBody(
      *        a different type) -- a unique {@code name@N}; every use resolves through the key
      */
     public record HoistedDecl(int slot, int seqIdx, String key, String name, String desc,
-                              String genericType) { }
+                              java.lang.classfile.Signature genericSig) { }
 }
