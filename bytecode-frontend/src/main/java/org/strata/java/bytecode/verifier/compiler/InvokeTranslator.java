@@ -762,21 +762,34 @@ final class InvokeTranslator {
         finishCall(call, callee.method().methodTypeSymbol(), callee.method(), returnsTypeVar(callee.method()));
     }
 
+    /** The construct error for unboxing, or {@code equals} on, a box that may be null ({@link BodyTranslator#heapReadValues}). */
+    static final String BOX_READ_FROM_HEAP = "%s read from a field or array is not yet supported: it may be null";
+
     /**
      * A call of a modelled wrapper class's own method ({@link BoxModel}): its
      * unboxing method, and {@code equals(Object)}. Any other method misses.
+     * Either on a box read from the heap ({@link BodyTranslator#heapReadValues})
+     * is a construct error on its line: Java throws NullPointerException for a
+     * null box (or {@code equals} is false for a null argument), while the
+     * Laurel composite is never null.
      *
      * @return whether the call was translated
      */
     private boolean boxMember(BoxModel.Wrapper w, AstNode<StmtExpr> recv, String bareName,
                               List<AstNode<StmtExpr>> args, java.lang.constant.MethodTypeDesc d) {
         if (bareName.equals(w.unboxName) && d.parameterCount() == 0) {
+            if (b.heapReadValues.contains(recv)) {
+                b.reportConstructErrorOnLine(BOX_READ_FROM_HEAP.formatted("unboxing a box"));
+            }
             AstNode<StmtExpr> value = unboxed(w, recv);
             b.stack.push(value);
             b.noteDesc(value, w.primitiveDesc);
             return true;
         }
         if (bareName.equals("equals") && d.descriptorString().equals("(Ljava/lang/Object;)Z")) {
+            if (b.heapReadValues.contains(recv) || b.heapReadValues.contains(args.get(0))) {
+                b.reportConstructErrorOnLine(BOX_READ_FROM_HEAP.formatted("'" + w.simpleName() + ".equals' on a box"));
+            }
             b.noteDesc(b.push(boxEquals(w, recv, args.get(0))), "Z");
             return true;
         }
@@ -946,23 +959,179 @@ final class InvokeTranslator {
             if (resultIsTypeVar) {
                 b.typeVarValues.add(call);
                 b.erasedResults.add(call.val());
-                if (passesModelledBox(call.val())) {
+                if (passesModelledBox(call.val(), callee)) {
                     b.erasedBoxResults.add(call.val());
                 }
             }
         }
     }
 
-    /** Whether {@code call} is passed a modelled box as an argument or as its receiver. */
-    private boolean passesModelledBox(StmtExpr call) {
-        List<AstNode<StmtExpr>> operands = new ArrayList<>();
+    /**
+     * Whether {@code call}'s erased result may be a modelled box, judged by its
+     * receiver and arguments: one of them is a box, or the erased result of
+     * such a call, or its generic static type may carry one to the result
+     * ({@link #typeMayCarryBox}). With the callee's generic signature, only the
+     * types that can bind the result's type variable count: for a variable of
+     * the callee's class, the receiver's type argument in its position
+     * ({@code Pair<Integer, Node>.second()} is a {@code Node}), and the
+     * arguments whose parameter type mentions the variable.
+     */
+    private boolean passesModelledBox(StmtExpr call, java.lang.classfile.MethodModel callee) {
+        AstNode<StmtExpr> receiver = null;
+        List<AstNode<StmtExpr>> args = List.of();
         if (call instanceof StmtExpr.StaticCall sc) {
-            operands.addAll(sc.arguments());
+            args = sc.arguments();
         } else if (call instanceof StmtExpr.InstanceCall ic) {
-            operands.add(ic.target());
-            operands.addAll(ic.arguments());
+            receiver = ic.target();
+            args = ic.arguments();
         }
-        return operands.stream().anyMatch(o -> b.isModelledBox(o) || b.erasedBoxResults.contains(o.val()));
+        ResultVar rv = resultVar(callee);
+        if (receiver != null && (isBoxOperand(receiver) || receiverMayCarryBox(receiver, rv))) {
+            return true;
+        }
+        for (int i = 0; i < args.size(); i++) {
+            AstNode<StmtExpr> a = args.get(i);
+            if (isBoxOperand(a) || ((rv == null || rv.parameterMentions(i)) && typeMayCarryBox(a))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isBoxOperand(AstNode<StmtExpr> o) {
+        return b.isModelledBox(o) || b.erasedBoxResults.contains(o.val());
+    }
+
+    /**
+     * The type variable a callee's generic result is: its name, the class
+     * declaring the callee with that class's type parameters (empty when the
+     * variable is the method's own), and the generic parameter types.
+     */
+    private record ResultVar(String name, String ownerFqn, List<String> classParams,
+                             List<java.lang.classfile.Signature> parameters) {
+        boolean parameterMentions(int i) {
+            return i >= parameters.size() || parameters.get(i).signatureString().contains("T" + name + ";");
+        }
+    }
+
+    /** The {@link ResultVar} of {@code callee}, or null without a callee or a type-variable result. */
+    private static ResultVar resultVar(java.lang.classfile.MethodModel callee) {
+        if (callee == null) {
+            return null;
+        }
+        var sa = callee.findAttribute(java.lang.classfile.Attributes.signature()).orElse(null);
+        var owner = callee.parent().orElse(null);
+        if (sa == null || owner == null) {
+            return null;
+        }
+        try {
+            var sig = java.lang.classfile.MethodSignature.parseFrom(sa.signature().stringValue());
+            if (!(sig.result() instanceof java.lang.classfile.Signature.TypeVarSig tv)) {
+                return null;
+            }
+            boolean methodVar = sig.typeParameters().stream().anyMatch(tp -> tp.identifier().equals(tv.identifier()));
+            return new ResultVar(tv.identifier(), JavaNames.dottedFqn(owner.thisClass().asInternalName()),
+                    methodVar ? List.of() : Declarations.typeParamNamesOf(owner), sig.arguments());
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Whether the receiver's type may carry a box to a result typed by
+     * {@code rv}: when {@code rv} is a type parameter of the receiver's own
+     * class and the receiver's type gives every argument, only the argument in
+     * its position counts; otherwise the whole type ({@link #typeMayCarryBox}).
+     */
+    private boolean receiverMayCarryBox(AstNode<StmtExpr> receiver, ResultVar rv) {
+        int at = rv == null ? -1 : rv.classParams().indexOf(rv.name());
+        TypeRef t = at < 0 ? null : staticClassType(receiver);
+        if (t != null) {
+            var typeArgs = TypeRef.typeArguments(t.display());
+            String fqn = ctx.resolver.qualifyTypeName(t.nameWithScope(), t.fqnFromContext());
+            if (fqn.equals(rv.ownerFqn()) && typeArgs.size() == rv.classParams().size()) {
+                return namesModelledWrapper(TypeRef.readType(typeArgs.get(at)));
+            }
+        }
+        return typeMayCarryBox(receiver);
+    }
+
+    /** {@code o}'s static class type, or null when it is unknown or not a class. */
+    private TypeRef staticClassType(AstNode<StmtExpr> o) {
+        String desc = b.descOf.get(o);
+        TypeRef t = b.staticTypeOf.get(o);
+        if (t == null && desc != null && desc.startsWith("L")) {
+            t = TypeRef.ofDescriptor(desc);
+        }
+        return t != null && t.kind() == TypeRef.Kind.CLASS ? t : null;
+    }
+
+    /**
+     * Whether the reference {@code o}'s static type may carry a modelled box to
+     * a generic result: it names a wrapper class {@link BoxModel} translates at
+     * any depth ({@code Box<Integer>}, {@code List<Integer>},
+     * {@code Map<String, Long>}), it is a raw use of a generic class, or it is
+     * unknown. {@code this}, a primitive, an array and a type with no wrapper
+     * in it ({@code C}, {@code List<String>}, {@code T}) do not.
+     */
+    private boolean typeMayCarryBox(AstNode<StmtExpr> o) {
+        if (o.val() instanceof StmtExpr.Var v && v.var_() instanceof Variable.Local l
+                && l.name().text().equals(LaurelFactory.LAUREL_SELF_BINDING)) {
+            return false;
+        }
+        String desc = b.descOf.get(o);
+        if (desc != null && !desc.startsWith("L")) {
+            return false;
+        }
+        TypeRef t = b.staticTypeOf.get(o);
+        if (t == null && desc != null) {
+            t = TypeRef.ofDescriptor(desc);
+        }
+        if (t == null) {
+            return true;
+        }
+        if (t.kind() != TypeRef.Kind.CLASS) {
+            return false;
+        }
+        return namesModelledWrapper(t.display())
+                || (TypeRef.typeArguments(t.display()).isEmpty() && isGenericClass(t));
+    }
+
+    /** Whether the rendered type {@code display} names a wrapper class {@link BoxModel} translates, at any depth. */
+    private boolean namesModelledWrapper(String display) {
+        for (String name : display.split("[^A-Za-z0-9_$.]+")) {
+            String simple = name.substring(name.lastIndexOf('.') + 1);
+            if (!simple.isEmpty() && ctx.composites.boxes.models(BoxModel.wrapperOf("java/lang/" + simple))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether the class {@code t} names declares type parameters, so a use of it with no type arguments is raw. */
+    private boolean isGenericClass(TypeRef t) {
+        String fqn = t.fqnFromContext() != null
+                ? t.fqnFromContext()
+                : ctx.resolver.qualifyTypeName(t.nameWithScope(), null);
+        if (ctx.resolver.programClassModels.containsKey(fqn)) {
+            return !ctx.resolver.classTypeParams(fqn).isEmpty();
+        }
+        // The dotted name of a nested class (java.util.Map.Entry) is not its
+        // binary name (java.util.Map$Entry): try each split into outer and
+        // nested classes, innermost first.
+        String name = fqn;
+        while (true) {
+            try {
+                return Class.forName(name, false, InvokeTranslator.class.getClassLoader())
+                        .getTypeParameters().length > 0;
+            } catch (ClassNotFoundException | LinkageError e) {
+                int dot = name.lastIndexOf('.');
+                if (dot < 0) {
+                    return false;
+                }
+                name = name.substring(0, dot) + '$' + name.substring(dot + 1);
+            }
+        }
     }
 
     void invokeDynamic(java.lang.classfile.instruction.InvokeDynamicInstruction indy) {

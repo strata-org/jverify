@@ -97,6 +97,8 @@ final class BodyTranslator {
     final Map<Integer, String> slotType = new HashMap<>();   // slot -> descriptor it currently holds
     int synthCounter;
     Set<Integer> loadedSlots = Set.of();
+    /** Reference locals some store fills with a value read from the heap ({@link #heapReadSlots}). */
+    Set<String> heapReadSlots = Set.of();
     int pendingIncSlot = -1;                 // deferred mid-expression iinc (prefix ++x)
     int pendingIncDelta;
     Map<Integer, List<java.lang.classfile.Annotation>> slotTypeAnnos = Map.of();
@@ -113,6 +115,15 @@ final class BodyTranslator {
      * type variable (their erased descriptor says {@code Object}).
      */
     final Set<AstNode<StmtExpr>> typeVarValues = Collections.newSetFromMap(new IdentityHashMap<>());
+    /**
+     * Reference values that may be null although their Laurel type is a
+     * composite: a field read, a load of a {@linkplain #heapReadSlots local}
+     * filled from the heap, a cast of either, and a conditional expression with
+     * such an arm (ControlFlowStructurer.buildTernary). The box model refuses to
+     * unbox them (InvokeTranslator.boxMember), as a Laurel composite value is
+     * never null where Java's may be.
+     */
+    final Set<AstNode<StmtExpr>> heapReadValues = Collections.newSetFromMap(new IdentityHashMap<>());
     /**
      * Loads of a local declared {@code @Impure} (a local or parameter type
      * annotation, or a type variable with an {@code @Impure} bound): a heap
@@ -847,6 +858,9 @@ final class BodyTranslator {
         }
         stack.push(n);
         noteDesc(n, localDesc(li.slot()));
+        if (heapReadSlots.contains(localKey(locals, li.slot(), pos))) {
+            heapReadValues.add(n);
+        }
         if (locals != null && locals.at(li.slot(), pos) == null && !name.equals("this")) {
             untypedLoads.add(n);
         }
@@ -1287,6 +1301,11 @@ final class BodyTranslator {
         reportConstructError(ctx.src.positionRange(stmtRange(pos, false)), message);
     }
 
+    /** {@link #reportConstructError(String)}, anchored at the current instruction's line ({@link #comparisonRange}). */
+    void reportConstructErrorOnLine(String message) {
+        reportConstructError(ctx.src.pointOf(comparisonRange()), message);
+    }
+
     /** {@link #reportConstructError(String)}, anchored at {@code range}. */
     private void reportConstructError(org.strata.jverify.common.Range range, String message) {
         if (ctx.contractMode) {
@@ -1405,10 +1424,12 @@ final class BodyTranslator {
      *
      * <p>A generic call's result carries the ERASED descriptor ({@code Object})
      * until a checkcast recovers its type, so it is not accused
-     * (ErasedResultEquality), unless the call is passed a box
+     * (ErasedResultEquality), unless the result may be a box
      * ({@link #erasedBoxResults}). The cost: {@code id("a") == id("b")}, with
      * no cast in between, is accepted, and so is a box that reaches a generic
-     * result another way, such as a field of a generic class.
+     * result with no wrapper visible in any type: {@code id(o)} for an
+     * {@code Object o} holding a box, or {@code t.get()} for a receiver typed
+     * by a type variable instantiated with a wrapper class.
      */
     private void refuseUnsoundReferenceEquality(String op) {
         if (ctx.contractMode || stack.size() < 2) {
@@ -1437,7 +1458,7 @@ final class BodyTranslator {
     /**
      * Whether {@code n} may be a box {@link BoxModel} translates: its static
      * type is a modelled wrapper class, or it is a generic call's erased result
-     * whose arguments or receiver include one ({@link #erasedBoxResults}).
+     * that may be one ({@link #erasedBoxResults}).
      */
     private boolean mayHoldModelledBox(AstNode<StmtExpr> n) {
         return isModelledBox(n) || erasedBoxResults.contains(n.val());
@@ -1480,8 +1501,8 @@ final class BodyTranslator {
     }
 
     /**
-     * The comparison's position: its LineNumberTable line, else the
-     * enclosing statement's span.
+     * The current instruction's position (a comparison's, an unboxing's): its
+     * LineNumberTable line, else the enclosing statement's span.
      */
     private FileRange comparisonRange() {
         if (lines != null && seqToBci != null && pos >= 0 && pos < seqToBci.length) {
@@ -1600,9 +1621,12 @@ final class BodyTranslator {
             java.util.Collections.newSetFromMap(new IdentityHashMap<>());
 
     /**
-     * The {@link #erasedResults} of calls that are passed a modelled box (as an
-     * argument or the receiver), so the result may be that box: {@code id(1)}
-     * for {@code <T> T id(T x)}. Reference comparison refuses them as boxes.
+     * The {@link #erasedResults} that may be a modelled box, judged by the
+     * call's receiver and arguments (InvokeTranslator.passesModelledBox): one
+     * is a box ({@code id(1)} for {@code <T> T id(T x)}), or its static type
+     * names a wrapper class at any depth ({@code p.get()} for
+     * {@code Box<Integer> p}), is raw, or is unknown. Reference comparison
+     * refuses them as boxes.
      */
     final java.util.Set<StmtExpr> erasedBoxResults =
             java.util.Collections.newSetFromMap(new IdentityHashMap<>());
@@ -1652,6 +1676,129 @@ final class BodyTranslator {
 
     static int seqAt(List<Integer> idxs, int p) {
         return idxs == null ? p : idxs.get(p);
+    }
+
+    /**
+     * The reference locals of {@code seq}, as {@link #localKey}s, that some
+     * {@code astore} fills with a value read from the heap, which may be null:
+     * a field read ({@code getfield}/{@code getstatic}), an array element
+     * ({@code aaload}), a load of a local already in the set, or a
+     * {@code checkcast} of any of these. The value stored comes from the
+     * instructions {@link #valueSources} finds, which include a conditional
+     * expression's arms, looking through a {@code dup} and the stores of a
+     * chained assignment ({@code b = c = h.f}). A local is in the set wherever
+     * it is loaded, in every LocalVariableTable entry of the same name and
+     * type; a slot javac reuses for a local of another name is a different key.
+     */
+    static Set<String> heapReadSlots(List<CodeElement> seq, Locals locals) {
+        var gotosTo = new HashMap<java.lang.classfile.Label, List<Integer>>();
+        for (int i = 0; i < seq.size(); i++) {
+            if (seq.get(i) instanceof java.lang.classfile.instruction.BranchInstruction br
+                    && br.opcode() == java.lang.classfile.Opcode.GOTO) {
+                gotosTo.computeIfAbsent(br.target(), k -> new ArrayList<>()).add(i);
+            }
+        }
+        var slots = new java.util.HashSet<String>();
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (int i = 0; i < seq.size(); i++) {
+                if (seq.get(i) instanceof StoreInstruction st
+                        && st.typeKind() == java.lang.classfile.TypeKind.REFERENCE
+                        && !slots.contains(localKey(locals, st.slot(), i))
+                        && storesHeapRead(seq, i, gotosTo, slots, locals)) {
+                    slots.add(localKey(locals, st.slot(), i));
+                    changed = true;
+                }
+            }
+        }
+        return slots;
+    }
+
+    /**
+     * The local in {@code slot} at seq index {@code pos}: the slot with the
+     * name and descriptor of its LocalVariableTable entry, or the slot alone
+     * where no entry covers it ({@link Locals#at}, which also takes the entry a
+     * store opens). A local assigned in branches has one entry per branch and
+     * one after the join, all with the same key; two locals of the same name
+     * and type in one slot share it too, which only refuses more.
+     */
+    static String localKey(Locals locals, int slot, int pos) {
+        Locals.Scope s = locals == null ? null : locals.at(slot, pos);
+        return s == null ? Integer.toString(slot) : slot + ":" + s.name() + ":" + s.desc();
+    }
+
+    /** Whether a value the instruction at {@code at} consumes may be read from the heap ({@link #heapReadSlots}). */
+    private static boolean storesHeapRead(List<CodeElement> seq, int at,
+                                          Map<java.lang.classfile.Label, List<Integer>> gotosTo, Set<String> slots,
+                                          Locals locals) {
+        var producers = new ArrayList<Integer>();
+        valueSources(seq, at, gotosTo, producers);
+        for (int p : producers) {
+            if (p < 0) {
+                continue;
+            }
+            switch (seq.get(p)) {
+                case java.lang.classfile.instruction.FieldInstruction fi
+                        when fi.opcode() == java.lang.classfile.Opcode.GETFIELD
+                                || fi.opcode() == java.lang.classfile.Opcode.GETSTATIC -> {
+                    return true;
+                }
+                case java.lang.classfile.instruction.ArrayLoadInstruction al
+                        when al.typeKind() == java.lang.classfile.TypeKind.REFERENCE -> {
+                    return true;
+                }
+                case LoadInstruction li when slots.contains(localKey(locals, li.slot(), p)) -> {
+                    return true;
+                }
+                case java.lang.classfile.instruction.TypeCheckInstruction tc
+                        when tc.opcode() == java.lang.classfile.Opcode.CHECKCAST -> {
+                    if (storesHeapRead(seq, p, gotosTo, slots, locals)) {
+                        return true;
+                    }
+                }
+                // A dup copies its operand, and in a chained assignment the store of
+                // one copy sits between the dup and the value's next consumer.
+                case java.lang.classfile.instruction.StackInstruction si
+                        when si.opcode() == java.lang.classfile.Opcode.DUP -> {
+                    if (storesHeapRead(seq, p, gotosTo, slots, locals)) {
+                        return true;
+                    }
+                }
+                case StoreInstruction st when st.typeKind() == java.lang.classfile.TypeKind.REFERENCE -> {
+                    if (storesHeapRead(seq, p, gotosTo, slots, locals)) {
+                        return true;
+                    }
+                }
+                default -> { }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Add to {@code out} the instructions that may leave the value the
+     * instruction at {@code at} consumes: the instruction before it, and,
+     * for each label in between, each {@code goto} to that label with the
+     * instructions that leave the value it carries, found the same way.
+     * Labels are skipped: javac's CharacterRangeTable puts them at statement
+     * and expression boundaries.
+     */
+    private static void valueSources(List<CodeElement> seq, int at,
+                                     Map<java.lang.classfile.Label, List<Integer>> gotosTo, List<Integer> out) {
+        int j = at - 1;
+        while (j >= 0 && seq.get(j) instanceof java.lang.classfile.instruction.LabelTarget lt) {
+            for (int g : gotosTo.getOrDefault(lt.label(), List.of())) {
+                if (!out.contains(g)) {
+                    out.add(g);    // a goto leaves no value: it only marks the arm as visited
+                    valueSources(seq, g, gotosTo, out);
+                }
+            }
+            j--;
+        }
+        if (j >= 0 && !out.contains(j)) {
+            out.add(j);
+        }
     }
 
     void run(List<CodeElement> seq) {
@@ -2120,6 +2267,9 @@ final class BodyTranslator {
                 AstNode<StmtExpr> n = push(new StmtExpr.AsType(v, boxType));
                 staticTypeOf.put(n, t);
                 noteDesc(n, box.descriptor());
+                if (heapReadValues.contains(v)) {
+                    heapReadValues.add(n);
+                }
                 implicitThrows.put(n, new ImplicitThrow(
                         e(LaurelFactory.primitiveOp(new Operation.Not(), e(new StmtExpr.IsType(v, boxType)))),
                         CLASS_CAST_EXCEPTION));

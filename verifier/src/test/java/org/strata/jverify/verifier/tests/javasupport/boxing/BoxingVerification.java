@@ -9,7 +9,7 @@ import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(exitCode = 4, methodsVerified = 22, methodsInvalid = 3, errorCount = 3)
+@JVerifyTest(exitCode = 4, methodsVerified = 25, methodsInvalid = 3, errorCount = 3)
 class BoxingVerification {
     Integer field;
 
@@ -41,7 +41,26 @@ class BoxingVerification {
 
     void fieldStore(int x) {
         field = x;
-        check(field == x);
+    }
+
+    static void callResult(int x) {
+        Integer b = box(x);
+        check(b == x);
+    }
+
+    // javac gives `a` and `b` the same slot: only `a` is read from a field.
+    void slotReusedAfterFieldRead(boolean c, int x) {
+        if (c) {
+            Integer a = field;
+            field = a;
+        }
+        Integer b = x;
+        int y = b;
+        check(y == x);
+    }
+
+    static void valueOfIntValue(int x) {
+        check(Integer.valueOf(x).intValue() == x);
     }
 
     static void equalsSameValue(int x) {

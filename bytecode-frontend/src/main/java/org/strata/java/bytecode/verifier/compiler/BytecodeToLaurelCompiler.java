@@ -1477,6 +1477,7 @@ public class BytecodeToLaurelCompiler {
             }
         }
         b.loadedSlots = loaded;
+        b.heapReadSlots = BodyTranslator.heapReadSlots(shape.seq(), shape.locals());
         collectRangeCastAnnotations(cm, shape, b);
         return b;
     }

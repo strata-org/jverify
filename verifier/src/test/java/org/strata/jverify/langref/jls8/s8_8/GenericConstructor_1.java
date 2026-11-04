@@ -7,7 +7,7 @@ import static org.strata.jverify.JVerify.*;
 
 // JLS 8.8.4 -- constructor of a generic class: the constructor of a generic
 // class Box<T> takes a T and stores it in a T-typed field.
-@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls8.s8_8.GenericConstructor_1#run", expectedToFail = true, blockedBy = {Blocker.LANGREF_INTERP_ERROR})
+@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls8.s8_8.GenericConstructor_1#run", expectedToFail = true, blockedBy = {Blocker.LANGREF_UNSUPPORTED})
 class GenericConstructor_1 {
     static class Box<T> {
         T v;

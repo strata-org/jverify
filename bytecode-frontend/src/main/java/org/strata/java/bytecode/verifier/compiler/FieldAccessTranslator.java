@@ -86,6 +86,10 @@ final class FieldAccessTranslator {
                 AstNode<StmtExpr> n = b.push(new StmtExpr.Var(
                         new Variable.Field(recv, LaurelFactory.ident(fn))));
                 b.noteDesc(n, fdesc);
+                if (fdesc.startsWith("L")) {
+                    // Every reference field is read as non-null, but may hold null.
+                    b.heapReadValues.add(n);
+                }
                 if (fdesc.startsWith("L")
                         || (fdesc.startsWith("[") && ctx.composites.arrays.enabled())) {
                     b.staticTypeOf.put(n, TypeRef.ofDescriptor(fdesc));

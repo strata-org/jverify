@@ -668,6 +668,9 @@ final class ControlFlowStructurer {
         if (isBoolish(v)) {
             body.bools.add(block);
         }
+        if (body.heapReadValues.contains(v)) {
+            body.heapReadValues.add(block);
+        }
         return block;
     }
 
@@ -693,6 +696,10 @@ final class ControlFlowStructurer {
         }
         if (boolish) {
             body.bools.add(r);
+        }
+        // Either arm may be a box read from the heap, so the result may be null.
+        if (body.heapReadValues.contains(thenVal) || body.heapReadValues.contains(elseVal)) {
+            body.heapReadValues.add(r);
         }
         if (body.arrays.enabled()) {
             typeArrayTernary(r, thenVal, elseVal);

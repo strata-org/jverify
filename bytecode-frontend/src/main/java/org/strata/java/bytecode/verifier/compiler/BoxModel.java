@@ -33,8 +33,14 @@ import java.util.Optional;
  *       takes the boxed primitive itself when the box was made in the same
  *       expression ({@code Integer.valueOf(x).intValue()},
  *       {@code b.equals(x)}). A Laurel value of a composite type is never
- *       null, so a null box is never read as a primitive: a null reaching a
- *       box-typed position is refused where it is produced.</li>
+ *       null, so where this model applies a box that may be null is
+ *       refused: at a {@code null} literal, and where a box read from a field
+ *       or array is unboxed or compared with {@code equals}
+ *       (InvokeTranslator.boxMember). A box passed as a parameter or returned
+ *       by a call is read as non-null, as every reference is. A wrapper class
+ *       described by a library contract (see the last paragraph) is translated
+ *       through the contract's members instead, whose receivers are read as
+ *       non-null too, so none of these refusals applies to it.</li>
  *   <li>{@code equals(Object)} compares the values when the argument is a box
  *       of the same class, and is false for any other object.</li>
  *   <li>A cast to a box class is Laurel's {@code as} and an {@code instanceof}
