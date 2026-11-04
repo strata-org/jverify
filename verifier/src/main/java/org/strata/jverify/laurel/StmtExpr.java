@@ -1,6 +1,6 @@
 package org.strata.jverify.laurel;
 
-public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, StmtExpr.Block, StmtExpr.While, StmtExpr.Exit, StmtExpr.Return, StmtExpr.LiteralInt, StmtExpr.LiteralBool, StmtExpr.LiteralString, StmtExpr.LiteralDecimal, StmtExpr.LiteralBv, StmtExpr.Var, StmtExpr.Assign, StmtExpr.IncrDecr, StmtExpr.CompoundAssign, StmtExpr.PureFieldUpdate, StmtExpr.StaticCall, StmtExpr.New, StmtExpr.This, StmtExpr.ReferenceEquals, StmtExpr.AsType, StmtExpr.IsType, StmtExpr.InstanceCall, StmtExpr.Quantifier, StmtExpr.Assigned, StmtExpr.Old, StmtExpr.OldGuarantee, StmtExpr.OldRelies, StmtExpr.Fresh, StmtExpr.Assert, StmtExpr.Assume, StmtExpr.Throw, StmtExpr.Try, StmtExpr.ProveBy, StmtExpr.ContractOf, StmtExpr.Abstract, StmtExpr.All, StmtExpr.Hole, StmtExpr.Yield, StmtExpr.Resume, StmtExpr.HasNext, StmtExpr.Snapshot {
+public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, StmtExpr.Block, StmtExpr.While, StmtExpr.Goto, StmtExpr.Return, StmtExpr.LiteralInt, StmtExpr.LiteralBool, StmtExpr.LiteralString, StmtExpr.LiteralDecimal, StmtExpr.LiteralBv, StmtExpr.Var, StmtExpr.Assign, StmtExpr.IncrDecr, StmtExpr.CompoundAssign, StmtExpr.PureFieldUpdate, StmtExpr.StaticCall, StmtExpr.New, StmtExpr.This, StmtExpr.ReferenceEquals, StmtExpr.AsType, StmtExpr.IsType, StmtExpr.InstanceCall, StmtExpr.Quantifier, StmtExpr.Assigned, StmtExpr.Old, StmtExpr.OldGuarantee, StmtExpr.OldRelies, StmtExpr.Fresh, StmtExpr.Assert, StmtExpr.Assume, StmtExpr.Throw, StmtExpr.Try, StmtExpr.ProveBy, StmtExpr.ContractOf, StmtExpr.Abstract, StmtExpr.All, StmtExpr.Hole, StmtExpr.Yield, StmtExpr.Resume, StmtExpr.HasNext, StmtExpr.Snapshot {
     com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion);
 
     public record IfThenElse(AstNode<StmtExpr> cond, AstNode<StmtExpr> thenBranch, java.util.Optional<AstNode<StmtExpr>> elseBranch) implements StmtExpr {
@@ -15,7 +15,7 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record Block(java.util.List<AstNode<StmtExpr>> statements, java.util.Optional<java.lang.String> label) implements StmtExpr {
+    public record Block(java.util.List<AstNode<StmtExpr>> statements, java.util.Optional<java.lang.String> label, java.util.List<AstNode<StmtExpr>> invariants, java.util.Optional<AstNode<StmtExpr>> decreases) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
@@ -24,6 +24,10 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         for (var e : statements()) _l0.add(e.toIon(ion));
         sexp.add(_l0);
         sexp.add((label().isPresent() ? ion.newString(label().get()) : ion.newNull()));
+        var _l2 = ion.newEmptyList();
+        for (var e : invariants()) _l2.add(e.toIon(ion));
+        sexp.add(_l2);
+        sexp.add((decreases().isPresent() ? decreases().get().toIon(ion) : ion.newNull()));
         return sexp;
         }
     }
@@ -44,12 +48,13 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record Exit(java.lang.String target) implements StmtExpr {
+    public record Goto(java.lang.String target, GotoDestination destination) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
-        sexp.add(ion.newSymbol("Exit"));
+        sexp.add(ion.newSymbol("Goto"));
         sexp.add(ion.newString(target()));
+        sexp.add(destination().toIon(ion));
         return sexp;
         }
     }

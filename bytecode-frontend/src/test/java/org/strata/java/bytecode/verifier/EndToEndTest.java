@@ -197,6 +197,177 @@ class EndToEndTest {
     }
 
     @Test
+    void loopEndingInASwitchVerifies(@TempDir Path tmp) throws Exception {
+        // The back-edge goto must go inside the switch cascade's falling
+        // arms: appended after the switch's block, Resolution synthesizes
+        // the cascade if and rejects the arms' trailing assignments as
+        // incompatible types (bool vs int32).
+        var source = """
+                import static org.strata.jverify.JVerify.*;
+
+                public class SwitchTail {
+                    static int sw(int k) {
+                        precondition(k == 1);
+                        boolean go = true;
+                        int steps = 0;
+                        while (go) {
+                            invariant(0 <= steps && steps <= 0);
+                            switch (k) {
+                                case 1: go = false; break;
+                                default: steps = steps + 1;
+                            }
+                        }
+                        return steps;
+                    }
+                }
+                """;
+        var results = verify(tmp, "SwitchTail.java", source);
+
+        var ran = assertInstanceOf(JVerifyResults.Ran.class, results, () -> "got: " + results);
+        assertEquals(List.of(), ran.diagnostics().stream().map(d -> d.getMessage(null)).toList(),
+                "no diagnostics expected");
+        assertEquals(0, ran.exitCode());
+        // sw + implicit constructor.
+        assertEquals(2, ran.verificationResults().verificationPassedMethods());
+    }
+
+    @Test
+    void loopEndingInATryFinallyResolves(@TempDir Path tmp) throws Exception {
+        // The back-edge goto must go inside the try body's trailing if/else
+        // arms (Laurel's EliminateExceptions unwinds a goto leaving the try
+        // through the finally): with the goto after the try, the lowering
+        // leaves the if/else in non-tail position and the re-resolution
+        // rejects the arm types ("Internal error: resolution after
+        // 'EliminateExceptions' introduced this diagnostic: 'if' branches
+        // have incompatible types 'bool' and 'int32'").
+        //
+        // Full verification of a try inside ANY loop is a known Strata
+        // limitation independent of the goto placement: loop elimination
+        // havocs the $thrown flag EliminateExceptions introduces, so "no
+        // exception escapes this `try` uncaught" (and the procedure's
+        // implicit no-throw postcondition) cannot be proved -- see
+        // StrataLaurel/Tests/EndToEndTests/Execution/StmtExpr/Stmt/Goto.lean,
+        // which runs the equivalent Laurel with skipVerification and notes a
+        // `while` around the same try fails the same way. Pin exactly those
+        // two obligations, and nothing structural, as the outcome.
+        var source = """
+                import static org.strata.jverify.JVerify.*;
+
+                public class TryTail {
+                    static int tf(int k) {
+                        precondition(k == 1);
+                        boolean go = true;
+                        int steps = 0;
+                        while (go) {
+                            invariant(0 <= steps && steps <= 0 && k == 1);
+                            try {
+                                if (k == 1) {
+                                    go = false;
+                                } else {
+                                    steps = steps + 1;
+                                }
+                            } finally {
+                                k = 1;
+                            }
+                        }
+                        return steps;
+                    }
+                }
+                """;
+        var results = verify(tmp, "TryTail.java", source);
+
+        var ran = assertInstanceOf(JVerifyResults.Ran.class, results, () -> "got: " + results);
+        assertEquals(
+                List.of("Error: no exception escapes this `try` uncaught could not be proved",
+                        "Error: postcondition could not be proved"),
+                ran.diagnostics().stream().map(d -> d.getMessage(null)).toList(),
+                "only the documented try-in-loop havoc obligations may fail");
+        // tf fails those obligations; the implicit constructor verifies.
+        assertEquals(1, ran.verificationResults().verificationPassedMethods());
+        assertEquals(1, ran.verificationResults().verificationFailedMethods());
+    }
+
+    @Test
+    void breakInsideATryFinallyInALoopIsRefusedNotVerified(@TempDir Path tmp) throws Exception {
+        // javac inlines one finally copy per normal exit of the protected
+        // range; only the copy at the range's end is stripped, so the
+        // fall-through path would keep its inlined copy AND unwind through
+        // the Laurel finally -- the model would run the finally twice per
+        // iteration, making c == 6 where Java computes c == 3, and this
+        // FALSE check would verify (a missed violation). The shape must be
+        // refused, with no verdict for the method.
+        var source = """
+                import static org.strata.jverify.JVerify.*;
+
+                public class BreakFin {
+                    static int m() {
+                        int i = 0;
+                        int c = 0;
+                        while (i < 3) {
+                            try {
+                                if (i == 10) {
+                                    break;
+                                }
+                                i = i + 1;
+                            } finally {
+                                c = c + 1;
+                            }
+                        }
+                        check(c == 6);
+                        return c;
+                    }
+                }
+                """;
+        var results = verify(tmp, "BreakFin.java", source);
+
+        // The refusal stops the run with NO verdict: the false check must
+        // neither verify nor merely count as a failure.
+        var noVerdict = assertInstanceOf(JVerifyResults.NoVerdict.class, results, () -> "got: " + results);
+        assertEquals(1, noVerdict.diagnostics().size(), () -> "diagnostics: " + noVerdict.diagnostics());
+        assertTrue(noVerdict.diagnostics().getFirst().getMessage(null).contains("modelled as running twice"),
+                () -> noVerdict.diagnostics().getFirst().getMessage(null));
+    }
+
+    @Test
+    void localFirstStoredInALoopBodyIsVisibleAfterTheLoop(@TempDir Path tmp) throws Exception {
+        // t's first store is inside the loop body (not the header), and t is
+        // read after the loop: its declaration must be hoisted out of the
+        // labelled loop block or `return t` fails to resolve.
+        var source = """
+                import static org.strata.jverify.JVerify.*;
+
+                public class BodyStore {
+                    static int g(int n) {
+                        precondition(n >= 0 && n < 100);
+                        int i = 0;
+                        int t;
+                        while (true) {
+                            invariant(0 <= i && i <= n + 3);
+                            if (i % 2 == 0) {
+                                i = i + 1;
+                            } else {
+                                i = i + 2;
+                            }
+                            t = i;
+                            if (t > n) {
+                                break;
+                            }
+                        }
+                        return t;
+                    }
+                }
+                """;
+        var results = verify(tmp, "BodyStore.java", source);
+
+        var ran = assertInstanceOf(JVerifyResults.Ran.class, results, () -> "got: " + results);
+        assertEquals(List.of(), ran.diagnostics().stream().map(d -> d.getMessage(null)).toList(),
+                "no diagnostics expected");
+        assertEquals(0, ran.exitCode());
+        // g + implicit constructor.
+        assertEquals(2, ran.verificationResults().verificationPassedMethods());
+    }
+
+    @Test
     void javaErrorStopsWithNoVerdict(@TempDir Path tmp) throws Exception {
         var results = verify(tmp, "Bad.java", "public class Bad { int x = ; }");
         var noVerdict = assertInstanceOf(JVerifyResults.NoVerdict.class, results, () -> "got: " + results);

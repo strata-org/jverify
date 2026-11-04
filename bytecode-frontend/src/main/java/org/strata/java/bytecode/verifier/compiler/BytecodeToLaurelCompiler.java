@@ -8,6 +8,7 @@ import org.strata.jverify.laurel.ConditionMode;
 import org.strata.jverify.laurel.ConstrainedType;
 import org.strata.jverify.laurel.CoroutineContracts;
 import org.strata.jverify.laurel.FileRange;
+import org.strata.jverify.laurel.GotoDestination;
 import org.strata.jverify.laurel.HighType;
 import org.strata.jverify.laurel.Identifier;
 import org.strata.jverify.laurel.IncrDecrMode;
@@ -1459,6 +1460,11 @@ public class BytecodeToLaurelCompiler {
                                      TranslationContext ctx) {
         BodyTranslator b = new BodyTranslator(ctx, shape.slotName(), shape.slotDesc(), shape.declared());
         b.locals = shape.locals();
+        var hoistedNames = new HashMap<String, String>();
+        for (var h : shape.hoisted()) {
+            hoistedNames.put(h.key(), h.name());
+        }
+        b.hoistedNames = hoistedNames;
         b.cm = cm;
         b.crt = shape.crt();
         b.lines = shape.lines();
@@ -1860,6 +1866,11 @@ public class BytecodeToLaurelCompiler {
                     return true;
                 }
             }
+            case StmtExpr.Block b when isLoop(n) -> {
+                if (allocatesArrayOrBox(n)) {
+                    return true;
+                }
+            }
             default -> {
             }
         }
@@ -1869,6 +1880,25 @@ public class BytecodeToLaurelCompiler {
         }
         for (var c : BodyTranslator.childrenOf(n.val())) {
             if (heapNode(c, body)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** {@code n} is a labelled block that a {@code goto} jumps back into: a loop. */
+    private static boolean isLoop(AstNode<StmtExpr> n) {
+        return n.val() instanceof StmtExpr.Block b && b.label().isPresent()
+                && jumpsBackTo(n, b.label().get());
+    }
+
+    private static boolean jumpsBackTo(AstNode<StmtExpr> n, String label) {
+        if (n.val() instanceof StmtExpr.Goto g && g.target().equals(label)
+                && g.destination() instanceof GotoDestination.BlockStart) {
+            return true;
+        }
+        for (var c : BodyTranslator.childrenOf(n.val())) {
+            if (jumpsBackTo(c, label)) {
                 return true;
             }
         }
@@ -2925,7 +2955,7 @@ public class BytecodeToLaurelCompiler {
                 }
                 fnBody = new Body.Transparent(noRange(new StmtExpr.Block(List.of(noRange(new StmtExpr.Return(
                         List.of(conj == null ? noRange(new StmtExpr.LiteralBool(true)) : conj)))),
-                        Optional.empty())));
+                        Optional.empty(), List.of(), Optional.empty())));
             }
             var fn = new Procedure(ident(fnName), List.of(), inputs,
                     List.of(new org.strata.jverify.laurel.Parameter(LaurelFactory.reservedIdent(LAUREL_RESULT_BINDING),
@@ -3085,7 +3115,7 @@ public class BytecodeToLaurelCompiler {
         if (info.constructErrorReported) {
             throw new ReportedViolation();
         }
-        StmtExpr methodBody = new StmtExpr.Block(implementation, Optional.empty());
+        StmtExpr methodBody = new StmtExpr.Block(implementation, Optional.empty(), List.of(), Optional.empty());
 
         // --- Body-variant selection ---
         boolean isTransparent = hasAnnotation(m, "Transparent");
@@ -3416,7 +3446,7 @@ public class BytecodeToLaurelCompiler {
         java.util.function.UnaryOperator<AstNode<StmtExpr>> f = n ->
                 n.val() instanceof StmtExpr.InstanceCall c && calls.contains(c.callee().text())
                         && !live.contains(c.callee().text())
-                        ? node(new StmtExpr.Block(List.of(), Optional.empty()), n.source())
+                        ? node(new StmtExpr.Block(List.of(), Optional.empty(), List.of(), Optional.empty()), n.source())
                         : n;
         var replaced = new java.util.IdentityHashMap<Procedure, Procedure>();
         for (var info : graph.methodInfos.values()) {
@@ -3748,7 +3778,8 @@ public class BytecodeToLaurelCompiler {
         } else {
             all.add(body);
         }
-        return new AstNode<StmtExpr>(new StmtExpr.Block(all, Optional.empty()), body.source());
+        return new AstNode<StmtExpr>(new StmtExpr.Block(all, Optional.empty(), List.of(), Optional.empty()),
+                body.source());
     }
 
     /**

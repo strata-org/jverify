@@ -40,6 +40,12 @@ public record MethodBody(
     /**
      * One local declaration hoisted to the method top. For a debug-info-less input (no LVT),
      * {@code desc} is inferred from the first store opcode's type kind.
+     *
+     * @param key the declaration identity ({@link Locals#slotVarKey}) this hoist stands for
+     * @param name the emitted name: the source name, or -- when another declaration in the
+     *        method holds the same source name (a sibling Java scope reusing it, possibly at
+     *        a different type) -- a unique {@code name@N}; every use resolves through the key
      */
-    public record HoistedDecl(int slot, int seqIdx, String name, String desc, String genericType) { }
+    public record HoistedDecl(int slot, int seqIdx, String key, String name, String desc,
+                              String genericType) { }
 }

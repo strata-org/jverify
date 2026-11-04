@@ -9,6 +9,7 @@ import org.strata.java.bytecode.frontend.StructException;
 import org.strata.jverify.laurel.AstNode;
 import org.strata.jverify.laurel.CatchClause;
 import org.strata.jverify.laurel.FileRange;
+import org.strata.jverify.laurel.GotoDestination;
 import org.strata.jverify.laurel.HighType;
 import org.strata.jverify.laurel.Operation;
 import org.strata.jverify.laurel.StmtExpr;
@@ -31,6 +32,7 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,10 +48,10 @@ import java.util.TreeMap;
  * {@link SwitchEmitter}, and {@link TryEmitter}, which share this walker's
  * region/placement services and visited-set bookkeeping.
  *
- * <p>Label scheme: each loop's {@link Ctx} mints its Laurel break/continue
- * labels on demand, when {@code loopEdge} first emits an {@code Exit} to it.
- * The loop wraps in labeled blocks only if labels were minted — it wraps only
- * if a jump asked for it.
+ * <p>Label scheme: each loop is a labelled block (see {@link LoopEmitter});
+ * an edge back to its header is a {@code goto} to the block's start and an
+ * edge to its exit an {@code exit} past the block's end, wherever the edge
+ * occurs ({@link #jumpTo}).
  */
 final class ControlFlowStructurer {
 
@@ -62,29 +64,40 @@ final class ControlFlowStructurer {
     /** Enclosing breakable context (innermost first): loop or switch. */
     static final class Ctx {
         final boolean loop;
-        final int header, exit, latch, continueTarget;
-        String breakLabel;      // Laurel label, minted on demand
-        String continueLabel;
-        boolean continueUsed;   // a jump in the body became an exit to continueLabel
+        final int header, exit;
+        final String label;     // the loop's block label, or a switch's arm-break sentinel
 
-        Ctx(boolean loop, int header, int exit, int latch, int continueTarget) {
+        Ctx(boolean loop, int header, int exit, String label) {
             this.loop = loop;
             this.header = header;
             this.exit = exit;
-            this.latch = latch;
-            this.continueTarget = continueTarget;
+            this.label = label;
         }
     }
 
     final Deque<Ctx> ctxStack = new ArrayDeque<>();
     final Set<Integer> emittingLoops = new HashSet<>();
     final Set<Integer> loopEntryPass = new HashSet<>();
-    final Set<Integer> infiniteHeaders = new HashSet<>();
     final Map<Integer, List<Trap>> triesByStart = new HashMap<>();
     final Set<Integer> emittedTries = new HashSet<>();
     final Set<Integer> emittedSync = new HashSet<>();
     final Map<Integer, Integer> skipLead = new HashMap<>();
     final Map<Integer, Integer> skipTail = new HashMap<>();
+    /**
+     * Per emitted loop (innermost on top): the loop's own bytecode positions
+     * ({@code DominanceFinder.loopCond} -- condition tests and their support,
+     * for-each bookkeeping; empty when absent). Pushed by {@link LoopEmitter}
+     * around the loop's region walk.
+     */
+    final Deque<java.util.BitSet> activeCondPcs = new ArrayDeque<>();
+    /**
+     * Statements emitted from those positions: exactly the loop-statement
+     * lowering (its tests, condition-embedded stores, implicit-throw guards,
+     * a for-each's hidden binding). {@link LoopEmitter}'s contract-marker
+     * scan skips only these, so a marker behind a user statement is refused
+     * rather than promoted to the loop head.
+     */
+    final Set<AstNode<StmtExpr>> condStmts = Collections.newSetFromMap(new IdentityHashMap<>());
     int guard = 0;
     int depth = 0;
 
@@ -286,67 +299,261 @@ final class ControlFlowStructurer {
                 continue;
             }
 
+            int mark = out.size();
             translateBlock(b, out);
+            markCondEmitted(cur, out, mark, false);
             boolean viaGoto = b.gotoTarget >= 0;
             int next = viaGoto ? b.gotoTarget : b.fall;
             AstNode<StmtExpr> je = loopEdge(b.id, next, viaGoto);
             if (je != null) {
-                out.add(je);
+                addLoopJump(out, je);
                 return out;
             }
             cur = next;
         }
+        // Running into an enclosing loop's header is its back edge, which
+        // falling off the end of the loop's block would not take.
+        if (cur >= 0 && !endsInJump(out)) {
+            for (Ctx c : ctxStack) {
+                if (c.loop && c.header == cur) {
+                    addLoopJump(out, gotoStart(c.label));
+                    break;
+                }
+            }
+        }
         return out;
     }
 
-    // --- break/continue as Laurel Exit, labels minted on demand ---
+    /**
+     * Append a loop jump -- but a back edge that would land right after a
+     * trailing compound statement (if/else, a switch's {@code Block[bind,
+     * cascade]}, try/catch/finally) goes INSIDE each falling-through tail
+     * instead, so the compound stays the region's last statement. Laurel's
+     * Resolution synthesizes a type for an if/else that is not in tail
+     * position and rejects arms whose trailing assignments have different
+     * types (a non-tail block -- including a lowered try -- synthesizes its
+     * last statement the same way, so wrapping the compound would not
+     * help); in tail position it only checks them.
+     */
+    void addLoopJump(List<AstNode<StmtExpr>> out, AstNode<StmtExpr> jump) {
+        boolean backEdge = jump.val() instanceof StmtExpr.Goto g
+                && g.destination() instanceof GotoDestination.BlockStart;
+        if (!backEdge) {
+            out.add(jump);
+            return;
+        }
+        placeBackEdge(out, jump);
+    }
+
+    /**
+     * Place the back edge {@code jump}: inside the falling-through tails of a
+     * trailing compound statement, else appended. Fail-closed self-check: a
+     * falling-through path that the distribution left WITHOUT the back edge
+     * would silently exit the loop (a false invariant could then verify), so
+     * any tail shape the distribution does not cover refuses the method
+     * instead of emitting the loop. Package-private static for direct unit
+     * testing.
+     */
+    static void placeBackEdge(List<AstNode<StmtExpr>> out, AstNode<StmtExpr> jump) {
+        if (!distributeIntoTail(out, jump)) {
+            out.add(jump);
+            return;
+        }
+        requireBackEdgeOnEveryPath(out.get(out.size() - 1));
+    }
+
+    /**
+     * The fail-closed gate: a distribution result must not still fall
+     * through -- a falling path without the back edge would exit the loop
+     * where the program iterates. Package-private so the refusal is pinned
+     * at the unit level against the miss shape.
+     */
+    static void requireBackEdgeOnEveryPath(AstNode<StmtExpr> distributed) {
+        if (fallsThroughStmt(distributed)) {
+            throw new JavaViolationException(
+                    "loop body shape is not supported: a path would fall out of the loop "
+                            + "instead of taking its back edge");
+        }
+    }
+
+    /**
+     * Control can run off the end of {@code stmt} (conservative: any shape
+     * not known to end every path in a jump, return, or throw counts as
+     * falling through). The independent re-check behind
+     * {@link #placeBackEdge}'s fail-closed gate: it must stay at least as
+     * pessimistic as {@link #withJumpInTails}'s cannot-fall classification.
+     */
+    static boolean fallsThroughStmt(AstNode<StmtExpr> stmt) {
+        StmtExpr v = stmt.val();
+        if (v instanceof StmtExpr.Goto || v instanceof StmtExpr.Return || v instanceof StmtExpr.Throw) {
+            return false;
+        }
+        if (v instanceof StmtExpr.Block blk) {
+            if (blk.label().isPresent()) {
+                return true;    // a loop: its exits land right after it
+            }
+            return blk.statements().isEmpty()
+                    || fallsThroughStmt(blk.statements().get(blk.statements().size() - 1));
+        }
+        if (v instanceof StmtExpr.IfThenElse ite) {
+            return ite.elseBranch().isEmpty()
+                    || fallsThroughStmt(ite.thenBranch())
+                    || fallsThroughStmt(ite.elseBranch().get());
+        }
+        if (v instanceof StmtExpr.Try tr) {
+            return fallsThroughStmt(tr.body())
+                    || tr.catches().stream().anyMatch(c -> fallsThroughStmt(c.body()));
+        }
+        return true;
+    }
+
+    /** Place {@code jump} inside the falling-through tails of a trailing compound statement; false if there is none. */
+    private static boolean distributeIntoTail(List<AstNode<StmtExpr>> stmts, AstNode<StmtExpr> jump) {
+        if (stmts.isEmpty()) {
+            return false;
+        }
+        AstNode<StmtExpr> replaced = withJumpInTails(stmts.get(stmts.size() - 1), jump);
+        if (replaced == null) {
+            return false;
+        }
+        stmts.set(stmts.size() - 1, replaced);
+        return true;
+    }
+
+    /**
+     * {@code stmt} with a copy of {@code jump} placed at every falling-through
+     * tail: the arms of an if/else (recursively, so an else-if chain -- e.g. a
+     * switch cascade's bare else-if -- distributes into its leaves), the end of
+     * an unlabelled block (a labelled block is a loop whose own exits land
+     * right after it, so a jump inside would be skipped), and a try's body and
+     * catch arms (Laurel's {@code EliminateExceptions} unwinds a {@code goto}
+     * leaving a try through the finally arm before delivering it, so the back
+     * edge still runs the finally exactly once). Null when the statement has
+     * no falling-through tail of these shapes; the caller then appends the
+     * jump after it, as before.
+     */
+    private static AstNode<StmtExpr> withJumpInTails(AstNode<StmtExpr> stmt, AstNode<StmtExpr> jump) {
+        if (stmt.val() instanceof StmtExpr.IfThenElse ite && ite.elseBranch().isPresent()) {
+            AstNode<StmtExpr> newThen = armWithJump(ite.thenBranch(), jump);
+            AstNode<StmtExpr> newElse = armWithJump(ite.elseBranch().get(), jump);
+            if (newThen == null && newElse == null) {
+                return null;
+            }
+            return new AstNode<>(new StmtExpr.IfThenElse(ite.cond(),
+                    newThen != null ? newThen : ite.thenBranch(),
+                    Optional.of(newElse != null ? newElse : ite.elseBranch().get())), stmt.source());
+        }
+        if (stmt.val() instanceof StmtExpr.Block blk && blk.label().isEmpty()) {
+            List<AstNode<StmtExpr>> stmts = new ArrayList<>(blk.statements());
+            AstNode<StmtExpr> copy = new AstNode<>(jump.val(), jump.source());
+            if (!distributeIntoTail(stmts, copy)) {
+                if (!fallsThrough(blk)) {
+                    return null;
+                }
+                stmts.add(copy);
+            }
+            return new AstNode<>(new StmtExpr.Block(stmts, blk.label(), blk.invariants(), blk.decreases()),
+                    stmt.source());
+        }
+        if (stmt.val() instanceof StmtExpr.Try tr) {
+            AstNode<StmtExpr> newBody = armWithJump(tr.body(), jump);
+            List<CatchClause> newCatches = new ArrayList<>();
+            boolean any = newBody != null;
+            for (CatchClause c : tr.catches()) {
+                AstNode<StmtExpr> nb = armWithJump(c.body(), jump);
+                newCatches.add(nb == null ? c
+                        : new CatchClause(c.binding(), c.predicate(), nb, c.bindingType()));
+                any |= nb != null;
+            }
+            if (!any) {
+                return null;
+            }
+            return new AstNode<>(new StmtExpr.Try(newBody != null ? newBody : tr.body(), newCatches,
+                    tr.finally_()), stmt.source());
+        }
+        return null;
+    }
+
+    /**
+     * An if-arm / try-tail with the jump placed at its end: like
+     * {@link #withJumpInTails}, plus any other falling-through statement --
+     * a bare statement (a switch cascade's single-statement arm is unwrapped
+     * from its block), or a labelled block (a nested loop, whose exits land
+     * right after it) -- becomes a two-statement block ending in the jump.
+     * Null exactly when the arm cannot fall through
+     * ({@link #fallsThroughStmt}): deciding by the conservative predicate
+     * rather than a shape enumeration is what keeps the distribution total
+     * over falling shapes (an unenumerated shape gets the jump appended
+     * after it, which is where its fall-through goes, rather than silently
+     * losing the back edge).
+     */
+    private static AstNode<StmtExpr> armWithJump(AstNode<StmtExpr> arm, AstNode<StmtExpr> jump) {
+        AstNode<StmtExpr> placed = withJumpInTails(arm, jump);
+        if (placed != null) {
+            return placed;
+        }
+        if (!fallsThroughStmt(arm)) {
+            return null;    // cannot fall: no tail to place the jump at
+        }
+        AstNode<StmtExpr> copy = new AstNode<>(jump.val(), jump.source());
+        List<AstNode<StmtExpr>> stmts = new ArrayList<>(List.of(arm, copy));
+        return new AstNode<>(new StmtExpr.Block(stmts, Optional.empty(), List.of(), Optional.empty()),
+                arm.source());
+    }
+
+    /** Control can run off the end of the block (no trailing jump, return, or throw). */
+    private static boolean fallsThrough(StmtExpr.Block b) {
+        if (b.statements().isEmpty()) {
+            return true;
+        }
+        StmtExpr lastVal = b.statements().get(b.statements().size() - 1).val();
+        return !(lastVal instanceof StmtExpr.Goto) && !(lastVal instanceof StmtExpr.Return)
+                && !(lastVal instanceof StmtExpr.Throw);
+    }
+
+    private static boolean endsInJump(List<AstNode<StmtExpr>> out) {
+        return !out.isEmpty() && out.get(out.size() - 1).val() instanceof StmtExpr.Goto;
+    }
+
+    // --- break/continue as Laurel goto/exit ---
 
     AstNode<StmtExpr> loopEdge(int from, int next, boolean viaGoto) {
         if (next < 0 || !viaGoto || ctxStack.isEmpty()) {
             return null;
         }
         Ctx top = ctxStack.peek();
-        if (next == top.exit) {
-            return exit(breakLabelOf(top));
+        if (!top.loop && next == top.exit) {
+            return exit(top.label);
         }
-        boolean innermostLoop = true;
+        return jumpTo(next);
+    }
+
+    /**
+     * The jump an edge to {@code target} is, if {@code target} is the header
+     * (a {@code goto}, back to the start) or the exit (an {@code exit}, past
+     * the end) of an enclosing loop's block; innermost loop first.
+     */
+    AstNode<StmtExpr> jumpTo(int target) {
         for (Ctx c : ctxStack) {
             if (!c.loop) {
                 continue;
             }
-            if (next == c.continueTarget && from != c.latch) {
-                c.continueUsed = true;
-                return exit(continueLabelOf(c));
+            if (target == c.header) {
+                return gotoStart(c.label);
             }
-            if (!innermostLoop && next == c.exit) {
-                return exit(breakLabelOf(c));
+            if (target == c.exit) {
+                return exit(c.label);
             }
-            innermostLoop = false;
         }
         return null;
     }
 
-    /** Mint (once) and return the loop/switch's Laurel break label. */
-    String breakLabelOf(Ctx c) {
-        ensureLabels(c);
-        return c.breakLabel;
-    }
-
-    String continueLabelOf(Ctx c) {
-        ensureLabels(c);
-        return c.continueLabel;
-    }
-
-    /** Both labels are minted together, as a pair. */
-    void ensureLabels(Ctx c) {
-        if (c.breakLabel == null) {
-            c.breakLabel = ctx.freshLabel("loop_break");
-            c.continueLabel = ctx.freshLabel("loop_continue");
-        }
-    }
-
     AstNode<StmtExpr> exit(String label) {
-        return body.e(new StmtExpr.Exit(label));
+        return body.e(new StmtExpr.Goto(label, new GotoDestination.BlockEnd()));
+    }
+
+    AstNode<StmtExpr> gotoStart(String label) {
+        return body.e(new StmtExpr.Goto(label, new GotoDestination.BlockStart()));
     }
 
     // --- assert ---
@@ -421,9 +628,42 @@ final class ControlFlowStructurer {
         return body.stack.isEmpty() ? null : body.stack.pop();
     }
 
+    /**
+     * Record which of {@code out}'s statements from {@code mark} on are
+     * loop-condition lowering (see {@link #condStmts}): a statement whose
+     * emission position ({@code BodyTranslator.stmtSeq}) -- or, for a
+     * synthesized node like the test's {@code if} itself, the block's
+     * terminator when {@code fallbackToTerminator} -- lies in the innermost
+     * emitting loop's own positions. Per-statement, not per-block: a
+     * for-each's hidden binding shares its basic block with the first user
+     * statement.
+     */
+    void markCondEmitted(int blkId, List<AstNode<StmtExpr>> out, int mark, boolean fallbackToTerminator) {
+        java.util.BitSet cond = activeCondPcs.peek();
+        if (cond == null || cond.isEmpty() || body.seqToBci == null) {
+            return;
+        }
+        int termSeq = fallbackToTerminator ? terminatorOf(blkId) : -1;
+        for (int i = mark; i < out.size(); i++) {
+            AstNode<StmtExpr> st = out.get(i);
+            Integer sq = body.stmtSeq.get(st);
+            int seqIdx = sq != null ? sq : termSeq;
+            if (seqIdx >= 0 && seqIdx < body.seqToBci.length && cond.get(body.seqToBci[seqIdx])) {
+                condStmts.add(st);
+            }
+        }
+    }
+
     // --- if / if-else ---
 
     int emitIf(int condBlk, Set<Integer> stop, List<AstNode<StmtExpr>> out) {
+        int mark = out.size();
+        int next = emitIf0(condBlk, stop, out);
+        markCondEmitted(condBlk, out, mark, true);
+        return next;
+    }
+
+    private int emitIf0(int condBlk, Set<Integer> stop, List<AstNode<StmtExpr>> out) {
         BasicBlock c = cfg.blocks.get(condBlk);
         AstNode<StmtExpr> cond = conditionOf(c, out);
         // Refuse the CONDITION eagerly, before either branch is emitted (an
@@ -439,28 +679,29 @@ final class ControlFlowStructurer {
         int follow = dom.ipdom[condBlk];
 
         Set<Integer> sub = plus(stop, follow);
+        // An arm that leaves the region for an enclosing loop's header or exit,
+        // other than by reaching the join, is that loop's goto/exit.
+        AstNode<StmtExpr> thenJ = armJump(thenE, follow, stop);
+        AstNode<StmtExpr> elseJ = armJump(elseE, follow, stop);
+        if (thenJ != null && elseJ != null) {
+            out.add(place(body.e(new StmtExpr.IfThenElse(cond, blockOf(List.of(thenJ)),
+                    Optional.of(blockOf(List.of(elseJ))))), condBlk));
+            return follow;
+        }
+        if (elseJ != null) {
+            out.add(place(body.e(new StmtExpr.IfThenElse(LaurelTrees.negate(cond, ctx.method.unordered),
+                    blockOf(List.of(elseJ)), Optional.empty())), condBlk));
+            return thenE;
+        }
+        if (thenJ != null) {
+            out.add(place(body.e(new StmtExpr.IfThenElse(cond, blockOf(List.of(thenJ)), Optional.empty())),
+                    condBlk));
+            return elseE;
+        }
         if (elseE == follow || elseE < 0 || stop.contains(elseE)) {
-            AstNode<StmtExpr> je = null;
-            if (elseE >= 0 && inInfiniteLoop() && elseE == ctxStack.peek().exit) {
-                je = exit(breakLabelOf(ctxStack.peek()));
-            }
-            if (je != null) {
-                out.add(place(body.e(new StmtExpr.IfThenElse(LaurelTrees.negate(cond, ctx.method.unordered),
-                        blockOf(List.of(je)), Optional.empty())), condBlk));
-                return thenE;
-            }
             List<AstNode<StmtExpr>> then = region(thenE, sub);
             out.add(place(body.e(new StmtExpr.IfThenElse(cond, blockOf(then), Optional.empty())), condBlk));
         } else if (thenE == follow || stop.contains(thenE)) {
-            AstNode<StmtExpr> je = null;
-            if (inInfiniteLoop() && thenE == ctxStack.peek().exit) {
-                je = exit(breakLabelOf(ctxStack.peek()));
-            }
-            if (je != null) {
-                out.add(place(body.e(new StmtExpr.IfThenElse(cond, blockOf(List.of(je)), Optional.empty())),
-                        condBlk));
-                return elseE;
-            }
             List<AstNode<StmtExpr>> els = region(elseE, sub);
             out.add(place(body.e(new StmtExpr.IfThenElse(LaurelTrees.negate(cond, ctx.method.unordered),
                     blockOf(els), Optional.empty())), condBlk));
@@ -473,29 +714,8 @@ final class ControlFlowStructurer {
         return follow;
     }
 
-    boolean inInfiniteLoop() {
-        return !ctxStack.isEmpty() && ctxStack.peek().loop && infiniteHeaders.contains(ctxStack.peek().header);
-    }
-
-    boolean jumpsStraightBackTo(int b, int target) {
-        for (int i = 0, cur = b; i < 8 && cur >= 0 && cur < cfg.blocks.size(); i++) {
-            if (cur == target) {
-                return true;
-            }
-            BasicBlock k = cfg.blocks.get(cur);
-            if (k.instrs.size() != 1 || k.gotoTarget < 0) {
-                return false;
-            }
-            cur = k.gotoTarget;
-        }
-        return false;
-    }
-
-    // --- loops ---
-
-    Span headerSpan(int header) {
-        int seqIdx = terminatorOf(header);
-        return seqIdx < 0 ? Span.NONE : body.spanAt(seqIdx);
+    private AstNode<StmtExpr> armJump(int target, int follow, Set<Integer> stop) {
+        return target >= 0 && target != follow && stop.contains(target) ? jumpTo(target) : null;
     }
 
     // --- diamonds / ternaries ---
@@ -664,7 +884,7 @@ final class ControlFlowStructurer {
         var stmts = new ArrayList<>(body.stmts.subList(mark, body.stmts.size()));
         body.stmts.subList(mark, body.stmts.size()).clear();
         stmts.add(v);
-        AstNode<StmtExpr> block = body.e(new StmtExpr.Block(stmts, Optional.empty()));
+        AstNode<StmtExpr> block = body.e(new StmtExpr.Block(stmts, Optional.empty(), List.of(), Optional.empty()));
         if (isBoolish(v)) {
             body.bools.add(block);
         }
@@ -836,7 +1056,7 @@ final class ControlFlowStructurer {
 
     /** A Laurel block of these statements (used for if/loop arms). */
     AstNode<StmtExpr> blockOf(List<AstNode<StmtExpr>> stmts) {
-        return body.e(new StmtExpr.Block(new ArrayList<>(stmts), Optional.empty()));
+        return body.e(new StmtExpr.Block(new ArrayList<>(stmts), Optional.empty(), List.of(), Optional.empty()));
     }
 
     Instruction insAt(BasicBlock b, int k) {

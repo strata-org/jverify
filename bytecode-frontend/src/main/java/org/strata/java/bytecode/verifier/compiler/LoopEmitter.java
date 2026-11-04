@@ -3,46 +3,25 @@ package org.strata.java.bytecode.verifier.compiler;
 import org.strata.java.bytecode.frontend.BasicBlock;
 import org.strata.java.bytecode.frontend.ControlFlowGraph;
 import org.strata.java.bytecode.frontend.DominanceFinder;
-import org.strata.java.bytecode.frontend.Span;
 import org.strata.java.bytecode.frontend.StructException;
-import org.strata.java.bytecode.frontend.Trap;
 import org.strata.jverify.laurel.AstNode;
-import org.strata.jverify.laurel.CatchClause;
-import org.strata.jverify.laurel.Operation;
 import org.strata.jverify.laurel.FileRange;
 import org.strata.jverify.laurel.StmtExpr;
-import org.strata.jverify.laurel.Variable;
 
-import java.lang.classfile.CodeElement;
-import java.lang.classfile.Instruction;
-import java.lang.classfile.Opcode;
-import java.lang.classfile.instruction.BranchInstruction;
-import java.lang.classfile.instruction.ConstantInstruction;
-import java.lang.classfile.instruction.FieldInstruction;
-import java.lang.classfile.instruction.IncrementInstruction;
-import java.lang.classfile.instruction.InvokeInstruction;
-import java.lang.classfile.instruction.LoadInstruction;
-import java.lang.classfile.instruction.StackInstruction;
-import java.lang.classfile.instruction.StoreInstruction;
-import java.lang.classfile.instruction.TypeCheckInstruction;
-
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 /**
- * Emits Laurel loops from CFG loop regions: recovers do-while vs pre-tested
- * (while/for) shapes, consumes leading loop-contract markers (invariants),
- * re-stamps loop-body statement ranges, and wraps each loop in its labeled
- * blocks (break/continue labels present iff a jump minted them).
+ * Emits a CFG loop region as a labelled Laurel block that the loop's back
+ * edges jump to the start of: {@code { header; body } L invariant I}, with
+ * every edge back to the header a {@code goto L} and every edge to the loop's
+ * exit an {@code exit L}. No loop shape (do-while, pre-tested, for) is
+ * recovered: the header's test is just the first {@code if} in the block, and
+ * Laurel's {@code RestructureGotos} pass turns the block into a loop. Leading
+ * loop-contract markers become the block's invariants.
  */
 final class LoopEmitter {
 
@@ -72,140 +51,208 @@ final class LoopEmitter {
     }
 
     int emitLoop0(int header, Set<Integer> stop, List<AstNode<StmtExpr>> out) {
-        BasicBlock h = cfg.blocks.get(header);
         Set<Integer> bodyBlocks = dom.loops.get(header);
-        int latch = dom.loopTail.get(header);
-        BasicBlock lb = cfg.blocks.get(latch);
-
-        // do-while: the latch carries the bottom test. Always labeled (both
-        // labels are minted unconditionally).
-        if (lb.isConditional() && (lb.branch == header || lb.fall == header)) {
-            boolean backOnBranch = (lb.branch == header);
-            int exit = backOnBranch ? lb.fall : lb.branch;
-            s.visited[latch] = true;
-            ControlFlowStructurer.Ctx c = new ControlFlowStructurer.Ctx(true, header, exit, latch, latch);
-            s.ensureLabels(c);
-            s.ctxStack.push(c);
-            List<AstNode<StmtExpr>> bodyStmts = s.region(header, ControlFlowStructurer.plus(ControlFlowStructurer.plus(stop, latch), exit));
-            // The latch block's statements join the body inside the continue
-            // block. Without a `continue` they run once per iteration, as in
-            // Java; a `continue` jumps to the test but skips them, so they are
-            // then not once per evaluation.
-            AstNode<StmtExpr> cond;
-            boolean skippedByContinue = c.continueUsed;
-            if (skippedByContinue) {
-                body.enterConditional();
-            }
-            try {
-                cond = s.conditionOf(lb, bodyStmts);
-            } finally {
-                if (skippedByContinue) {
-                    body.exitConditional();
-                }
-            }
-            body.checkPlaceable(cond);
-            if (backOnBranch) {
-                cond = LaurelTrees.negate(cond, ctx.method.unordered);
-            }
-            s.ctxStack.pop();
-            List<AstNode<StmtExpr>> invariants = extractLoopInvariants(bodyStmts);
-            out.add(s.place(buildDoWhile(cond, invariants, bodyStmts, c), latch));
-            return exit;
-        }
-
-        // bottom-tested loop with the test in the HEADER -> do-while.
-        if (h.isConditional() && bodyBlocks.contains(h.fall) != bodyBlocks.contains(h.branch)) {
-            boolean backOnBranch = bodyBlocks.contains(h.branch);
-            int inLoop = backOnBranch ? h.branch : h.fall;
-            int exit = backOnBranch ? h.fall : h.branch;
-            if (s.jumpsStraightBackTo(inLoop, header)) {
-                s.markChainVisited(inLoop, header);
-                List<AstNode<StmtExpr>> bodyStmts = new ArrayList<>();
-                AstNode<StmtExpr> cond = s.conditionOf(h, bodyStmts);
-                body.checkPlaceable(cond);
-                if (backOnBranch) {
-                    cond = LaurelTrees.negate(cond, ctx.method.unordered);
-                }
-                ControlFlowStructurer.Ctx c = new ControlFlowStructurer.Ctx(true, header, exit, latch, latch);
-                s.ensureLabels(c);
-                List<AstNode<StmtExpr>> invariants = extractLoopInvariants(bodyStmts);
-                out.add(s.place(buildDoWhile(cond, invariants, bodyStmts, c), header));
-                return exit;
-            }
-        }
-
-        // pre-tested while / for.
-        if (h.isConditional() && bodyBlocks.contains(h.fall) != bodyBlocks.contains(h.branch)) {
-            // The header's statements are emitted once, before the loop,
-            // while Java evaluates the header on every iteration. Strata also
-            // evaluates the calls in the While condition once, before the loop.
-            AstNode<StmtExpr> cond;
-            body.enterConditional();
-            body.enterLoopCondition();
-            try {
-                cond = s.conditionOf(h, out);
-            } finally {
-                body.exitLoopCondition();
-                body.exitConditional();
-            }
-            body.checkPlaceable(cond);
-            int bodyEntry, exit;
-            if (bodyBlocks.contains(h.fall)) {
-                bodyEntry = h.fall;
-                exit = h.branch;
-            } else {
-                bodyEntry = h.branch;
-                exit = h.fall;
-                cond = LaurelTrees.negate(cond, ctx.method.unordered);
-            }
-            ControlFlowStructurer.Ctx c = new ControlFlowStructurer.Ctx(true, header, exit, latch, header);
-            s.ctxStack.push(c);
-            List<AstNode<StmtExpr>> bodyStmts = s.region(bodyEntry, ControlFlowStructurer.plus(ControlFlowStructurer.plus(stop, header), exit));
-            s.ctxStack.pop();
-            List<AstNode<StmtExpr>> invariants = extractLoopInvariants(bodyStmts);
-            out.add(s.place(buildPreTested(cond, invariants, bodyStmts, header, out, c), header));
-            return exit;
-        }
-
-        // fallback: while(true){ body }.
-        int exit = s.firstExit(bodyBlocks);
-        ControlFlowStructurer.Ctx c = new ControlFlowStructurer.Ctx(true, header, exit, latch, header);
+        int exit = loopExit(header, bodyBlocks);
+        ControlFlowStructurer.Ctx c = new ControlFlowStructurer.Ctx(true, header, exit, ctx.freshLabel("loop"));
         s.ctxStack.push(c);
         s.loopEntryPass.add(header);
-        s.infiniteHeaders.add(header);
+        s.activeCondPcs.push(dom.loopCond.getOrDefault(header, EMPTY_COND));
         List<AstNode<StmtExpr>> bodyStmts;
         try {
-            bodyStmts = s.region(header, ControlFlowStructurer.plus(ControlFlowStructurer.plus(stop, header), exit));
+            bodyStmts = new ArrayList<>(s.region(header, ControlFlowStructurer.plus(ControlFlowStructurer.plus(stop, header), exit)));
         } finally {
+            s.activeCondPcs.pop();
             s.loopEntryPass.remove(header);
-            s.infiniteHeaders.remove(header);
             s.ctxStack.pop();
         }
-        List<AstNode<StmtExpr>> invariants = extractLoopInvariants(bodyStmts);
-        AstNode<StmtExpr> whileNode = body.e(new StmtExpr.While(
-                body.e(new StmtExpr.LiteralBool(true)), invariants, Optional.empty(),
-                s.blockOf(bodyStmts), false));
-        out.add(s.place(wrapBreak(whileNode, c), header));
+        List<AstNode<StmtExpr>> invariants = extractLoopInvariants(bodyStmts, c.label);
+        out.add(s.place(body.e(new StmtExpr.Block(bodyStmts, Optional.of(c.label), invariants, Optional.empty())),
+                header));
         return exit;
     }
 
     /**
-     * Header scan over the emitted loop body:
-     * leading spec markers are consumed — invariants convert (at their
-     * argument range, contract-checked), reads/modifies/decreases drop, and
-     * pre/postconditions refuse. The markers are removed from the body.
+     * Where control continues after the loop: the header's out-of-loop
+     * successor for a test at the top, else the latch's for a test at the
+     * bottom, else the first edge leaving the body.
      */
-    private List<AstNode<StmtExpr>> extractLoopInvariants(List<AstNode<StmtExpr>> bodyStmts) {
+    private int loopExit(int header, Set<Integer> bodyBlocks) {
+        int fromHeader = soleExit(cfg.blocks.get(header), bodyBlocks);
+        if (fromHeader >= 0) {
+            return fromHeader;
+        }
+        Integer latch = dom.loopTail.get(header);
+        if (latch != null) {
+            int fromLatch = soleExit(cfg.blocks.get(latch), bodyBlocks);
+            if (fromLatch >= 0) {
+                return fromLatch;
+            }
+        }
+        return s.firstExit(bodyBlocks);
+    }
+
+    /** Pushed for a loop with no recorded own-position set (no CRT): nothing is condition-emitted. */
+    private static final java.util.BitSet EMPTY_COND = new java.util.BitSet();
+
+    private static int soleExit(BasicBlock b, Set<Integer> bodyBlocks) {
+        if (!b.isConditional() || bodyBlocks.contains(b.fall) == bodyBlocks.contains(b.branch)) {
+            return -1;
+        }
+        return bodyBlocks.contains(b.fall) ? b.branch : b.fall;
+    }
+
+    /**
+     * The loop's contract markers, removed from where they were emitted.
+     * The markers follow the loop-header statements, which all stay inside
+     * the block: the condition's supporting assignments (e.g. a store written
+     * in the condition itself, or an array-read temp), the condition's tests
+     * (whose in-loop arm leaves or restarts the loop, or -- short-circuited
+     * -- nests the rest of the header), and implicit-throw guards (e.g. the
+     * divide-by-zero check a {@code /} in the condition compiles to). The
+     * scan skips exactly the statements the condition emission produced
+     * ({@link ControlFlowStructurer#condStmts}, recorded while this loop's
+     * {@link #conditionBlocks} were translated), plus a user-written leading
+     * jump-only guard (e.g. {@code if (c) break;} at the top of a
+     * {@code while (true)}, which the old pre-tested-while recovery made the
+     * loop condition), descends into those tests' arms, and consumes the
+     * marker runs it finds (several, deduplicated, when short-circuiting
+     * duplicated them). A marker behind anything else -- a user statement,
+     * or a user {@code if}'s arm -- is NOT a loop contract: it stays put and
+     * refuses the method as a misplaced contract call. Invariants convert
+     * (at their argument range, contract-checked), reads/modifies/decreases
+     * drop, and pre/postconditions refuse.
+     */
+    private List<AstNode<StmtExpr>> extractLoopInvariants(List<AstNode<StmtExpr>> bodyStmts, String label) {
         var invariants = new ArrayList<AstNode<StmtExpr>>();
+        scanPastHeader(bodyStmts, invariants, label);
+        return invariants;
+    }
+
+    /**
+     * Scan {@code stmts} (mutated in place) past leading condition-emitted
+     * statements and jump-only guards for the loop's contract markers; true
+     * when a marker run was consumed. Every condition-test arm is scanned,
+     * not just the first with markers: a short-circuit {@code ||} duplicates
+     * the loop body -- markers included -- into the arm of each test, and a
+     * copy left behind would refuse the method as a misplaced contract call
+     * ({@code consumeLeadingMarkers} drops the duplicate invariants
+     * themselves).
+     *
+     * <p>Input with no CRT (compiled without {@code -Xjcov} -- the DEBUG and
+     * BARE tiers) has no recorded statement boundaries to attribute the
+     * condition with ({@code DominanceFinder.loopCond} is empty), so nothing
+     * is condition-emitted; only jump-only guards and the trailing header
+     * test -- both identified by shape, not position evidence -- are part of
+     * the header there. That FAILS CLOSED: a marker behind a header-embedded
+     * store, an implicit-throw guard, or a short-circuit test is refused as
+     * a misplaced contract call on those tiers rather than promoted --
+     * promoting on structure alone also promoted markers behind user
+     * assignments and inside user {@code if}s, which can verify a false
+     * invariant.
+     */
+    private boolean scanPastHeader(List<AstNode<StmtExpr>> stmts, List<AstNode<StmtExpr>> invariants,
+                                   String label) {
+        boolean found = false;
+        for (int i = 0; i < stmts.size(); i++) {
+            AstNode<StmtExpr> st = stmts.get(i);
+            if (body.specStmts.get(st) != null) {
+                return consumeLeadingMarkers(stmts.subList(i, stmts.size()), invariants) > 0 || found;
+            }
+            boolean jumpGuard = isJumpGuard(st, label);
+            boolean headerTest = !jumpGuard && i == stmts.size() - 1 && isHeaderTest(st, label);
+            if (!jumpGuard && !headerTest && !s.condStmts.contains(st)) {
+                return found;   // neither condition-emitted nor a header-shaped test: past the header
+            }
+            if (!jumpGuard && st.val() instanceof StmtExpr.IfThenElse ite) {
+                AstNode<StmtExpr> thenB = scanArm(ite.thenBranch(), invariants, label);
+                AstNode<StmtExpr> elseB = ite.elseBranch().isPresent()
+                        ? scanArm(ite.elseBranch().get(), invariants, label) : null;
+                if (thenB != null || elseB != null) {
+                    stmts.set(i, new AstNode<>(new StmtExpr.IfThenElse(ite.cond(),
+                            thenB != null ? thenB : ite.thenBranch(),
+                            elseB != null ? Optional.of(elseB) : ite.elseBranch()), st.source()));
+                    found = true;
+                }
+                // The in-loop path falls through a marker-less guard (e.g. an
+                // implicit throw), and a sibling test may hold a duplicate
+                // marker run: the header continues here either way.
+            }
+            // Other condition-emitted statements (condition-embedded stores,
+            // implicit-throw guards) and jump-only guards: skip.
+        }
+        return found;
+    }
+
+    /**
+     * A leading {@code if} whose arms hold nothing but a jump out of, or back
+     * to, THIS loop (its {@code break}/{@code continue} target the block
+     * labelled {@code label}): part of the loop header, like the loop
+     * condition it would have been under the old pre-tested-while recovery.
+     * A guard jumping an ENCLOSING loop, or an arm with any other content,
+     * is body.
+     */
+    private static boolean isJumpGuard(AstNode<StmtExpr> st, String label) {
+        return st.val() instanceof StmtExpr.IfThenElse ite
+                && isJumpOnly(ite.thenBranch(), label)
+                && (ite.elseBranch().isEmpty() || isJumpOnly(ite.elseBranch().get(), label));
+    }
+
+    /** The arm's only content is a {@code goto} (either direction) to {@code label}. */
+    private static boolean isJumpOnly(AstNode<StmtExpr> arm, String label) {
+        if (arm.val() instanceof StmtExpr.Block b) {
+            return b.label().isEmpty() && b.statements().size() == 1
+                    && isJumpOnly(b.statements().get(0), label);
+        }
+        return arm.val() instanceof StmtExpr.Goto g && g.target().equals(label);
+    }
+
+    /**
+     * The block's trailing header test: a one-armed {@code if} whose arm
+     * re-enters the loop (ends in the back edge) while its fall-through
+     * leaves the block -- the loop's own pre-test. A leading
+     * {@code if (c) break;} in a {@code while (true)}, and a plain
+     * {@code while (cond)}, both lower to this: the structurer negates the
+     * exit test and nests the body (markers first) in its arm. The shape
+     * identifies the test even without CRT evidence; the three structural
+     * requirements (last statement, no else, arm ending in the back edge)
+     * are what a user {@code if} inside the body cannot all meet -- anything
+     * following it, an else arm, or an arm that does not re-enter the loop
+     * disqualifies it, and its markers then refuse as misplaced.
+     */
+    private static boolean isHeaderTest(AstNode<StmtExpr> st, String label) {
+        return st.val() instanceof StmtExpr.IfThenElse ite
+                && ite.elseBranch().isEmpty()
+                && ite.thenBranch().val() instanceof StmtExpr.Block b
+                && !b.statements().isEmpty()
+                && b.statements().get(b.statements().size() - 1).val() instanceof StmtExpr.Goto g
+                && g.target().equals(label)
+                && g.destination() instanceof org.strata.jverify.laurel.GotoDestination.BlockStart;
+    }
+
+    /** The arm with its marker run consumed, or null when it has none. */
+    private AstNode<StmtExpr> scanArm(AstNode<StmtExpr> branch, List<AstNode<StmtExpr>> invariants,
+                                      String label) {
+        if (!(branch.val() instanceof StmtExpr.Block blk)) {
+            return null;
+        }
+        List<AstNode<StmtExpr>> stmts = new ArrayList<>(blk.statements());
+        if (!scanPastHeader(stmts, invariants, label)) {
+            return null;
+        }
+        return new AstNode<>(new StmtExpr.Block(stmts, blk.label(), blk.invariants(), blk.decreases()),
+                branch.source());
+    }
+
+    private int consumeLeadingMarkers(List<AstNode<StmtExpr>> stmts, List<AstNode<StmtExpr>> invariants) {
         int i = 0;
-        for (; i < bodyStmts.size(); i++) {
-            var spec = body.specStmts.get(bodyStmts.get(i));
+        for (; i < stmts.size(); i++) {
+            var spec = body.specStmts.get(stmts.get(i));
             if (spec == null) {
                 break;
             }
             // Consumed as a loop-contract clause: removed from the method
             // spec markers (the driver's refusal passes must not see it).
-            body.specStmts.remove(bodyStmts.get(i));
+            body.specStmts.remove(stmts.get(i));
             switch (spec.name()) {
                 case "precondition", "postcondition" ->
                         throw new JavaViolationException("preconditions are not allowed in a loop");
@@ -214,7 +261,7 @@ final class LoopEmitter {
                         throw new JavaViolationException(
                                 "A call to 'invariant' may have only one argument");
                     }
-                    FileRange argRange = bodyStmts.get(i).source();
+                    FileRange argRange = stmts.get(i).source();
                     AstNode<StmtExpr> arg;
                     if (spec.lambdaArg() != null) {
                         arg = body.translateLambdaBody(spec.lambdaArg(), Map.of());
@@ -224,10 +271,14 @@ final class LoopEmitter {
                     }
                     arg = body.coerce(ArrayAccessTranslator.stripLoadFacts(arg), "Z");
                     AstNode<StmtExpr> inv = LaurelTrees.rerange(arg, argRange, ctx.method.statementNodes);
-                    // Pinned: the loop's own placement must not restamp the
-                    // invariant's argument-range subtree.
-                    ctx.method.statementNodes.add(inv);
-                    invariants.add(inv);
+                    // A short-circuit || duplicates the body's marker run
+                    // into each header test's arm: drop the extra copies.
+                    if (!invariants.contains(inv)) {
+                        // Pinned: the loop's own placement must not restamp
+                        // the invariant's argument-range subtree.
+                        ctx.method.statementNodes.add(inv);
+                        invariants.add(inv);
+                    }
                 }
                 case "decreases", "reads", "modifies", "throwsOn" -> {
                     // recognized so the header scan continues; dropped at
@@ -238,111 +289,8 @@ final class LoopEmitter {
             }
         }
         if (i > 0) {
-            bodyStmts.subList(0, i).clear();
+            stmts.subList(0, i).clear();
         }
-        return invariants;
-    }
-
-    /** do-while encoding: while(true){ {body}:cont; if(!cond) exit(break); } wrapped :break. */
-    private AstNode<StmtExpr> buildDoWhile(AstNode<StmtExpr> cond, List<AstNode<StmtExpr>> invariants,
-                                           List<AstNode<StmtExpr>> bodyStmts, ControlFlowStructurer.Ctx c) {
-        AstNode<StmtExpr> wrappedBody = body.e(new StmtExpr.Block(
-                List.of(s.blockOf(bodyStmts)), Optional.of(c.continueLabel)));
-        // The exit test wraps `!(cond)` as-is (a Not over the condition),
-        // never flipping the comparison.
-        AstNode<StmtExpr> notCond = body.e(LaurelFactory.primitiveOp(new Operation.Not(), cond));
-        AstNode<StmtExpr> exitIfDone = body.e(new StmtExpr.IfThenElse(notCond,
-                s.exit(c.breakLabel), Optional.empty()));
-        AstNode<StmtExpr> whileBody = body.e(new StmtExpr.Block(
-                List.of(wrappedBody, exitIfDone), Optional.empty()));
-        AstNode<StmtExpr> whileNode = body.e(new StmtExpr.While(
-                body.e(new StmtExpr.LiteralBool(true)), invariants, Optional.empty(), whileBody, false));
-        return body.e(new StmtExpr.Block(List.of(whileNode), Optional.of(c.breakLabel)));
-    }
-
-    /**
-     * Pre-tested loop, recovering {@code for} vs {@code while} from the CRT
-     * (step on the header's source line -> a {@code for} update clause).
-     * The loop wrapping (break/continue labels, step placement) is
-     * applied via {@link #wrapPreTested}.
-     */
-    private AstNode<StmtExpr> buildPreTested(AstNode<StmtExpr> cond, List<AstNode<StmtExpr>> invariants,
-                                             List<AstNode<StmtExpr>> bodyStmts,
-                                             int header, List<AstNode<StmtExpr>> out, ControlFlowStructurer.Ctx c) {
-        Span hs = s.headerSpan(header);
-        if (!hs.isNone() && !bodyStmts.isEmpty()) {
-            AstNode<StmtExpr> last = bodyStmts.get(bodyStmts.size() - 1);
-            Span ls = s.spanOfNode(last);
-            if (ls != null && !ls.isNone() && ls.beginLine() == hs.beginLine()
-                    && bodyStmts.size() > 1 && startsAfter(bodyStmts, hs)) {
-                List<AstNode<StmtExpr>> inner = new ArrayList<>(bodyStmts.subList(0, bodyStmts.size() - 1));
-                AstNode<StmtExpr> step = last;
-                AstNode<StmtExpr> init = initClause(hs, out);
-                List<AstNode<StmtExpr>> preamble = init == null ? List.of() : List.of(init);
-                return wrapPreTested(cond, invariants, inner, step, preamble, c);
-            }
-        }
-        return wrapPreTested(cond, invariants, bodyStmts, null, List.of(), c);
-    }
-
-    /** Loop wrapping, with labels present iff this loop minted them. */
-    private AstNode<StmtExpr> wrapPreTested(AstNode<StmtExpr> cond, List<AstNode<StmtExpr>> invariants,
-                                            List<AstNode<StmtExpr>> bodyStmts,
-                                            AstNode<StmtExpr> step, List<AstNode<StmtExpr>> preamble, ControlFlowStructurer.Ctx c) {
-        if (c.breakLabel != null) {
-            AstNode<StmtExpr> wrappedBody = body.e(new StmtExpr.Block(
-                    List.of(s.blockOf(bodyStmts)), Optional.of(c.continueLabel)));
-            AstNode<StmtExpr> whileBody = step != null
-                    ? body.e(new StmtExpr.Block(List.of(wrappedBody, step), Optional.empty()))
-                    : wrappedBody;
-            AstNode<StmtExpr> whileNode = body.e(new StmtExpr.While(cond, invariants,
-                    Optional.empty(), whileBody, false));
-            List<AstNode<StmtExpr>> outer = new ArrayList<>(preamble);
-            outer.add(whileNode);
-            return body.e(new StmtExpr.Block(outer, Optional.of(c.breakLabel)));
-        }
-        AstNode<StmtExpr> whileBody = step != null
-                ? body.e(new StmtExpr.Block(List.of(s.blockOf(bodyStmts), step), Optional.empty()))
-                : s.blockOf(bodyStmts);
-        AstNode<StmtExpr> whileNode = body.e(new StmtExpr.While(cond, invariants,
-                Optional.empty(), whileBody, false));
-        if (preamble.isEmpty()) {
-            return whileNode;
-        }
-        List<AstNode<StmtExpr>> stmts = new ArrayList<>(preamble);
-        stmts.add(whileNode);
-        return body.e(new StmtExpr.Block(stmts, Optional.empty()));
-    }
-
-    /** while(true) fallback wrapping: break label only if minted. */
-    private AstNode<StmtExpr> wrapBreak(AstNode<StmtExpr> whileNode, ControlFlowStructurer.Ctx c) {
-        if (c.breakLabel == null) {
-            return whileNode;
-        }
-        return body.e(new StmtExpr.Block(List.of(whileNode), Optional.of(c.breakLabel)));
-    }
-
-    /** Reclaim a for's init clause from the preceding emitted statement (same source line). */
-    private AstNode<StmtExpr> initClause(Span hs, List<AstNode<StmtExpr>> out) {
-        if (out.isEmpty()) {
-            return null;
-        }
-        AstNode<StmtExpr> prev = out.get(out.size() - 1);
-        Span ps = s.spanOfNode(prev);
-        if (ps == null || ps.isNone() || ps.beginLine() != hs.beginLine()) {
-            return null;
-        }
-        out.remove(out.size() - 1);
-        return prev;
-    }
-
-    boolean startsAfter(List<AstNode<StmtExpr>> bodyStmts, Span header) {
-        for (int i = 0; i < bodyStmts.size() - 1; i++) {
-            Span sp = s.spanOfNode(bodyStmts.get(i));
-            if (sp != null && !sp.isNone() && sp.beginLine() <= header.beginLine()) {
-                return false;
-            }
-        }
-        return true;
+        return i;
     }
 }

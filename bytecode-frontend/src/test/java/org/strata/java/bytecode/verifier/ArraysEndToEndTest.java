@@ -232,55 +232,6 @@ class ArraysEndToEndTest {
         assertVerifies(run(tmp, "LoopAlloc", source), 2);
     }
 
-    @Test
-    void elementReadInALoopConditionIsRefusedNotProvedStale(@TempDir Path tmp) throws Exception {
-        // Strata evaluates a While condition's calls once, before the loop:
-        // translated, stale() would verify check(false). The break form
-        // reads the element in the body, on every iteration.
-        String source = """
-                import static org.strata.jverify.JVerify.*;
-                public class StaleGuard {
-                    static void stale() {
-                        int[] a = {1, 0};
-                        int i = 0;
-                        while (a[i] != 0) {
-                            invariant(0 <= i && i <= 1);
-                            i = 1;
-                        }
-                        check(false);
-                    }
-                    static void staleBool() {
-                        boolean[] z = {true};
-                        while (z[0]) {
-                            z[0] = false;
-                        }
-                        check(false);
-                    }
-                    static void breakForm() {
-                        int[] a = {1, 0};
-                        int i = 0;
-                        while (true) {
-                            invariant(0 <= i && i <= 1);
-                            if (a[i] == 0) {
-                                break;
-                            }
-                            i = 1;
-                        }
-                        check(false); // breakForm
-                    }
-                }
-                """;
-        var ran = assertRan(run(tmp, "StaleGuard", source));
-        assertEquals(List.of(
-                lineOf(source, "static void stale()") + " error: an array element read in a loop condition"
-                        + " is not yet supported",
-                lineOf(source, "static void staleBool()") + " error: an array element read in a loop condition"
-                        + " is not yet supported",
-                lineOf(source, "check(false); // breakForm") + " Error: assertion could not be proved"),
-                diagnostics(ran));
-        assertEquals(new Counts(1, 1, 2, 1), counts(ran));
-    }
-
     // --- Element reads in a transparent @Transparent method ---
 
     @Test

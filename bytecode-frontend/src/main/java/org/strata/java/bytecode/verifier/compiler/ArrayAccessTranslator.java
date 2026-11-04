@@ -172,11 +172,6 @@ final class ArrayAccessTranslator {
         AstNode<StmtExpr> arr = b.stack.pop();
         refuseUnmodelled(al.opcode(), arr);
         ArrayModel.ElementKind k = receiverKind(arr, expectedKinds(al.opcode()));
-        if (b.inLoopCondition()) {
-            // Strata runs the read (a call with a precondition, or an opaque
-            // helper) once, before the loop, so the guard would never change.
-            throw new JavaViolationException(ArrayModel.LOOP_CONDITION_READ);
-        }
         ContractMember get = ctx.composites.arrays.member("get");
         AstNode<StmtExpr> read = elementRead(arr, index, k, get);
         AstNode<StmtExpr> value;
@@ -548,7 +543,8 @@ final class ArrayAccessTranslator {
             // The statements of a transparent @Transparent body.
             case StmtExpr.Block blk -> {
                 var stmts = rewriteAll(blk.statements(), onLoad);
-                yield stmts == blk.statements() ? v : new StmtExpr.Block(stmts, blk.label());
+                yield stmts == blk.statements() ? v
+                        : new StmtExpr.Block(stmts, blk.label(), blk.invariants(), blk.decreases());
             }
             case StmtExpr.Return r -> {
                 var values = rewriteAll(r.values(), onLoad);

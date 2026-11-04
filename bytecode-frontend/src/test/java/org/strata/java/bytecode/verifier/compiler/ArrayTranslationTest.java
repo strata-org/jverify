@@ -200,84 +200,6 @@ class ArrayTranslationTest {
     }
 
     @Test
-    void fieldLengthInALoopConditionStaysInTheCondition(@TempDir Path tmp) throws Exception {
-        var t = translate(tmp, "Loop", """
-                public class Loop {
-                    int[] f;
-                    int w() {
-                        int i = 0;
-                        while (i < this.f.length) {
-                            i++;
-                        }
-                        return i;
-                    }
-                }
-                """);
-        assertEquals(List.of(), t.messages());
-        var loop = implementation(procedure(t.program(), "w")).stream()
-                .filter(s -> s.val() instanceof StmtExpr.While).findFirst().orElseThrow();
-        assertTrue(callsIn(((StmtExpr.While) loop.val()).cond(), ArrayModel.LENGTH_WRAPPER));
-    }
-
-    @Test
-    void elementReadInALoopConditionRefuses(@TempDir Path tmp) throws Exception {
-        // Strata evaluates the calls of a While condition once, before the
-        // loop; length reads and a read in the latch test stay allowed.
-        var t = translate(tmp, "LoopRead", """
-                public class LoopRead {
-                    int[] f;
-                    static int w(int[] a) {
-                        int i = 0;
-                        while (a[i] != 0) {
-                            i++;
-                        }
-                        return i;
-                    }
-                    static int forLoop(int[] a) {
-                        int i;
-                        int s = 0;
-                        for (i = 0; a[i] != 0; i++) {
-                            s++;
-                        }
-                        return s;
-                    }
-                    static void z(boolean[] z) {
-                        while (z[0]) {
-                            z[0] = false;
-                        }
-                    }
-                    int field() {
-                        int i = 0;
-                        while (this.f[i] != 0) {
-                            i++;
-                        }
-                        return i;
-                    }
-                    static int len(int[] a) {
-                        int i = 0;
-                        while (i < a.length) {
-                            i++;
-                        }
-                        return i;
-                    }
-                    static int latch(int[] a) {
-                        int i = 0;
-                        do {
-                            i++;
-                        } while (a[i] != 0);
-                        return i;
-                    }
-                }
-                """);
-        assertEquals(List.of("error: " + ArrayModel.LOOP_CONDITION_READ, "error: " + ArrayModel.LOOP_CONDITION_READ,
-                "error: " + ArrayModel.LOOP_CONDITION_READ,
-                "warning: instance method 'field' was not verified: " + ArrayModel.LOOP_CONDITION_READ),
-                t.messages());
-        assertTrue(hasProcedure(t.program(), "LoopRead::len"));
-        assertTrue(hasProcedure(t.program(), "LoopRead::latch"));
-    }
-
-    @Test
     void writeInASingleBlockDoWhileBodyTranslates(@TempDir Path tmp) throws Exception {
         // javac puts the whole body in the latch block, with the test.
         var t = translate(tmp, "DoWrite", """
@@ -325,8 +247,13 @@ class ArrayTranslationTest {
     }
 
     @Test
-    void allocationInADoWhileTestWithAContinueRefusesConditional(@TempDir Path tmp) throws Exception {
-        // The continue skips the test's statements, which join the body.
+    void allocationInADoWhileTestWithAContinueTranslates(@TempDir Path tmp) throws Exception {
+        // The continue skips the rest of the body and joins the test. When
+        // loop shapes were recovered, that join put the test's statements in
+        // a conditional context and the allocation refused (CONDITIONAL);
+        // with the loop emitted as one labelled block, the test is a join
+        // point emitted exactly once per iteration -- the allocation is
+        // unconditional in both methods, matching Java's own order.
         var t = translate(tmp, "DoCont", """
                 public class DoCont {
                     static int d() {
@@ -349,7 +276,8 @@ class ArrayTranslationTest {
                     }
                 }
                 """);
-        assertEquals(List.of("error: " + ArrayModel.CONDITIONAL), t.messages());
+        assertEquals(List.of(), t.messages());
+        assertTrue(hasProcedure(t.program(), "DoCont::d"), "the continue join must not make the test conditional");
         assertTrue(hasProcedure(t.program(), "DoCont::e"), "without a continue the test runs once per iteration");
     }
 

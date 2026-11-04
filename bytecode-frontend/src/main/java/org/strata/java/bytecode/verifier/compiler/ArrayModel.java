@@ -66,7 +66,6 @@ final class ArrayModel {
     static final String NO_DEBUG_INFO = "arrays in code compiled without -g are not yet supported";
     static final String CONDITIONAL = "an array allocation or write inside a condition or conditional"
             + " expression is not yet supported";
-    static final String LOOP_CONDITION_READ = "an array element read in a loop condition is not yet supported";
     static final String SPEC_WRITE = "an array allocation or write inside a specification is not yet supported";
     static final String CONTRACT_WRITE = "an array allocation or write inside library contract code"
             + " is not yet supported";

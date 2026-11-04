@@ -144,7 +144,7 @@ final class InvokeTranslator {
                 var init = b.e(new StmtExpr.InstanceCall(b.e(LaurelFactory.var_(tmp)), LaurelFactory.ident(nm),
                         ctorArgs));
                 AstNode<StmtExpr> nw = b.push(new StmtExpr.Block(List.of(decl, init, b.e(LaurelFactory.var_(tmp))),
-                        Optional.empty()));
+                        Optional.empty(), List.of(), Optional.empty()));
                 b.callNodes.add(nw);
                 b.staticTypeOf.put(nw, t);
                 return;
@@ -342,7 +342,7 @@ final class InvokeTranslator {
                         new ParameterOpt(LaurelFactory.ident(tmp), Optional.of(LaurelFactory.node(
                                 new HighType.UserDefined(LaurelFactory.ident(sort)))))),
                         SourceMap.UNKNOWN_RANGE)), args.get(i)));
-                out.set(i, b.e(new StmtExpr.Block(List.of(decl, b.e(LaurelFactory.var_(tmp))), Optional.empty())));
+                out.set(i, b.e(new StmtExpr.Block(List.of(decl, b.e(LaurelFactory.var_(tmp))), Optional.empty(), List.of(), Optional.empty())));
             }
         }
         return out;

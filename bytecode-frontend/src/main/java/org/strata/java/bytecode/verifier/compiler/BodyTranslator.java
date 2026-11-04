@@ -67,11 +67,15 @@ final class BodyTranslator {
     // --- Operand stack + emitted statements ---
     final Deque<AstNode<StmtExpr>> stack = new ArrayDeque<>();
     final List<AstNode<StmtExpr>> stmts = new ArrayList<>();
+    /** Statement -> the seq index it was emitted at ({@link #addStmtAt}), for loop-condition attribution. */
+    final Map<AstNode<StmtExpr>, Integer> stmtSeq = new IdentityHashMap<>();
 
     // --- Variable bookkeeping ---
     final Set<String> declared;              // variable keys already declared (slot@scopeStart, or v<slot>)
     final Map<Integer, String> slotName, slotDesc;
     Locals locals;                // scoped local table (nullable); resolved at `pos`
+    /** Hoisted-declaration names by declaration identity ({@code Locals.slotVarKey}); see {@code MethodBody.HoistedDecl}. */
+    Map<String, String> hoistedNames = Map.of();
     int pos = -1;                            // current seq-index, for scoped local resolution
     ClassModel cm;                           // enclosing class, for resolving lambda impl methods
     List<CrtRange> crt = List.of();
@@ -228,12 +232,6 @@ final class BodyTranslator {
      * test): array allocations and writes refuse inside them.
      */
     private int conditionalDepth;
-    /**
-     * Nesting depth of pre-tested loop conditions being translated: Strata
-     * evaluates the calls in a {@code While} condition once, before the loop,
-     * so array element reads refuse inside them.
-     */
-    private int loopConditionDepth;
 
     // --- The per-concern translators sharing this body's stack and side tables ---
     final InvokeTranslator invokes;
@@ -264,19 +262,6 @@ final class BodyTranslator {
 
     boolean inConditional() {
         return conditionalDepth > 0;
-    }
-
-    /** Enter a pre-tested loop condition; pair with {@link #exitLoopCondition} in a {@code finally}. */
-    void enterLoopCondition() {
-        loopConditionDepth++;
-    }
-
-    void exitLoopCondition() {
-        loopConditionDepth--;
-    }
-
-    boolean inLoopCondition() {
-        return loopConditionDepth > 0;
     }
 
     /** A fresh local name from the minted-name counter ({@code t$<n>}), tied to no slot. */
@@ -520,7 +505,11 @@ final class BodyTranslator {
                 out.add(n.thenBranch());
                 n.elseBranch().ifPresent(out::add);
             }
-            case StmtExpr.Block n -> out.addAll(n.statements());
+            case StmtExpr.Block n -> {
+                out.addAll(n.invariants());
+                n.decreases().ifPresent(out::add);
+                out.addAll(n.statements());
+            }
             case StmtExpr.While n -> {
                 out.add(n.cond());
                 out.addAll(n.invariants());
@@ -608,9 +597,13 @@ final class BodyTranslator {
         ctx.src.defaultRange = range;
         checkPlaceable(raw);
         for (AstNode<StmtExpr> t : explicitImplicitThrows(raw)) {
-            stmts.add(place(t, range));
+            AstNode<StmtExpr> placed = place(t, range);
+            stmtSeq.put(placed, seqIdx);
+            stmts.add(placed);
         }
-        stmts.add(place(raw, range));
+        AstNode<StmtExpr> placed = place(raw, range);
+        stmtSeq.put(placed, seqIdx);
+        stmts.add(placed);
     }
 
     /**
@@ -657,7 +650,10 @@ final class BodyTranslator {
         if (locals != null) {
             Locals.Scope s = locals.at(slot, pos);
             if (s != null) {
-                return s.name();
+                // A hoisted declaration may carry a unique name when sibling
+                // scopes reuse the source name; its uses follow it.
+                String hoisted = hoistedNames.get(slot + ":" + s.name() + ":" + s.desc());
+                return hoisted != null ? hoisted : s.name();
             }
             String alias = slotAlias.get(slot);
             if (alias != null) {
@@ -1150,7 +1146,7 @@ final class BodyTranslator {
             AstNode<StmtExpr> thrown = e(new StmtExpr.Throw(
                     e(new StmtExpr.New(LaurelFactory.ident(t.exceptionFqn()), List.of()))));
             out.add(e(new StmtExpr.IfThenElse(t.condition(),
-                    e(new StmtExpr.Block(List.of(thrown), Optional.empty())), Optional.empty())));
+                    e(new StmtExpr.Block(List.of(thrown), Optional.empty(), List.of(), Optional.empty())), Optional.empty())));
         }
         return out;
     }

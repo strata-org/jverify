@@ -585,12 +585,69 @@ public final class MethodBodyFactory {
         List<MethodBody.HoistedDecl> hoisted = List.of();
         if (cfg != null && cfg.blocks.size() > 1) {
             dom = analyze(cfg);
+            loopConditionPcs(dom, cfg, code, seqToBci);
             hoisted = hoistedDeclInfos(cfg, dom, locals, slotName, slotDesc, declared, crt, seqToBci);
         }
         boolean localsWithoutDebugInfo = lvs.isEmpty() && code.maxLocals() > (isStatic ? 0 : 1);
         return new MethodBody(cfg, dom, locals, seq, slotName, slotDesc, declared,
                 crt, LineNumbers.of(code), seqToBci, slotAnnos, impureLocals, retDesc, isCtor, isStatic,
                 hoisted, localsWithoutDebugInfo);
+    }
+
+    /**
+     * Mark, per loop, which bytecode positions lower the loop STATEMENT
+     * itself rather than one of the statements written in its body
+     * ({@link DominanceFinder#loopCond}): the condition's tests and their
+     * supporting code (condition-embedded stores, short-circuit chains,
+     * implicit-throw operands), a for-each's hidden binding and index
+     * bookkeeping, a for's update, the back-edge goto. javac records every
+     * user (sub-)statement as a STATEMENT-flagged CRT range, so within a
+     * loop's pc extent the positions covered by such a range lying strictly
+     * inside the extent belong to user statements, and everything else is
+     * the loop's own lowering -- in any loop layout. The loop emitter skips
+     * exactly the statements emitted from these positions when scanning for
+     * leading loop-contract markers, so a marker behind a user statement is
+     * refused instead of silently promoted to the loop head. Without
+     * {@code -Xjcov} there is no CRT and nothing is recorded here; the loop
+     * emitter then falls back to its structural scan (tiered-input verdict
+     * equivalence).
+     */
+    static void loopConditionPcs(DominanceFinder dom, ControlFlowGraph cfg, CodeAttribute code, int[] seqToBci) {
+        if (dom.loops.isEmpty()) {
+            return;
+        }
+        List<CrtEntry> entries = crtEntries(code);
+        if (entries.isEmpty()) {
+            return;
+        }
+        for (var loop : dom.loops.entrySet()) {
+            int lo = Integer.MAX_VALUE, hi = -1;
+            for (int b : loop.getValue()) {
+                for (int idx : cfg.blocks.get(b).instrs) {
+                    int pc = seqToBci[idx];
+                    lo = Math.min(lo, pc);
+                    hi = Math.max(hi, pc);
+                }
+            }
+            if (hi < 0) {
+                continue;
+            }
+            BitSet cond = new BitSet(hi + 1);
+            cond.set(lo, hi + 1);
+            for (CrtEntry e : entries) {
+                if (!e.is(CrtEntry.STATEMENT)) {
+                    continue;
+                }
+                if (e.startPc() < lo || e.endPc() > hi) {
+                    continue;       // not (entirely) inside the loop: the loop's own entry, or elsewhere
+                }
+                if (e.startPc() <= lo && e.endPc() >= hi) {
+                    continue;       // the loop statement itself
+                }
+                cond.clear(e.startPc(), e.endPc() + 1);
+            }
+            dom.loopCond.put(loop.getKey(), cond);
+        }
     }
 
     /**
@@ -635,6 +692,18 @@ public final class MethodBodyFactory {
             }
         }
 
+        // Every declaration identity's source name (params + locals). A name
+        // held by MORE than one identity -- sibling Java scopes reusing a
+        // name, possibly at different types -- must not surface twice at
+        // method level ("Duplicate definition"), so such a hoist is renamed.
+        Map<String, Integer> nameHolders = new HashMap<>();
+        Set<String> allKeys = new java.util.TreeSet<>(preDeclared);
+        allKeys.addAll(firstStoreBlk.keySet());
+        for (String k : allKeys) {
+            nameHolders.merge(keyName(k), 1, Integer::sum);
+        }
+        Set<String> usedNames = new HashSet<>(nameHolders.keySet());
+
         List<MethodBody.HoistedDecl> out = new ArrayList<>();
         for (String key : new java.util.TreeSet<>(firstStoreBlk.keySet())) {
             if (preDeclared.contains(key)) {
@@ -667,13 +736,54 @@ public final class MethodBodyFactory {
             }
             int db = firstStoreBlk.get(key);
             boolean dominatesAll = refBlocks.get(key).stream().allMatch(rb -> dom.dominates(db, rb));
-            if (!dominatesAll) {
+            // A loop becomes a labelled Laurel block whose scope ends at the
+            // loop exit, so a declaration inside it is invisible to the code
+            // after the loop and to the block's invariants. Hoist a local
+            // first stored in a loop header (e.g. in the loop's own
+            // condition, which dominates every use but may be mentioned by
+            // an invariant), and a local first stored anywhere inside a loop
+            // that is also used outside that loop (the first store may
+            // dominate a use after the loop, yet its declaration would be
+            // scoped to the block).
+            if (!dominatesAll || dom.isLoopHeader(db) || storeEscapesLoop(dom, db, refBlocks.get(key))) {
                 String nm = sc != null ? sc.name() : name(slotName, slot);
-                out.add(new MethodBody.HoistedDecl(slot, dpos, nm, desc, genericType));
+                // Shared source name: this method-level declaration gets a
+                // unique `name@N` ('@' cannot occur in a Java identifier, so
+                // it can never collide with a source name). Loads and stores
+                // of the same identity resolve through `key` to the new name.
+                if (nameHolders.getOrDefault(nm, 0) > 1) {
+                    int n = 1;
+                    String fresh;
+                    do {
+                        fresh = nm + "@" + n++;
+                    } while (!usedNames.add(fresh));
+                    nm = fresh;
+                }
+                out.add(new MethodBody.HoistedDecl(slot, dpos, key, nm, desc, genericType));
                 preDeclared.add(key);
             }
         }
         return out;
+    }
+
+    /** The source name a declaration-identity key carries (see {@link Locals#slotVarKey}). */
+    private static String keyName(String key) {
+        int a = key.indexOf(':');
+        if (a < 0) {
+            return key;                           // "v<slot>" (no LVT entry)
+        }
+        int b = key.lastIndexOf(':');
+        return key.substring(a + 1, b);
+    }
+
+    /** The first store lies inside some loop that does not contain all the local's uses. */
+    private static boolean storeEscapesLoop(DominanceFinder dom, int storeBlk, Set<Integer> refBlocks) {
+        for (Set<Integer> loopBlocks : dom.loops.values()) {
+            if (loopBlocks.contains(storeBlk) && !loopBlocks.containsAll(refBlocks)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     static String name(Map<Integer,String> names, int slot) { return names.getOrDefault(slot, "v" + slot); }

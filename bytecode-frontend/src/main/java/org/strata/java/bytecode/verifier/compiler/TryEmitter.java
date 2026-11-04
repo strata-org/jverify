@@ -159,6 +159,7 @@ final class TryEmitter {
         List<AstNode<StmtExpr>> finallyBody = null;
         if (finallyBlk >= 0) {
             final int fh = finallyBlk;
+            refuseUnstrippedFinallyCopies(startBlk, fh, finallyEndId, levels);
             for (var it = s.triesByStart.entrySet().iterator(); it.hasNext(); ) {
                 var en = it.next();
                 if (en.getKey() != startBlk) {
@@ -378,7 +379,7 @@ final class TryEmitter {
                 if (s.size() != before) {
                     changed = true;
                     AstNode<StmtExpr> newBody = new AstNode<>(
-                            new StmtExpr.Block(s, blk.label()), c.body().source());
+                            new StmtExpr.Block(s, blk.label(), blk.invariants(), blk.decreases()), c.body().source());
                     rebuilt.add(new CatchClause(c.binding(), c.predicate(), newBody, c.bindingType()));
                     continue;
                 }
@@ -498,10 +499,83 @@ final class TryEmitter {
     }
 
     /**
+     * Refuse the method when a normal exit of the protected range would
+     * leave an inlined finally copy unstripped. javac inlines one copy of
+     * the finally body per NORMAL exit of the protected range, and {@link
+     * #consumeFinallyCopy} strips exactly one -- the copy at {@code
+     * finallyEndId}. A {@code break}, {@code continue}, or {@code return}
+     * leaving the try early jumps (or falls) out of the protected blocks
+     * into its own copy, which nothing strips; see {@link
+     * #consumeFinallyCopy} for why that mis-models the program. So every
+     * normal edge out of the protected blocks must land on {@code
+     * finallyEndId}, the one stripped copy; any other target is an
+     * unstripped copy and the method is refused. Exception ranges that
+     * protect a catch arm of this try -- javac starts them at the arm's
+     * handler block, and also emits a self-protecting range at the finally
+     * handler itself -- are exempt: an arm's adjacent tail copy is stripped
+     * structurally by {@link #stripFinallyTail} /
+     * {@link #stripNestedTryFinallyTails} instead.
+     */
+    private void refuseUnstrippedFinallyCopies(int startBlk, int fh, int finallyEndId,
+                                               List<List<Trap>> levels) {
+        Set<Integer> armHeads = new HashSet<>();
+        for (List<Trap> level : levels) {
+            for (Trap t : level) {
+                armHeads.add(t.handlerBlk());
+            }
+        }
+        // All ranges this finally handler protects: javac splits the
+        // protected range around early-exit copies, and the later pieces are
+        // registered under their own start blocks.
+        List<Trap> fragments = new ArrayList<>();
+        for (List<Trap> traps : s.triesByStart.values()) {
+            for (Trap e : traps) {
+                if (e.type() == null && e.handlerBlk() == fh) {
+                    fragments.add(e);
+                }
+            }
+        }
+        Set<Integer> protectedBlks = new HashSet<>();
+        for (Trap e : fragments) {
+            for (int b = e.startBlk(); b < e.endBlkId() && b < cfg.blocks.size(); b++) {
+                protectedBlks.add(b);
+            }
+        }
+        for (Trap e : fragments) {
+            if (e.startBlk() != startBlk && armHeads.contains(e.startBlk())) {
+                continue;   // a catch arm's range, or the handler's own
+            }
+            for (int b = e.startBlk(); b < e.endBlkId() && b < cfg.blocks.size(); b++) {
+                for (int t : cfg.blocks.get(b).succ) {
+                    if (!protectedBlks.contains(t) && t != finallyEndId) {
+                        throw new JavaViolationException(
+                                "unsupported try shape: a break, continue, or return leaves a try "
+                                        + "with a finally early, and the extra inlined copy of the "
+                                        + "finally body is not stripped, so the finally would be "
+                                        + "modelled as running twice on that path");
+                    }
+                }
+            }
+        }
+    }
+
+    /**
      * Consume the inlined normal-path copy of a finally body starting at
      * block {@code c0}: verify the opcode sequence matches, mark consumed
      * blocks visited, and return the follow block, or {@link
      * Integer#MIN_VALUE} when the copy does not match.
+     *
+     * <p>javac inlines one copy of the finally body per NORMAL exit path of
+     * the protected range, and only this one copy -- the one at {@code c0},
+     * adjacent to the range -- is stripped. A copy on any other normal exit
+     * (a {@code break}, {@code continue}, or {@code return} leaving the try
+     * early) would stay in the translated try body while the handler is
+     * still emitted as the Laurel {@code finally} clause: the model would
+     * then run the finally body TWICE on each pass through that body -- not
+     * just a spurious counterexample; a check or invariant that is FALSE in
+     * Java (say, over a counter the finally increments) can wrongly VERIFY,
+     * a missed violation. {@link #refuseUnstrippedFinallyCopies} therefore
+     * refuses those shapes until every inlined copy is stripped.
      */
     int consumeFinallyCopy(FinallyShape fs, int c0) {
         List<Opcode> want = finallyOpcodes(fs);

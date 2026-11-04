@@ -14,6 +14,14 @@ public final class DominanceFinder {
     public final int[] ipdom;    // immediate post-dominator (block id, or -1 == exit)
     public final Map<Integer,Set<Integer>> loops = new HashMap<>(); // header -> body block ids (incl. header)
     public final Map<Integer,Integer> loopTail = new HashMap<>();   // header -> the back-edge source (latch)
+    /**
+     * header -> the loop's own bytecode positions (its condition's tests and
+     * supporting code, a for-each's hidden bookkeeping, a for's update), i.e.
+     * the loop's pc extent minus every pc a user (sub-)statement covers; from
+     * the CRT ({@code MethodBodyFactory.loopConditionPcs}). Absent without
+     * {@code -Xjcov}.
+     */
+    public final Map<Integer,BitSet> loopCond = new HashMap<>();
     DominanceFinder(int n, BitSet[] dom, int[] idom, BitSet[] pdom, int[] ipdom) {
         this.n = n; this.dom = dom; this.idom = idom; this.pdom = pdom; this.ipdom = ipdom;
     }

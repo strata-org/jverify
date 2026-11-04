@@ -44,9 +44,9 @@ class PureMethodWithLoop {
         int i = 0;
         do {
             acc = !acc;
+//          ^^^^^^^^^^^ Error: loops are not YET supported in transparent bodies or contracts
             i = i + 1;
         } while (i < n);
-//      ^^^^^^^^^^^^^^^^ Error: loops are not YET supported in transparent bodies or contracts
         return acc;
     }
 }

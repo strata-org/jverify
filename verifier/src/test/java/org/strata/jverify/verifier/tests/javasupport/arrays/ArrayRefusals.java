@@ -10,7 +10,7 @@ import java.util.function.IntFunction;
 import org.strata.jverify.testengine.JVerifyTest;
 import org.strata.jverify.*;
 import static org.strata.jverify.JVerify.*;
-@JVerifyTest(continueOnErrors = true, exitCode = 0, methodsInvalid = 0, errorCount = 0, methodsVerified = 3, methodsSkipped = 19)
+@JVerifyTest(continueOnErrors = true, exitCode = 4, methodsInvalid = 1, errorCount = 4, methodsVerified = 3, methodsSkipped = 18)
 class ArrayRefusals {
     static int ok(int[] a) {
         precondition(a.length > 0);
@@ -99,12 +99,15 @@ class ArrayRefusals {
     }
 
     static int loopConditionRead(int[] a) {
-//                                        ^ error: an array element read in a loop condition is not yet supported
+//                                        ^ Error: postcondition does not hold
         int i = 0;
         while (a[i] != 0) {
+//      ^ Error: precondition does not hold
             i++;
+//          ^^^^ Error: assertion does not hold
         }
         return i;
+//             ^ Error: assertion does not hold
     }
 
     static int specWrite() {

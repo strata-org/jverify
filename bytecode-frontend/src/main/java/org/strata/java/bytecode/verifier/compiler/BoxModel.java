@@ -246,7 +246,8 @@ final class BoxModel {
         var set = LaurelFactory.noRange(new StmtExpr.Assign(List.of(variable(new Variable.Field(
                 LaurelFactory.noRange(LaurelFactory.var_(b)), LaurelFactory.ident(VALUE_FIELD)))), x));
         var ret = LaurelFactory.noRange(new StmtExpr.Return(List.of(LaurelFactory.noRange(LaurelFactory.var_(b)))));
-        var implementation = LaurelFactory.noRange(new StmtExpr.Block(List.of(declare, set, ret), Optional.empty()));
+        var implementation = LaurelFactory.noRange(
+                new StmtExpr.Block(List.of(declare, set, ret), Optional.empty(), List.of(), Optional.empty()));
         helpers.put(name, new Procedure(LaurelFactory.ident(name), List.of(),
                 List.of(new Parameter(LaurelFactory.ident("x"), LaurelFactory.node(primitiveType(w)))),
                 List.of(new Parameter(LaurelFactory.reservedIdent(LaurelFactory.LAUREL_RESULT_BINDING),

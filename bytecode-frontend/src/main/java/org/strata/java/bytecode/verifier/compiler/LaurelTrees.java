@@ -86,12 +86,13 @@ final class LaurelTrees {
         return switch (e) {
             case StmtExpr.IfThenElse n -> new StmtExpr.IfThenElse(rerange(n.cond(), range, stop),
                     rerange(n.thenBranch(), range, stop), rerange(n.elseBranch(), range, stop));
-            case StmtExpr.Block n -> new StmtExpr.Block(rerangeAll(n.statements(), range, stop), n.label());
+            case StmtExpr.Block n -> new StmtExpr.Block(rerangeAll(n.statements(), range, stop), n.label(),
+                    rerangeAll(n.invariants(), range, stop), rerange(n.decreases(), range, stop));
             case StmtExpr.While n -> new StmtExpr.While(rerange(n.cond(), range, stop),
                     rerangeAll(n.invariants(), range, stop), rerange(n.decreases(), range, stop),
                     rerange(n.body(), range, stop), n.postTest());
-            case StmtExpr.Exit n -> n;
             case StmtExpr.Return n -> new StmtExpr.Return(rerangeAll(n.values(), range, stop));
+            case StmtExpr.Goto n -> n;
             case StmtExpr.LiteralInt n -> n;
             case StmtExpr.LiteralBool n -> n;
             case StmtExpr.LiteralString n -> n;
@@ -190,7 +191,8 @@ final class LaurelTrees {
         return switch (e) {
             case StmtExpr.IfThenElse n -> new StmtExpr.IfThenElse(map(n.cond(), f),
                     map(n.thenBranch(), f), map(n.elseBranch(), f));
-            case StmtExpr.Block n -> new StmtExpr.Block(mapAll(n.statements(), f), n.label());
+            case StmtExpr.Block n -> new StmtExpr.Block(mapAll(n.statements(), f), n.label(),
+                    mapAll(n.invariants(), f), map(n.decreases(), f));
             case StmtExpr.While n -> new StmtExpr.While(map(n.cond(), f), mapAll(n.invariants(), f),
                     map(n.decreases(), f), map(n.body(), f), n.postTest());
             case StmtExpr.Return n -> new StmtExpr.Return(mapAll(n.values(), f));
@@ -228,7 +230,7 @@ final class LaurelTrees {
             }
             case StmtExpr.ProveBy n -> new StmtExpr.ProveBy(map(n.value(), f), map(n.proof(), f));
             case StmtExpr.ContractOf n -> new StmtExpr.ContractOf(n.type(), map(n.function(), f));
-            case StmtExpr.Exit n -> n;
+            case StmtExpr.Goto n -> n;
             case StmtExpr.LiteralInt n -> n;
             case StmtExpr.LiteralBool n -> n;
             case StmtExpr.LiteralString n -> n;

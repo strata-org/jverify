@@ -162,8 +162,8 @@ final class SwitchEmitter {
         List<Integer> order = new ArrayList<>(heads);
         Collections.sort(order);
 
-        ControlFlowStructurer.Ctx sw = new ControlFlowStructurer.Ctx(false, -1, follow, -1, -1);
-        sw.breakLabel = ARM_BREAK;   // arm breaks are stripped, not emitted as labeled Exit
+        // Arm breaks are stripped, not emitted as a labelled exit.
+        ControlFlowStructurer.Ctx sw = new ControlFlowStructurer.Ctx(false, -1, follow, ARM_BREAK);
         s.ctxStack.push(sw);
         var raw = new ArrayList<Arm>();
         for (int head : order) {
@@ -230,7 +230,7 @@ final class SwitchEmitter {
     }
 
     private static boolean isArmBreak(AstNode<StmtExpr> n) {
-        return n.val() instanceof StmtExpr.Exit ex && ex.target().equals(ARM_BREAK);
+        return n.val() instanceof StmtExpr.Goto ex && ex.target().equals(ARM_BREAK);
     }
 
     /** Build the if-cascade: default = final else, multi-label $orElse of $eq, hoist selector. */
@@ -271,7 +271,7 @@ final class SwitchEmitter {
                     cascade != null ? Optional.of(cascade) : Optional.empty()));
         }
         if (cascade == null) {
-            cascade = body.e(new StmtExpr.Block(List.of(), Optional.empty()));
+            cascade = body.e(new StmtExpr.Block(List.of(), Optional.empty(), List.of(), Optional.empty()));
         }
         if (!hoist) {
             return cascade;
@@ -282,7 +282,7 @@ final class SwitchEmitter {
                 new org.strata.jverify.laurel.ParameterOpt(LaurelFactory.ident(selName), Optional.of(typeNode)));
         AstNode<StmtExpr> bind = body.e(new StmtExpr.Assign(
                 List.of(new AstNode<>(declared, SourceMap.UNKNOWN_RANGE)), selValue));
-        return body.e(new StmtExpr.Block(List.of(bind, cascade), Optional.empty()));
+        return body.e(new StmtExpr.Block(List.of(bind, cascade), Optional.empty(), List.of(), Optional.empty()));
     }
 
     /** A statement arm's body value: single statement unwrapped, else a block. */
@@ -290,7 +290,7 @@ final class SwitchEmitter {
         if (arm.stmts().size() == 1) {
             return arm.stmts().get(0);
         }
-        return body.e(new StmtExpr.Block(new ArrayList<>(arm.stmts()), Optional.empty()));
+        return body.e(new StmtExpr.Block(new ArrayList<>(arm.stmts()), Optional.empty(), List.of(), Optional.empty()));
     }
 
     private boolean isTrivialSelector(AstNode<StmtExpr> selector) {

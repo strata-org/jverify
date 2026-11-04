@@ -117,7 +117,7 @@ class StrataBackendSmokeTest {
     void assertTrueVerifies() {
         var block = new StmtExpr.Block(List.of(
                 node(new StmtExpr.Assert(node(new StmtExpr.LiteralBool(true), 12, 16), Optional.empty()), 10, 18)
-        ), Optional.empty());
+        ), Optional.empty(), List.of(), Optional.empty());
         var program = new LaurelProgram(List.of(procedure("Smoke_ok", block)), List.of(), List.of(), List.of(), List.of());
 
         var results = new StrataBackend(options()).verifyProgram(program, TEN_COL_LINES, statuses("Smoke_ok"));
@@ -134,7 +134,7 @@ class StrataBackendSmokeTest {
     void assertFalseFails() {
         var block = new StmtExpr.Block(List.of(
                 node(new StmtExpr.Assert(node(new StmtExpr.LiteralBool(false), 12, 17), Optional.empty()), 10, 19)
-        ), Optional.empty());
+        ), Optional.empty(), List.of(), Optional.empty());
         var program = new LaurelProgram(List.of(procedure("Smoke_bad", block)), List.of(), List.of(), List.of(), List.of());
 
         var results = new StrataBackend(options()).verifyProgram(program, TEN_COL_LINES, statuses("Smoke_bad"));
@@ -154,7 +154,7 @@ class StrataBackendSmokeTest {
     void serializesToIon() {
         var block = new StmtExpr.Block(List.of(
                 node(new StmtExpr.Assert(node(new StmtExpr.LiteralBool(true), 0, 0), Optional.empty()), 0, 0)
-        ), Optional.empty());
+        ), Optional.empty(), List.of(), Optional.empty());
         var program = new LaurelProgram(List.of(procedure("Smoke_ion", block)), List.of(), List.of(), List.of(), List.of());
         var ion = com.amazon.ion.system.IonSystemBuilder.standard().build();
         var value = program.toIon(ion);
