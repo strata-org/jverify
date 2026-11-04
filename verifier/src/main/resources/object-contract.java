@@ -45,39 +45,47 @@ class StringContract {
     }
 
     public int indexOf(int ch) {
-        postcondition((int result) -> -1 <= result && result < this.chars.size());
+        postcondition((int result) -> -1 <= result && result < length());
         postcondition((int result) -> result == -1
-                ? JVerify.forall((int i) -> JVerify.implies(0 <= i && i < chars.size(), chars.get(i) != ch))
+                ? JVerify.forall((int i) -> JVerify.implies(0 <= i && i < length(), chars.get(i) != ch))
                 : chars.get(result) == ch && JVerify.forall((int j) -> JVerify.implies(0 <= j && j < result, chars.get(j) != ch))
         );
         throw new ContractException();
     }
 
-    public int length() {
-        postcondition((int result) -> result == chars.size());
-        throw new ContractException();
+    /**
+     * A function of the string's characters, so two calls on the same string
+     * agree. The clamp makes it a valid Java length (0..Integer.MAX_VALUE) by
+     * definition; an {@code int} result would be refused as a contract body.
+     * The other members bound indexes by {@code length()}, not by
+     * {@code chars.size()}, so they agree with it even where the clamp applies.
+     */
+    @Transparent
+    public @Unbounded int length() {
+        //noinspection ConstantValue
+        return chars.size() < 0 ? 0 : (chars.size() > 2147483647 ? 0 : chars.size());
     }
 
     @Transparent
     public char charAt(int index) {
-        precondition(0 <= index && index < chars.size());
+        precondition(0 <= index && index < length());
         return chars.get(index);
     }
 
     @Transparent
     public boolean isEmpty() {
-        return chars.size() == 0;
+        return length() == 0;
     }
 
     public StringContract substring(int beginIndex) {
 
-        precondition(beginIndex >= 0 && beginIndex <= chars.size());
+        precondition(beginIndex >= 0 && beginIndex <= length());
         postcondition((StringContract r) -> JVerify.jequals(r.chars, chars.drop(beginIndex)));
         throw new ContractException();
     }
 
     public String substring(int beginIndex, int endIndex) {
-        precondition(beginIndex >= 0 && beginIndex <= endIndex && endIndex <= chars.size());
+        precondition(beginIndex >= 0 && beginIndex <= endIndex && endIndex <= length());
         postcondition((StringContract r) -> JVerify.jequals(r.chars, chars.subsequence(beginIndex, endIndex)));
         throw new ContractException();
     }
@@ -89,7 +97,7 @@ class StringContract {
 
     public boolean startsWith(StringContract prefix, int toffset) {
         postcondition((boolean r) -> r == (toffset >= 0 &&
-                prefix.chars.size() + toffset <= chars.size() &&
+                prefix.length() + toffset <= length() &&
                 jequals(
                         chars.drop(toffset).take(prefix.chars.size()),
                         prefix.chars)

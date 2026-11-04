@@ -1,4 +1,4 @@
-// ^ /object-contract.java(156:1-156:2) error: class 'Objects' must not be referenced by more than one @Contract annotation
+// ^ /object-contract.java(164:1-164:2) error: class 'Objects' must not be referenced by more than one @Contract annotation
 package org.strata.jverify.verifier.tests.javasupport;
 
 import org.strata.jverify.Contract;
