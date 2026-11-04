@@ -304,6 +304,9 @@ public class BytecodeToLaurelCompiler {
         checkContractLoad();
 
         translateLibraryMembers();
+        // A lambda override takes on its interface method's contract, which is
+        // translated by now wherever the interface was declared.
+        inheritLambdaContracts();
 
         // Refusal propagation: a method
         // that calls a refused one is itself demoted -- soundness, since its
@@ -3217,8 +3220,10 @@ public class BytecodeToLaurelCompiler {
         } else {
             composites.instanceProcsBySort.computeIfAbsent(classFqn, k -> new ArrayList<>()).add(proc);
         }
-        if (member != null) {
-            // Library members are never counted: no verification status.
+        if (member != null || translatingLambda) {
+            // Library members are never counted: no verification status. Nor is
+            // a lambda: its diagnostics fall inside, and count against, the
+            // method whose body it appears in.
             info.proc = proc;
             info.sort = isStatic ? null : classFqn;
             return;
@@ -3375,6 +3380,7 @@ public class BytecodeToLaurelCompiler {
         var info = new MethodGraph.MethodInfo(fqn, "<init>", laurelName, false,
                 src.uri, src.pointOf(mRange), attemptedConstructors.size(), false);
         graph.methodInfos.put(info.key(), info);
+        translationContext().pendingLambdas.clear();
         try {
             translateMethod(fqn, node.cm(), m, info, true, false);
         } catch (ReportedViolation e) {
@@ -3385,6 +3391,7 @@ public class BytecodeToLaurelCompiler {
             reportRefusal(info, e.getMessage());
             recordRefusedStatus(info, "<init>", mRange);
         }
+        compileQueuedLambdas(node, true);
     }
 
     private void stripCallsToUntranslatedConstructors() {
@@ -3462,6 +3469,7 @@ public class BytecodeToLaurelCompiler {
                 name + resolver.overloadSuffix(fqn, m), isStatic,
                 src.uri, src.pointOf(mRange), ordinal, !verify);
         graph.methodInfos.put(info.key(), info);
+        translationContext().pendingLambdas.clear();
         try {
             translateMethod(fqn, node.cm(), m, info, verify, isInterpretEntry, null);
         } catch (ReportedViolation e) {
@@ -3472,6 +3480,350 @@ public class BytecodeToLaurelCompiler {
             reportRefusal(info, e.getMessage());
             recordRefusedStatus(info, name, mRange);
         }
+        compileQueuedLambdas(node, verify);
+    }
+
+    // --- Lambdas ---
+
+    /** Translating a lambda's synthetic impl method (see {@link #compileLambda}). */
+    private boolean translatingLambda;
+
+    /** A translated lambda override, awaiting its interface method's contract. */
+    private record LambdaOverride(MethodGraph.MethodInfo info, String samSort, String samLaurelName) {
+    }
+
+    private final List<LambdaOverride> lambdaOverrides = new ArrayList<>();
+
+    /**
+     * Translate the lambdas the method just translated materialized as values,
+     * and the lambdas inside those, in the method's own source context and
+     * under its verification mode.
+     */
+    private void compileQueuedLambdas(Declarations.TypeNode node, boolean verify) {
+        var queue = translationContext().pendingLambdas;
+        while (!queue.isEmpty()) {
+            compileLambda(node, queue.poll(), verify);
+        }
+    }
+
+    /**
+     * Translate a lambda's synthetic impl method as its sort's override of the
+     * functional interface method, so the body is verified: a call through the
+     * interface reasons from the interface's contract, which nothing else would
+     * check the lambda keeps. The override is named and typed like the interface
+     * method ({@code self} is the lambda's sort, followed by the interface
+     * method's parameters); the impl's leading capture parameters, the enclosing
+     * {@code this} among them, become locals declared without a value, so the
+     * body is checked for every value they could hold. {@link #inheritLambdaContracts}
+     * then gives it the interface method's contract.
+     *
+     * <p>A lambda that cannot be translated is reported like an instance method
+     * that cannot ({@code instance method 'apply' was not verified: ...}), at the
+     * lambda, and keeps the empty sort -- the interface's contract is then trusted,
+     * exactly as for an unverified method.
+     */
+    private void compileLambda(Declarations.TypeNode node, TranslationContext.PendingLambda pending,
+                               boolean verify) {
+        var h = pending.handle();
+        java.lang.classfile.MethodModel impl = null;
+        for (var m : node.cm().methods()) {
+            if (m.methodName().stringValue().equals(h.implName())
+                    && m.methodType().stringValue().equals(h.implDesc())) {
+                impl = m;
+            }
+        }
+        FileRange range = UNKNOWN_RANGE;
+        if (impl != null) {
+            var shape = org.strata.java.bytecode.frontend.MethodBodyFactory.bodyOf(node.cm(), impl);
+            if (shape != null) {
+                range = src.methodRangeOf(shape.crt());
+                // javac leaves the CharacterRangeTable of some lambda bodies empty
+                // (one that captures, one nested in another lambda): the
+                // LineNumberTable's lines stand in.
+                if (range == UNKNOWN_RANGE && shape.lines() != null) {
+                    range = src.lineSpanRange(shape.lines().minLine(), shape.lines().maxLine());
+                }
+            }
+        }
+        String samName = h.samName() != null ? h.samName() : h.implName();
+        String samLaurelName = samLaurelName(h);
+        var info = new MethodGraph.MethodInfo(pending.sort(), samName, samLaurelName, false,
+                src.uri, src.pointOf(range), 0, !verify);
+        graph.methodInfos.put(info.key(), info);
+        if (impl == null || samLaurelName == null || h.samDesc() == null) {
+            info.refused = true;
+            reportRefusal(info, "the lambda's implementation could not be found");
+            return;
+        }
+        var samType = java.lang.constant.MethodTypeDesc.ofDescriptor(h.samDesc());
+        var implType = impl.methodTypeSymbol();
+        int captured = implType.parameterCount() - samType.parameterCount();
+        boolean sameShape = captured >= 0
+                && implType.returnType().equals(samType.returnType());
+        for (int i = 0; sameShape && i < samType.parameterCount(); i++) {
+            sameShape = implType.parameterType(captured + i).equals(samType.parameterType(i));
+        }
+        if (!sameShape) {
+            info.refused = true;
+            reportRefusal(info, "a lambda whose types differ from its functional interface method's"
+                    + " erased signature is not yet supported");
+            return;
+        }
+        // A lambda that captures `this` of a generic class would type the captured
+        // receiver with that class, whose type parameters the override does not
+        // declare, and Strata would fail resolution for the whole program.
+        if (!h.implStatic() && !resolver.classTypeParams(node.fqn()).isEmpty()) {
+            info.refused = true;
+            reportRefusal(info, "a lambda that captures 'this' in a generic class is not yet supported");
+            return;
+        }
+        translatingLambda = true;
+        try {
+            translateMethod(node.fqn(), node.cm(), impl, info, verify, false);
+            info.proc = asLambdaOverride(info, pending.sort(), samLaurelName, samType.parameterCount(),
+                    range);
+            info.sort = pending.sort();
+            composites.instanceProcsBySort.computeIfAbsent(pending.sort(), k -> new ArrayList<>())
+                    .add(info.proc);
+            lambdaOverrides.add(new LambdaOverride(info, pending.samSort(), samLaurelName));
+        } catch (ReportedViolation e) {
+            info.refused = true;
+            dropTranslatedProc(info);
+        } catch (JavaViolationException e) {
+            info.refused = true;
+            dropTranslatedProc(info);
+            reportRefusal(info, e.getMessage());
+        } finally {
+            translatingLambda = false;
+        }
+    }
+
+    /** The interface method's emitted name: its name plus the overload suffix its declaration gets. */
+    private String samLaurelName(BodyTranslator.LambdaHandle h) {
+        if (h.samName() == null || h.samDesc() == null) {
+            return null;
+        }
+        var samCm = resolver.programClassModels.get(h.samFqn());
+        if (samCm == null) {
+            return h.samName();
+        }
+        for (var m : samCm.methods()) {
+            if (m.methodName().stringValue().equals(h.samName())
+                    && m.methodType().stringValue().equals(h.samDesc())) {
+                return h.samName() + resolver.overloadSuffix(h.samFqn(), m);
+            }
+        }
+        return h.samName();
+    }
+
+    /** Remove a lambda's impl procedure from wherever {@link #translateMethod} put it. */
+    private void dropTranslatedProc(MethodGraph.MethodInfo info) {
+        if (info.proc == null) {
+            return;
+        }
+        if (info.sort == null) {
+            procedures.remove(info.proc);
+        } else {
+            var list = composites.instanceProcsBySort.get(info.sort);
+            if (list != null) {
+                list.remove(info.proc);
+            }
+        }
+        info.proc = null;
+        info.sort = null;
+    }
+
+    /** Name of the local that stands for a lambda's captured enclosing {@code this}. */
+    private static final String LAMBDA_ENCLOSING_THIS = "lambda?this";
+
+    /**
+     * Rewrite the translated impl procedure {@code info.proc} (static, or an
+     * instance procedure of the enclosing class when the lambda captures
+     * {@code this}) into {@code sort}'s override of the interface method.
+     */
+    private Procedure asLambdaOverride(MethodGraph.MethodInfo info, String sort, String samLaurelName,
+                                       int samArity, FileRange range) {
+        Procedure p = info.proc;
+        dropTranslatedProc(info);
+        int k = p.inputs().size() - samArity;
+        var renames = new HashMap<String, String>();
+        var captureDecls = new ArrayList<AstNode<StmtExpr>>();
+        for (var capture : p.inputs().subList(0, k)) {
+            String name = capture.name().text();
+            Identifier local = capture.name();
+            if (name.equals(LAUREL_SELF_BINDING)) {
+                renames.put(name, LAMBDA_ENCLOSING_THIS);
+                local = LaurelFactory.reservedIdent(LAMBDA_ENCLOSING_THIS);
+            }
+            captureDecls.add(noRange(new StmtExpr.Var(new Variable.Declare(
+                    new ParameterOpt(local, Optional.of(capture.type()))))));
+        }
+        var captureNames = new java.util.HashSet<String>();
+        for (var capture : p.inputs().subList(0, k)) {
+            captureNames.add(renames.getOrDefault(capture.name().text(), capture.name().text()));
+        }
+        var inputs = new ArrayList<org.strata.jverify.laurel.Parameter>();
+        inputs.add(new org.strata.jverify.laurel.Parameter(LaurelFactory.reservedIdent(LAUREL_SELF_BINDING),
+                node(new HighType.UserDefined(ident(sort)))));
+        inputs.addAll(p.inputs().subList(k, p.inputs().size()));
+        java.util.function.UnaryOperator<AstNode<StmtExpr>> f = renaming(renames);
+        // The contract is evaluated where the captures are not declared.
+        java.util.function.UnaryOperator<AstNode<StmtExpr>> contractOnly = n -> {
+            var m = LaurelTrees.map(n, f);
+            if (mentionsLocal(m, captureNames)) {
+                throw new JavaViolationException(
+                        "a lambda's contract that mentions a captured variable is not yet supported");
+            }
+            return m;
+        };
+        var pre = p.preconditions().stream()
+                .map(c -> new Condition(contractOnly.apply(c.condition()), c.summary(), c.mode()))
+                .toList();
+        Body body = switch (p.body()) {
+            case Body.Opaque o -> new Body.Opaque(
+                    o.postconditions().stream()
+                            .map(c -> new Condition(contractOnly.apply(c.condition()), c.summary(), c.mode()))
+                            .toList(),
+                    o.implementation().map(i -> prepend(captureDecls, LaurelTrees.map(i, f))),
+                    o.modifies().stream().map(g -> new ModifiesGroup(
+                            g.targets().stream().map(contractOnly).toList(),
+                            g.guard().map(contractOnly), g.summary())).toList());
+            case Body.Abstract a -> new Body.Abstract(a.postconditions().stream()
+                    .map(c -> new Condition(contractOnly.apply(c.condition()), c.summary(), c.mode()))
+                    .toList());
+            case Body.Transparent t -> new Body.Transparent(prepend(captureDecls, LaurelTrees.map(t.body(), f)));
+            default -> throw new JavaViolationException("unsupported lambda body");
+        };
+        var throwsOn = p.throwsOn().stream().map(b -> new org.strata.jverify.laurel.ThrowsOnBlock(
+                contractOnly.apply(b.guard()),
+                b.postconditions().stream()
+                        .map(c -> new Condition(contractOnly.apply(c.condition()), c.summary(), c.mode()))
+                        .toList(),
+                b.modifies().stream().map(contractOnly).toList())).toList();
+        return new Procedure(withRange(ident(samLaurelName), range), p.typeArgs(), inputs, p.outputs(), pre,
+                p.contracts(), p.decreases(), body, p.invokeOn(), p.isInterpretEntry(), p.axioms(),
+                p.throwsType(), p.throwsBinding(), p.throwsInferred(), throwsOn, p.readsGlobals(), p.writesGlobals());
+    }
+
+    /** Rename the locals {@code renames} names. */
+    private static java.util.function.UnaryOperator<AstNode<StmtExpr>> renaming(Map<String, String> renames) {
+        return n -> n.val() instanceof StmtExpr.Var v && v.var_() instanceof Variable.Local l
+                && renames.containsKey(l.name().text())
+                ? new AstNode<StmtExpr>(new StmtExpr.Var(new Variable.Local(
+                        LaurelFactory.reservedIdent(renames.get(l.name().text())))), n.source())
+                : n;
+    }
+
+    private static boolean mentionsLocal(AstNode<StmtExpr> n, java.util.Set<String> names) {
+        boolean[] found = {false};
+        LaurelTrees.map(n, x -> {
+            if (x.val() instanceof StmtExpr.Var v && v.var_() instanceof Variable.Local l
+                    && names.contains(l.name().text())) {
+                found[0] = true;
+            }
+            return x;
+        });
+        return found[0];
+    }
+
+    /** {@code body} with {@code stmts} in front: into its block, or a new block around it. */
+    private static AstNode<StmtExpr> prepend(List<AstNode<StmtExpr>> stmts, AstNode<StmtExpr> body) {
+        if (stmts.isEmpty()) {
+            return body;
+        }
+        var all = new ArrayList<AstNode<StmtExpr>>(stmts);
+        if (body.val() instanceof StmtExpr.Block b && b.label().isEmpty()) {
+            all.addAll(b.statements());
+        } else {
+            all.add(body);
+        }
+        return new AstNode<StmtExpr>(new StmtExpr.Block(all, Optional.empty()), body.source());
+    }
+
+    /**
+     * Give each lambda override its interface method's contract -- the
+     * preconditions it may assume and the postconditions it must establish --
+     * ahead of any clauses the lambda's own body declares, with the interface
+     * method's parameter names replaced by the lambda's. Strata then checks the
+     * body against it; the override-refinement check against the interface
+     * holds by construction (or fails, for a lambda that declares a stronger
+     * precondition, as for any override).
+     */
+    private void inheritLambdaContracts() {
+        for (var lo : lambdaOverrides) {
+            var info = lo.info();
+            if (info.proc == null || info.refused) {
+                continue;
+            }
+            Procedure base = interfaceProcedure(lo.samSort(), lo.samLaurelName(), new java.util.HashSet<>());
+            if (base == null) {
+                continue;
+            }
+            Procedure p = info.proc;
+            var renames = new HashMap<String, String>();
+            for (int i = 0; i < base.inputs().size() && i < p.inputs().size(); i++) {
+                renames.put(base.inputs().get(i).name().text(), p.inputs().get(i).name().text());
+            }
+            for (int i = 0; i < base.outputs().size() && i < p.outputs().size(); i++) {
+                renames.put(base.outputs().get(i).name().text(), p.outputs().get(i).name().text());
+            }
+            var f = renaming(renames);
+            java.util.function.Function<List<Condition>, List<Condition>> inherit = cs -> cs.stream()
+                    .map(c -> new Condition(LaurelTrees.map(c.condition(), f), c.summary(), c.mode()))
+                    .toList();
+            List<Condition> basePosts = switch (base.body()) {
+                case Body.Opaque o -> o.postconditions();
+                case Body.Abstract a -> a.postconditions();
+                default -> List.of();
+            };
+            var pre = new ArrayList<>(inherit.apply(base.preconditions()));
+            pre.addAll(p.preconditions());
+            // A failure to establish the interface's postcondition is the
+            // lambda's, so it is reported at the lambda, not at the interface.
+            FileRange at = p.name().source();
+            var posts = new ArrayList<Condition>();
+            for (var c : inherit.apply(basePosts)) {
+                posts.add(at == UNKNOWN_RANGE ? c : new Condition(
+                        LaurelTrees.rerange(c.condition(), at, java.util.Collections.newSetFromMap(
+                                new java.util.IdentityHashMap<>())), c.summary(), c.mode()));
+            }
+            Body body = switch (p.body()) {
+                case Body.Opaque o -> {
+                    posts.addAll(o.postconditions());
+                    yield new Body.Opaque(posts, o.implementation(), o.modifies());
+                }
+                case Body.Abstract a -> {
+                    posts.addAll(a.postconditions());
+                    yield new Body.Abstract(posts);
+                }
+                default -> p.body();
+            };
+            Procedure q = new Procedure(p.name(), p.typeArgs(), p.inputs(), p.outputs(), pre,
+                    p.contracts(), p.decreases(), body, p.invokeOn(), p.isInterpretEntry(), p.axioms(),
+                    p.throwsType(), p.throwsBinding(), p.throwsInferred(), p.throwsOn(), p.readsGlobals(), p.writesGlobals());
+            var list = composites.instanceProcsBySort.get(info.sort);
+            list.set(list.indexOf(p), q);
+            info.proc = q;
+        }
+    }
+
+    /** {@code samSort}'s procedure {@code name}, or the nearest supertype's that declares it. */
+    private Procedure interfaceProcedure(String samSort, String name, java.util.Set<String> seen) {
+        if (!seen.add(samSort)) {
+            return null;
+        }
+        for (var p : composites.instanceProcsBySort.getOrDefault(samSort, List.of())) {
+            if (p.name().text().equals(name)) {
+                return p;
+            }
+        }
+        for (String parent : composites.directSupertypeSorts(samSort)) {
+            Procedure p = interfaceProcedure(parent, name, seen);
+            if (p != null) {
+                return p;
+            }
+        }
+        return null;
     }
 
     /**

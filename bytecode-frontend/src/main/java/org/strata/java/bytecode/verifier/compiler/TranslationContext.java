@@ -53,6 +53,17 @@ final class TranslationContext {
     }
     final Map<String, PendingPreconditionOf> pendingPreconditionOf = new java.util.LinkedHashMap<>();
     final Set<String> constructorCalls = new java.util.HashSet<>();
+    /**
+     * A lambda materialized as a value (BodyTranslator.materializeLambda) whose
+     * synthetic impl method still has to be translated as {@code sort}'s
+     * override of the functional interface's method, so its body is checked
+     * against the interface's contract.
+     */
+    record PendingLambda(String sort, String samSort, BodyTranslator.LambdaHandle handle) {
+    }
+    final Deque<PendingLambda> pendingLambdas = new ArrayDeque<>();
+    /** Every lambda sort ever queued: a method translated twice queues its lambdas once. */
+    final Set<String> queuedLambdaSorts = new java.util.HashSet<>();
     final Map<String, org.strata.jverify.laurel.Procedure> missingContractProcs = new java.util.LinkedHashMap<>();
 
     // --- Per-class state ---

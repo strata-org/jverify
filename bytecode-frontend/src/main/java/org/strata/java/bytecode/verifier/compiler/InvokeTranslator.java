@@ -980,9 +980,18 @@ final class InvokeTranslator {
                 AstNode<StmtExpr> handle = b.push(new StmtExpr.LiteralString("$lambda"));
                 String ret = indy.typeSymbol().returnType().descriptorString();
                 String sam = ret.startsWith("L") ? JavaNames.dottedFqn(ret.substring(1, ret.length() - 1)) : null;
+                // LambdaMetafactory's static arguments: the SAM's erased type, the
+                // impl handle, and the SAM's type as this call site instantiates it.
+                String samDesc = bsm.arguments().get(0)
+                        instanceof java.lang.classfile.constantpool.MethodTypeEntry st
+                        ? st.descriptor().stringValue() : null;
+                String instantiatedDesc = bsm.arguments().size() >= 3 && bsm.arguments().get(2)
+                        instanceof java.lang.classfile.constantpool.MethodTypeEntry it
+                        ? it.descriptor().stringValue() : null;
                 b.lambdas.put(handle, new BodyTranslator.LambdaHandle(name, desc, captures.size(),
                         !isLambdaImpl, sam, ref.owner().asInternalName(),
-                        mh.kind() == java.lang.invoke.MethodHandleInfo.REF_invokeStatic));
+                        mh.kind() == java.lang.invoke.MethodHandleInfo.REF_invokeStatic,
+                        indy.name().stringValue(), samDesc, instantiatedDesc));
                 return;
             }
             if (bo.equals("java/lang/invoke/StringConcatFactory")) {

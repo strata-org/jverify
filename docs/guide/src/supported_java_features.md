@@ -30,6 +30,11 @@ JVerify intends to support the full Java language, but is actively under develop
   no bound into the translation, so a body that uses the bound's members is still
   refused, and `==` on a type parameter is restricted as it is on `Object`.
 - **Method overloading**, including overloads split across an inheritance chain.
+- **Lambdas passed as arguments**, for a functional interface whose method is not
+  generic. A lambda is checked as an override of the interface method: it assumes
+  that method's precondition and must establish its postcondition, and the
+  assertions in its body are checked. A captured variable is unconstrained inside
+  the body. A lambda the translation cannot handle is reported as not verified.
 - **Reference operations:** upcasts, downcasts, and `instanceof` on types declared in
   the code under verification.
 - **Compound assignment** (`+=`, `-=`, `*=`, `/=`, `%=`) on a local or parameter.
@@ -53,7 +58,8 @@ Major gaps being actively worked on or planned:
 - Boxed primitive types (`Integer`, `Long`, …) beyond unboxing against a primitive
 - `old()` in postconditions
 - `@Nullable` (no null representation yet), `@InheritContract`, `@Invariant`
-- Lambdas beyond contract lambdas and a functional interface implemented by one
+- Lambdas beyond contract lambdas and lambdas passed as arguments: a lambda stored in a
+  variable, a method reference, and a lambda for a generic functional interface
 - `break`, `continue`, `switch` *statements*
 - Increment/decrement (`++`, `--`)
 - A narrowing compound assignment such as `byte b = 100; b += 100;` reports an

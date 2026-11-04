@@ -151,17 +151,21 @@ final class BodyTranslator {
 
     /** An invokedynamic-produced closure: the synthetic impl (lambda) or referenced method. */
     record LambdaHandle(String implName, String implDesc, int captureCount, boolean isMethodRef,
-                        String samFqn, String implOwner, boolean implStatic) {
+                        String samFqn, String implOwner, boolean implStatic,
+                        String samName, String samDesc, String instantiatedDesc) {
     }
 
     /**
      * A lambda used as a VALUE -- passed to a method, or stored -- lowers to an
-     * allocation of a fresh composite that extends the functional interface and
-     * declares no procedures ({@code new Enclosing.lambda.<line>_<col>}), so the
-     * body is not translated and a call through the interface reasons from the
-     * interface's own contract. The sort is named after the synthetic impl method, qualified by the
-     * class that declares it, so two classes whose lambdas sit at the same place
-     * cannot share a sort (SameLineAndColumnLambdaA/B).
+     * allocation of a fresh composite that extends the functional interface
+     * ({@code new Enclosing.lambda$m$0}). A call through the interface reasons
+     * from the interface's own contract, so the lambda's body is checked against
+     * that contract: the sort is queued in {@link TranslationContext#pendingLambdas}
+     * and the driver translates the synthetic impl method as the sort's override
+     * of the interface method (BytecodeToLaurelCompiler.compileLambda). The sort is
+     * named after the synthetic impl method, qualified by the class that declares
+     * it, so two classes whose lambdas sit at the same place cannot share a sort
+     * (SameLineAndColumnLambdaA/B).
      *
      * <p>Left as the handle -- and refused where it is placed (corpus-pinned message) --
      * for a method reference, and for a functional interface that is a generic
@@ -185,6 +189,9 @@ final class BodyTranslator {
         ctx.composites.lambdaSupertypes.put(sort, List.of(samSort));
         ctx.composites.referencedCompositeTypes.add(sort);
         ctx.composites.referencedCompositeTypes.add(samSort);
+        if (ctx.queuedLambdaSorts.add(sort)) {
+            ctx.pendingLambdas.add(new TranslationContext.PendingLambda(sort, samSort, h));
+        }
         AstNode<StmtExpr> nw = e(new StmtExpr.New(LaurelFactory.ident(sort), List.of()));
         callNodes.add(nw);
         staticTypeOf.put(nw, samType);
