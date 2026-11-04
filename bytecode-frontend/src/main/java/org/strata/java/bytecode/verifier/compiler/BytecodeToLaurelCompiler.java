@@ -3098,14 +3098,24 @@ public class BytecodeToLaurelCompiler {
                                 : List.of();
         if (isCtor) {
             postconditions.addAll(constructorFieldFacts(implementation, inputs));
+            // The object under construction is fresh, so it is distinct from every
+            // argument. Stated as `this != param`, which Laurel lowers to a comparison
+            // of the two references, for a parameter whose class is the constructed
+            // class, a subclass or a superclass of it. Laurel rejects `!=` between any
+            // other two classes, which would make Strata reject the whole program, so
+            // such a parameter gets no assumption: this includes a sibling class that
+            // shares an inherited field with the constructed class, and a parameter of
+            // the composite Object sort, whose name is not on the resolver's superclass
+            // chain.
             for (int i = 1; i < inputs.size(); i++) {
-                if (inputs.get(0).type().val() instanceof HighType.UserDefined
+                if (inputs.get(0).type().val() instanceof HighType.UserDefined self
                         && inputs.get(i).type().val() instanceof HighType.UserDefined u
+                        && (isSubclassOf(u.name().text(), self.name().text())
+                                || isSubclassOf(self.name().text(), u.name().text()))
                         && composites.referencedCompositeTypes.contains(u.name().text())) {
-                    preconditions.add(new Condition(noRange(primitiveOp(new Operation.Not(),
-                            noRange(new StmtExpr.ReferenceEquals(
+                    preconditions.add(new Condition(noRange(primitiveOp(new Operation.Neq(),
                                     noRange(new StmtExpr.Var(new Variable.Local(inputs.get(0).name()))),
-                                    noRange(new StmtExpr.Var(new Variable.Local(inputs.get(i).name()))))))),
+                                    noRange(new StmtExpr.Var(new Variable.Local(inputs.get(i).name()))))),
                             Optional.empty(), new ConditionMode.Assume()));
                 }
             }

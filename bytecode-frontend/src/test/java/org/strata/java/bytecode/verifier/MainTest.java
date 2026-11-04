@@ -1109,4 +1109,79 @@ class MainTest {
         assertTrue(r.out().contains("Verified methods: 6"), r::toString);
     }
 
+    /**
+     * A constructor stores an argument of another class in a field. Its object is distinct from such an argument,
+     * but the comparison cannot be stated in Laurel, so the program is not rejected for it.
+     */
+    @Test
+    void aConstructorStoresAnArgumentOfAnotherClassInAField(@TempDir Path tmp) throws Exception {
+        var r = run(write(tmp, "Nested.java", """
+                class Inner { int x; Inner(int x) { this.x = x; } }
+                class Outer { Inner in; Outer(Inner in) { this.in = in; } }
+                class Nested { static Outer make() { Inner a = new Inner(3); return new Outer(a); } }
+                """).toString());
+        assertEquals(0, r.exitCode(), r::toString);
+        assertTrue(r.out().contains("Found 0 errors"), r::toString);
+        assertTrue(r.out().contains("Verified methods: 4"), r::toString);
+        assertTrue(r.out().contains("Skipped methods: 0"), r::toString);
+    }
+
+    /** The field is assigned after {@code new}, with no constructor taking the argument. */
+    @Test
+    void aFieldIsAssignedAnObjectAfterNew(@TempDir Path tmp) throws Exception {
+        var r = run(write(tmp, "NestedAfter.java", """
+                class Inner2 { int x; }
+                class Outer2 { Inner2 in; }
+                class NestedAfter {
+                    static Outer2 make() { Inner2 a = new Inner2(); Outer2 o = new Outer2(); o.in = a; return o; }
+                }
+                """).toString());
+        assertEquals(0, r.exitCode(), r::toString);
+        assertTrue(r.out().contains("Found 0 errors"), r::toString);
+        assertTrue(r.out().contains("Verified methods: 4"), r::toString);
+        assertTrue(r.out().contains("Skipped methods: 0"), r::toString);
+    }
+
+    /** A constructor of a class stores an argument of that same class in a field. */
+    @Test
+    void aConstructorStoresAnArgumentOfItsOwnClassInAField(@TempDir Path tmp) throws Exception {
+        var r = run(write(tmp, "Copy.java", """
+                class Node { Node next; Node(Node n) { this.next = n; } }
+                class Copy { static Node make(Node a) { return new Node(a); } }
+                """).toString());
+        assertEquals(0, r.exitCode(), r::toString);
+        assertTrue(r.out().contains("Found 0 errors"), r::toString);
+        assertTrue(r.out().contains("Verified methods: 3"), r::toString);
+    }
+
+    /**
+     * Each constructor reads a field of its argument and then writes the same field of its own object, so its
+     * field fact {@code this.a == p.b} holds only if the two are distinct objects: for an argument of the
+     * constructed class, of a subclass and of a superclass.
+     */
+    @Test
+    void aConstructorsObjectIsDistinctFromAnArgumentOfARelatedClass(@TempDir Path tmp) throws Exception {
+        for (var src : List.of(
+                """
+                class Node { int a; int b; Node() {} Node(Node p) { this.a = p.b; this.b = 0; } }
+                class Make { static Node make(Node x) { return new Node(x); } }
+                """,
+                """
+                class Base { int a; int b; Base() {} Base(Sub p) { this.a = p.b; this.b = 0; } }
+                class Sub extends Base { Sub() { super(); } }
+                class Make { static Base make(Sub x) { return new Base(x); } }
+                """,
+                """
+                class Animal { int a; int b; Animal() {} }
+                class Dog extends Animal { Dog(Animal p) { this.a = p.b; this.b = 0; } }
+                class Make { static Dog make(Animal x) { return new Dog(x); } }
+                """)) {
+            Path dir = Files.createTempDirectory(tmp, "case");
+            var r = run(write(dir, "Make.java", src).toString());
+            assertEquals(0, r.exitCode(), r::toString);
+            assertTrue(r.out().contains("Found 0 errors"), r::toString);
+            assertTrue(r.out().contains("Verified methods: 3"), r::toString);
+        }
+    }
+
 }
