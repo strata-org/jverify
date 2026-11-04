@@ -18,7 +18,8 @@ public record TypeFacts(@Nullable String superclass, List<String> interfaces, bo
      * @param params the erased parameter descriptors, as a list's string
      *        ({@code [I, Ljava/lang/String;]})
      * @param inheritable neither static nor private
+     * @param isAbstract declared abstract
      */
-    public record Method(String name, String params, boolean inheritable) {
+    public record Method(String name, String params, boolean inheritable, boolean isAbstract) {
     }
 }

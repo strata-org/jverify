@@ -735,8 +735,7 @@ final class InvokeTranslator {
         }
         var callee = ctx.resolver.findCallee(receiverFqn, bareName, d);
         if (callee == null) {
-            throw new JavaViolationException("call to '" + bareName
-                    + "' on a receiver whose static type is not a class is not yet supported");
+            throw new JavaViolationException("call to library method '" + bareName + "' is not yet supported");
         }
         refuseOptedOutCallee(ctx.resolver.programClassModels.get(callee.declaringFqn()), callee.method(), bareName);
         // Mangled from the DECLARING class's closure, matching the declaration.

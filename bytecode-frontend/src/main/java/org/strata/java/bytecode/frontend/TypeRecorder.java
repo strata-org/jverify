@@ -136,7 +136,8 @@ final class TypeRecorder implements TaskListener {
         var methods = ElementFilter.methodsIn(t.getEnclosedElements()).stream()
                 .map(m -> new TypeFacts.Method(m.getSimpleName().toString(),
                         m.getParameters().stream().map(p -> descriptor(p.asType())).toList().toString(),
-                        !m.getModifiers().contains(Modifier.STATIC) && !m.getModifiers().contains(Modifier.PRIVATE)))
+                        !m.getModifiers().contains(Modifier.STATIC) && !m.getModifiers().contains(Modifier.PRIVATE),
+                        m.getModifiers().contains(Modifier.ABSTRACT)))
                 .toList();
         types.put(fqn, new TypeFacts(superclass == null ? null : fqn(superclass),
                 interfaces.stream().map(this::fqn).toList(), t.getKind().isInterface(), methods));

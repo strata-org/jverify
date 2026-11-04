@@ -325,86 +325,92 @@ final class ClassResolver {
     }
 
     /**
-     * Find the (non-synthetic) method {@code name} on {@code receiverFqn} or
-     * its program-class ancestry, ancestor-nearest-first from the receiver.
+     * The method javac bound an instance call to: the declaration of {@code name} with {@code desc}'s erased
+     * parameters on {@code receiverFqn}'s program superclass chain, else the most specific one on its program
+     * interfaces; null when no program type declares it, or when a class receiver inherits a library class's,
+     * which takes precedence over the interfaces' (JLS 8.4.8).
      */
-    Callee findCallee(String receiverFqn, String name) {
-        return findCallee(receiverFqn, name, null);
+    Callee findCallee(String receiverFqn, String name, java.lang.constant.MethodTypeDesc desc) {
+        var interfaces = new java.util.ArrayDeque<String>();
+        String fqn = receiverFqn;
+        for (; programClassModels.containsKey(fqn); fqn = programSuper.get(fqn)) {
+            var bound = declaredCallee(fqn, name, desc, false);
+            if (bound != null) {
+                return bound;
+            }
+            interfaces.addAll(directInterfacesOf(fqn));
+        }
+        if (!isInterface(receiverFqn) && libraryClassDeclares(fqn, name, desc)) {
+            return null;
+        }
+        Callee bound = null;
+        var seen = new java.util.HashSet<String>();
+        while (!interfaces.isEmpty()) {
+            String iface = interfaces.poll();
+            if (programClassModels.containsKey(iface) && seen.add(iface)) {
+                var declared = declaredCallee(iface, name, desc, true);
+                if (declared != null && (bound == null || typeClosure(iface).contains(bound.declaringFqn()))) {
+                    bound = declared;
+                }
+                interfaces.addAll(directInterfacesOf(iface));
+            }
+        }
+        return bound;
     }
 
     /**
-     * As {@link #findCallee(String, String)}, but preferring the declaration
-     * whose erased descriptor is exactly {@code desc} -- the descriptor javac
-     * put on the invoke instruction, i.e. the overload it bound. Falls back to
-     * the nearest same-named declaration when no descriptor matches (a
-     * covariant-return override is reached through its bridge's descriptor).
+     * The method of program type {@code fqn} with {@code name} and {@code desc}'s erased parameters, or null. A
+     * private one overrides nothing, so it needs {@code desc}'s result type too, as the JVM's resolution does, and
+     * a superinterface's is never resolved (JVMS 5.4.3.3).
      */
-    Callee findCallee(String receiverFqn, String name, java.lang.constant.MethodTypeDesc desc) {
-        if (desc != null) {
-            for (String fqn = receiverFqn; fqn != null; fqn = programSuper.get(fqn)) {
-                var cm = programClassModels.get(fqn);
-                if (cm == null) {
-                    break;
-                }
-                for (var m : cm.methods()) {
-                    if (m.methodName().stringValue().equals(name)
-                            && m.methodTypeSymbol().parameterList()
-                                    .equals(desc.parameterList())
-                            && (m.flags().flagsMask() & (java.lang.classfile.ClassFile.ACC_SYNTHETIC
-                                    | java.lang.classfile.ClassFile.ACC_BRIDGE
-                                    | java.lang.classfile.ClassFile.ACC_STATIC)) == 0) {
-                        return new Callee(fqn, m);
-                    }
-                }
+    private Callee declaredCallee(String fqn, String name, java.lang.constant.MethodTypeDesc desc,
+                                  boolean superinterface) {
+        for (var m : programClassModels.get(fqn).methods()) {
+            int flags = m.flags().flagsMask();
+            if (m.methodName().stringValue().equals(name)
+                    && m.methodTypeSymbol().parameterList().equals(desc.parameterList())
+                    && (flags & (java.lang.classfile.ClassFile.ACC_SYNTHETIC
+                            | java.lang.classfile.ClassFile.ACC_BRIDGE
+                            | java.lang.classfile.ClassFile.ACC_STATIC)) == 0
+                    && ((flags & java.lang.classfile.ClassFile.ACC_PRIVATE) == 0
+                            || !superinterface && m.methodTypeSymbol().equals(desc))) {
+                return new Callee(fqn, m);
             }
         }
-        for (String fqn = receiverFqn; fqn != null; fqn = programSuper.get(fqn)) {
-            var cm = programClassModels.get(fqn);
-            if (cm == null) {
-                break;
-            }
-            for (var m : cm.methods()) {
-                if (m.methodName().stringValue().equals(name)
-                        && (m.flags().flagsMask() & (java.lang.classfile.ClassFile.ACC_SYNTHETIC
-                                | java.lang.classfile.ClassFile.ACC_BRIDGE
-                                | java.lang.classfile.ClassFile.ACC_STATIC)) == 0) {
-                    return new Callee(fqn, m);
-                }
-            }
-        }
-        return findInterfaceCallee(receiverFqn, name, desc);
+        return null;
     }
 
-    private Callee findInterfaceCallee(String receiverFqn, String name, java.lang.constant.MethodTypeDesc desc) {
-        var queue = new java.util.ArrayDeque<String>();
-        var seen = new java.util.HashSet<String>();
-        for (String fqn = receiverFqn; fqn != null && programClassModels.containsKey(fqn); fqn = programSuper.get(fqn)) {
-            queue.addAll(directInterfacesOf(fqn));
-        }
-        Callee byName = null;
-        while (!queue.isEmpty()) {
-            String iface = queue.poll();
-            var cm = programClassModels.get(iface);
-            if (cm == null || !seen.add(iface)) {
+    /**
+     * Whether a library class from {@code fqn} up the superclass chain has a concrete method that subclasses
+     * inherit with {@code name} and {@code desc}'s erased parameters. javac's account of a class outside the JDK
+     * does not say whether a method is abstract, so there any inheritable one counts.
+     */
+    private boolean libraryClassDeclares(String fqn, String name, java.lang.constant.MethodTypeDesc desc) {
+        String params = desc.parameterList().stream()
+                .map(java.lang.constant.ClassDesc::descriptorString).toList().toString();
+        for (String k = fqn; k != null; k = superclassOf(k)) {
+            var facts = javacFacts(k);
+            if (facts != null) {
+                if (facts.methods().stream().anyMatch(m -> m.inheritable() && !m.isAbstract()
+                        && m.name().equals(name) && m.params().equals(params))) {
+                    return true;
+                }
                 continue;
             }
-            for (var m : cm.methods()) {
-                if (!m.methodName().stringValue().equals(name)
-                        || (m.flags().flagsMask() & (java.lang.classfile.ClassFile.ACC_SYNTHETIC
-                                | java.lang.classfile.ClassFile.ACC_BRIDGE
-                                | java.lang.classfile.ClassFile.ACC_STATIC)) != 0) {
-                    continue;
-                }
-                if (desc == null || m.methodTypeSymbol().parameterList().equals(desc.parameterList())) {
-                    return new Callee(iface, m);
-                }
-                if (byName == null) {
-                    byName = new Callee(iface, m);
+            Class<?> c = loadClassReflectively(k);
+            if (c == null) {
+                return true;
+            }
+            for (var m : c.getDeclaredMethods()) {
+                int mod = m.getModifiers();
+                if (m.getName().equals(name) && paramDescriptors(m).equals(params)
+                        && (mod & (java.lang.reflect.Modifier.PUBLIC | java.lang.reflect.Modifier.PROTECTED)) != 0
+                        && (mod & (java.lang.reflect.Modifier.STATIC | java.lang.reflect.Modifier.ABSTRACT)) == 0) {
+                    return true;
                 }
             }
-            queue.addAll(directInterfacesOf(iface));
         }
-        return byName;
+        return false;
     }
 
     /** The {@code @Verify} annotation on an element's RuntimeInvisibleAnnotations, or null. */
