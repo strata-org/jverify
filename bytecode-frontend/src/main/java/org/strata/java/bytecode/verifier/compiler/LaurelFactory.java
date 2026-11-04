@@ -399,9 +399,9 @@ final class LaurelFactory {
     }
 
     /**
-     * Register, once, kind {@code k}'s load helper for a transparent
-     * {@code @Transparent} body, which Strata turns into a function that cannot call
-     * the opaque {@code java?array_load_<suffix>}: the transparent {@code
+     * Register, once, kind {@code k}'s load helper for a specification or a
+     * transparent {@code @Transparent} body, which Strata turns into a function
+     * that cannot call the opaque {@code java?array_load_<suffix>}: the transparent {@code
      * java?array_pure_load_<suffix>(x: int): <range type>} = {@code if lo <= x
      * && x <= hi then x else 0}. Every stored element is range-checked, so it
      * returns {@code x}, and its result is in range by definition. Temporary,

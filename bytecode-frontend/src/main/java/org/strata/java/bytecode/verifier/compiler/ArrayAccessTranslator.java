@@ -464,26 +464,29 @@ final class ArrayAccessTranslator {
     }
 
     /**
-     * {@code n} with every {@code java?array_load_*(x)} replaced by {@code x}:
-     * specifications read raw elements (Strata does not link an opaque
-     * helper inside a condition), which only drops the range assumption.
-     * Returns {@code n} itself when it has no such call.
+     * {@code n} with every {@code java?array_load_*(x)} replaced by {@code x},
+     * for recognising a shape (such as a loop counter snapshot) through the
+     * load helper. The result is only inspected, never emitted: a
+     * specification reads elements through {@link #pureLoads}. Returns
+     * {@code n} itself when it has no such call.
      */
     static AstNode<StmtExpr> stripLoadFacts(AstNode<StmtExpr> n) {
         return rewriteLoads(n, (load, x) -> x);
     }
 
     /**
-     * {@code n}, a transparent {@code @Transparent} body, with every {@code
-     * java?array_load_<k>(x)} replaced by the transparent {@code
-     * java?array_pure_load_<k>(x)} ({@link LaurelFactory#registerPureArrayLoadHelper}):
-     * Strata turns the body into a function, which cannot call the opaque
-     * helper, and the result keeps the element's range type, which a raw
-     * read would lose (a range-constrained result or local of the body would
-     * then fail its range check). Returns {@code n} itself when it has no
-     * such call.
+     * {@code n}, a specification (a contract clause, loop invariant or
+     * quantifier body) or a transparent {@code @Transparent} body, with every
+     * {@code java?array_load_<k>(x)} replaced by the transparent {@code
+     * java?array_pure_load_<k>(x)} ({@link LaurelFactory#registerPureArrayLoadHelper}).
+     * Strata turns both into functions, which cannot call the opaque helper,
+     * and the result keeps the element's range type, which a raw read would
+     * lose: a raw element passed to a range-typed parameter, result or local
+     * would then fail its range check. The helper assumes nothing, so the
+     * replacement adds no fact. Returns {@code n} itself when it has no such
+     * call.
      */
-    static AstNode<StmtExpr> pureBodyLoads(AstNode<StmtExpr> n, LaurelFactory lf) {
+    static AstNode<StmtExpr> pureLoads(AstNode<StmtExpr> n, LaurelFactory lf) {
         return rewriteLoads(n, (load, x) -> {
             var c = (StmtExpr.StaticCall) load.val();
             String suffix = c.callee().text().substring(ArrayModel.LOAD_HELPER_PREFIX.length());

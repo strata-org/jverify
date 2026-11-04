@@ -234,7 +234,7 @@ final class SpecCallTranslator {
             String dd = imt.parameterType(i).descriptorString();
             slot += (dd.equals("J") || dd.equals("D")) ? 2 : 1;
         }
-        StmtExpr qBody = ArrayAccessTranslator.stripLoadFacts(translateLambdaBody(lambda, Map.of())).val();
+        StmtExpr qBody = ArrayAccessTranslator.pureLoads(translateLambdaBody(lambda, Map.of()), ctx.lf).val();
         for (int i = binderNames.size() - 1; i >= 0; i--) {
             var param = new org.strata.jverify.laurel.Parameter(
                     LaurelFactory.ident(binderNames.get(i)), LaurelFactory.node(binderTypes.get(i)));

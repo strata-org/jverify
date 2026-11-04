@@ -103,6 +103,7 @@ XFAIL org.strata.jverify.verifier.tests.javasupport.OptedOutOverloadSibling CORT
 XFAIL org.strata.jverify.verifier.tests.javasupport.OverloadsTest CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.StaticOverloadRefusal CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.arrays.ArrayBoundsFailures CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.arrays.ArrayElementsInSpecs CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.arrays.ArrayRefusals CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.arrays.IntArraysVerification CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.javasupport.arrays.PrimitiveArrays CORTEX_CONTRACT procedure with a body and a contract

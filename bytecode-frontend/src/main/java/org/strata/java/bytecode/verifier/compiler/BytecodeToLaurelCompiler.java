@@ -2257,8 +2257,8 @@ public class BytecodeToLaurelCompiler {
                             + (ctx.method.throwsJoin != null ? " ('" + ctx.method.throwsJoin + "')" : "")
                             + "; narrow with instanceof and a cast inside the property");
         }
-        var converted = body.coerce(ArrayAccessTranslator.stripLoadFacts(
-                body.translateLambdaBody(handle, Map.of(binders.get(0).name(), THROWN_BINDING))), "Z");
+        var converted = body.coerce(ArrayAccessTranslator.pureLoads(
+                body.translateLambdaBody(handle, Map.of(binders.get(0).name(), THROWN_BINDING)), lf), "Z");
         return new Condition(LaurelTrees.rerange(converted, range, ctx.method.statementNodes),
                 Optional.empty(), new ConditionMode.Both());
     }
@@ -2932,7 +2932,7 @@ public class BytecodeToLaurelCompiler {
                 body.checkContractArg(converted);
             }
             BodyTranslator.refuseOld(converted, "a precondition");
-            converted = body.coerce(ArrayAccessTranslator.stripLoadFacts(converted), "Z");
+            converted = body.coerce(ArrayAccessTranslator.pureLoads(converted, lf), "Z");
             preconditions.add(new Condition(
                     LaurelTrees.rerange(converted, condRange, ctx.method.statementNodes),
                     Optional.empty(), new ConditionMode.Both()));
@@ -2999,7 +2999,7 @@ public class BytecodeToLaurelCompiler {
                 converted = spec.args().get(0);
                 body.checkContractArg(converted);
             }
-            converted = body.coerce(ArrayAccessTranslator.stripLoadFacts(converted), "Z");
+            converted = body.coerce(ArrayAccessTranslator.pureLoads(converted, lf), "Z");
             postconditions.add(new Condition(
                     LaurelTrees.rerange(converted, condRange, ctx.method.statementNodes),
                     Optional.empty(), new ConditionMode.Both()));
@@ -3215,7 +3215,7 @@ public class BytecodeToLaurelCompiler {
             // user `modifies` were reported above. The body becomes a function,
             // where Strata cannot link the opaque array load helper: element reads
             // use the transparent one.
-            procBody = new Body.Transparent(ArrayAccessTranslator.pureBodyLoads(noRange(methodBody), lf));
+            procBody = new Body.Transparent(ArrayAccessTranslator.pureLoads(noRange(methodBody), lf));
         } else {
             procBody = new Body.Opaque(postconditions, Optional.of(noRange(methodBody)),
                     unguardedModifies(modifies));

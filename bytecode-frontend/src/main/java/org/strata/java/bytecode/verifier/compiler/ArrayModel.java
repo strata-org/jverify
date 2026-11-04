@@ -83,9 +83,10 @@ final class ArrayModel {
     /** The element load helper prefix: {@code java?array_load_<suffix>(x: int): <range type>}. */
     static final String LOAD_HELPER_PREFIX = "java?array_load_";
     /**
-     * The transparent element load helper prefix for a transparent {@code @Transparent}
-     * body: {@code java?array_pure_load_<suffix>(x: int): <range type>}, the
-     * element clamped to the kind's range.
+     * The transparent element load helper prefix for a specification or a
+     * transparent {@code @Transparent} body: {@code
+     * java?array_pure_load_<suffix>(x: int): <range type>}, the element
+     * clamped to the kind's range.
      */
     static final String PURE_LOAD_HELPER_PREFIX = "java?array_pure_load_";
     /** The element store helper prefix: {@code java?array_store_<suffix>(x: int): int}, range-checked. */

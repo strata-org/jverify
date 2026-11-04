@@ -428,7 +428,7 @@ final class LoopEmitter {
                         body.checkContractArg(arg);
                     }
                     arg = applySnapshots(arg, scan.renames);
-                    arg = body.coerce(ArrayAccessTranslator.stripLoadFacts(arg), "Z");
+                    arg = body.coerce(ArrayAccessTranslator.pureLoads(arg, ctx.lf), "Z");
                     AstNode<StmtExpr> inv = LaurelTrees.rerange(arg, argRange, ctx.method.statementNodes);
                     // A short-circuit || duplicates the body's marker run
                     // into each header test's arm: drop the extra copies.
