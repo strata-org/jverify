@@ -5,6 +5,7 @@ import java.util.function.BiPredicate;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
+import java.util.function.LongPredicate;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -77,6 +78,9 @@ public class JVerify {
     }
 
     public static void postcondition(IntPredicate predicate) {
+    }
+
+    public static void postcondition(LongPredicate predicate) {
     }
 
     /**
@@ -302,11 +306,19 @@ public class JVerify {
         throw new VerificationMethodExecutedException();
     }
 
+    public static boolean forall(LongPredicate predicate) {
+        throw new VerificationMethodExecutedException();
+    }
+
     public static <T> boolean exists(Predicate<T> predicate) {
         throw new VerificationMethodExecutedException();
     }
 
     public static boolean exists(IntPredicate predicate) {
+        throw new VerificationMethodExecutedException();
+    }
+
+    public static boolean exists(LongPredicate predicate) {
         throw new VerificationMethodExecutedException();
     }
 
