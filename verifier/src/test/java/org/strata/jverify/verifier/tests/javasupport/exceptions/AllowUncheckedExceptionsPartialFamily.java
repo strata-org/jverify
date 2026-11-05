@@ -26,7 +26,7 @@ class AllowUncheckedExceptionsPartialFamily {
         @AllowUncheckedExceptions
         int m(int x) {
             return 10 / x;
-//          ^ Error: uncaught exception 'java.lang.ArithmeticException' is not thrown could not be proved
+//          ^ Error: uncaught exception 'java.lang.ArithmeticException' is not thrown does not hold
         }
     }
 

@@ -47,7 +47,7 @@ class OverrideWithSubclassOverload {
     }
     static class SubQ extends BaseQ {
         @Transparent @Override int m(int x) { return -1; }
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: override postcondition no weaker than '$result >= 0' from 'org.strata.jverify.verifier.tests.javasupport.classes.OverrideWithSubclassOverload.BaseQ.m' could not be proved
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: override postcondition no weaker than '$result >= 0' from 'org.strata.jverify.verifier.tests.javasupport.classes.OverrideWithSubclassOverload.BaseQ.m' does not hold
         // Not an override of anything: a subclass-added overload, and the reason
         // the closure-relative suffix diverged from the base's.
         @Transparent int m(String s) { return 2; }
@@ -55,6 +55,6 @@ class OverrideWithSubclassOverload {
     static void root() {
         BaseQ b = new SubQ();
         check(b.m(1) >= 0);
-//      ^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^^^^^^^ Error: assertion does not hold
     }
 }

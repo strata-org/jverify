@@ -22,7 +22,7 @@ class AllowUncheckedExceptionsInheritedImplementation {
     static class Base {
         public int m(int b) {
             return 10 / b;
-//          ^ Error: uncaught exception 'java.lang.ArithmeticException' is not thrown could not be proved
+//          ^ Error: uncaught exception 'java.lang.ArithmeticException' is not thrown does not hold
         }
     }
 

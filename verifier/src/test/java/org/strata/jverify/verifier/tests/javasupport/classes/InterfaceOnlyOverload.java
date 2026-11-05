@@ -33,6 +33,6 @@ class InterfaceOnlyOverload {
 
     static void use(C c, Box b) {
         check(c.get(b) == 0);
-//      ^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^^^^^^^^^^ Error: assertion does not hold
     }
 }

@@ -27,7 +27,7 @@ class ReferenceCastObligation {
     /** Unguarded downcast: `s` is an arbitrary Shape, so the cast may throw an uncaught ClassCastException. */
     static void refDowncastUnproven(Shape s) {
         Circle c = (Circle) s;
-//      ^^^^^^^^^^^^^^^^^^^^^^ Error: uncaught exception 'java.lang.ClassCastException' is not thrown could not be proved
+//      ^^^^^^^^^^^^^^^^^^^^^^ Error: uncaught exception 'java.lang.ClassCastException' is not thrown does not hold
     }
 
     /** An upcast carries no obligation at all. */

@@ -35,7 +35,7 @@ class AllowUncheckedExceptionsInterfaceFamily {
         public int apply(int b) {
             if (b < 0) {
                 throw new Boom();
-//              ^ Error: uncaught exception 'org.strata.jverify.verifier.tests.javasupport.exceptions.AllowUncheckedExceptionsInterfaceFamily.Boom' is not thrown could not be proved
+//              ^ Error: uncaught exception 'org.strata.jverify.verifier.tests.javasupport.exceptions.AllowUncheckedExceptionsInterfaceFamily.Boom' is not thrown does not hold
             }
             return b;
         }

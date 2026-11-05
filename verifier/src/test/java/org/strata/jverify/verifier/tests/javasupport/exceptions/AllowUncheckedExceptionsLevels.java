@@ -43,7 +43,7 @@ class AllowUncheckedExceptionsLevels {
 
     static int callerUncaught(int b) {
         return div(10, b);
-//      ^ Error: call does not throw an uncaught 'java.lang.ArithmeticException' could not be proved
+//      ^ Error: call does not throw an uncaught 'java.lang.ArithmeticException' does not hold
     }
 
     @AllowUncheckedExceptions
@@ -62,7 +62,7 @@ class AllowUncheckedExceptionsLevels {
     static int notAllowed(int a, int b) {
         precondition(a >= 0);
         return a / b;
-//      ^ Error: uncaught exception 'java.lang.ArithmeticException' is not thrown could not be proved
+//      ^ Error: uncaught exception 'java.lang.ArithmeticException' is not thrown does not hold
     }
 
     // A declared checked exception is joined with the inferred unchecked one:
@@ -100,7 +100,7 @@ class AllowUncheckedExceptionsLevels {
         static int denied(int a, int b) {
             precondition(a >= 0);
             return a / b;
-//          ^ Error: uncaught exception 'java.lang.ArithmeticException' is not thrown could not be proved
+//          ^ Error: uncaught exception 'java.lang.ArithmeticException' is not thrown does not hold
         }
     }
 
@@ -110,7 +110,7 @@ class AllowUncheckedExceptionsLevels {
         static int div(int a, int b) {
             precondition(a >= 0);
             return a / b;
-//          ^ Error: uncaught exception 'java.lang.ArithmeticException' is not thrown could not be proved
+//          ^ Error: uncaught exception 'java.lang.ArithmeticException' is not thrown does not hold
         }
     }
 }

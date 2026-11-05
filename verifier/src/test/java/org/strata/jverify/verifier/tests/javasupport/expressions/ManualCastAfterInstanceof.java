@@ -39,7 +39,7 @@ class ManualCastAfterInstanceof {
         if (i instanceof C) {
             C c = (C) i;
             check(c != i);
-//          ^^^^^^^^^^^^^ Error: assertion could not be proved
+//          ^^^^^^^^^^^^^ Error: assertion does not hold
         }
     }
 }

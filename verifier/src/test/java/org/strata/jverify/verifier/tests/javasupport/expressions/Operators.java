@@ -28,7 +28,7 @@ class Operators {
         int y = 4;
         int z = x + y;
         check(z==6);
-//      ^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^ Error: assertion does not hold
     }
 
     static void Minus() {
@@ -43,7 +43,7 @@ class Operators {
         int y = 4;
         int z = y - x;
         check(z==0);
-//      ^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^ Error: assertion does not hold
     }
 
     static void Mult() {
@@ -58,7 +58,7 @@ class Operators {
         int y = 4;
         int z = x * y;
         check(z==11);
-//      ^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^ Error: assertion does not hold
     }
 
     static void Mod() {
@@ -73,7 +73,7 @@ class Operators {
         int y = 23;
         int z = y % x;
         check(z==1);
-//      ^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^ Error: assertion does not hold
     }
 
     static void Gt() {
@@ -86,7 +86,7 @@ class Operators {
         int x = 33;
         int y = 23;
         check(y > x);
-//      ^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^ Error: assertion does not hold
     }
 
     static void Lt() {
@@ -99,7 +99,7 @@ class Operators {
         int x = 33;
         int y = 23;
         check(x < y);
-//      ^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^ Error: assertion does not hold
     }
 
     static void Leq() {
@@ -112,7 +112,7 @@ class Operators {
         int x = 33;
         int y = 23;
         check(x <= y);
-//      ^^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^^ Error: assertion does not hold
     }
 
     static void Geq() {
@@ -125,7 +125,7 @@ class Operators {
         int x = 33;
         int y = 23;
         check(y >= x);
-//      ^^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^^ Error: assertion does not hold
     }
 
     static void Eq() {
@@ -166,7 +166,7 @@ class Operators {
 
     void castNumInvalid(int i) {
         check(i == (short) i);
-//                 ^^^^^^^^^ Error: cast from int32 to int16 could not be proved
+//                 ^^^^^^^^^ Error: cast from int32 to int16 does not hold
     }
 
     void castRefTrivial() {
@@ -187,7 +187,7 @@ class Operators {
 
         //noinspection RedundantCast,NewObjectEquality,DataFlowIssue
         var casted = (DummyClass) dc2;
-//                   ^^^^^^^^^^^^^^^^ Error: uncaught exception 'java.lang.ClassCastException' is not thrown could not be proved
+//                   ^^^^^^^^^^^^^^^^ Error: uncaught exception 'java.lang.ClassCastException' is not thrown does not hold
         check(dc1 == casted);
     }
 }

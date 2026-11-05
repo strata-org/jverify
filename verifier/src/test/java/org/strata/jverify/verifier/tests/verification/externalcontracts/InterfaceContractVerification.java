@@ -39,7 +39,7 @@ public class InterfaceContractVerification {
         int externalContract(int x);
         default int internalContract() {
             postcondition((int r) -> r > 2);
-//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: postcondition could not be proved
+//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: postcondition does not hold
             return 1;
         }
     }

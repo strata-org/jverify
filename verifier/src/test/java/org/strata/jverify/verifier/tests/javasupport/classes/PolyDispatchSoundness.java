@@ -50,11 +50,11 @@ class PolyDispatchSoundness {
     }
     static class SubP extends BaseP {
         @Transparent @Override int compute() { return -1; }
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: override postcondition no weaker than '$result >= 0' from 'org.strata.jverify.verifier.tests.javasupport.classes.PolyDispatchSoundness.BaseP.compute' could not be proved
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: override postcondition no weaker than '$result >= 0' from 'org.strata.jverify.verifier.tests.javasupport.classes.PolyDispatchSoundness.BaseP.compute' does not hold
     }
     static void root() {
         BaseP b = new SubP();
         check(b.compute() >= 0);
-//      ^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
+//      ^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion does not hold
     }
 }

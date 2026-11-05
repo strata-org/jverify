@@ -26,7 +26,7 @@ class AllowUncheckedExceptionsGenericFamily {
         @AllowUncheckedExceptions
         public int apply(T x, int d) {
             return 10 / d;
-//          ^ Error: uncaught exception 'java.lang.ArithmeticException' is not thrown could not be proved
+//          ^ Error: uncaught exception 'java.lang.ArithmeticException' is not thrown does not hold
         }
     }
 

@@ -143,7 +143,7 @@ class MainTest {
         Files.delete(classes.resolve("dep/Gone.class"));
         var r = run(write(tmp, "UseDep.java", USE_DEP).toString(), "--classpath", classes.toString());
         assertEquals(4, r.exitCode(), r::toString);
-        assertTrue(r.out().contains("assertion could not be proved"), r::toString);
+        assertTrue(r.out().contains("assertion does not hold"), r::toString);
     }
 
     /**
@@ -218,7 +218,7 @@ class MainTest {
                     }
                     """.formatted(name)).toString(), "--classpath", classes.toString());
             assertEquals(4, r.exitCode(), () -> name + ": " + r);
-            assertTrue(r.out().contains("assertion could not be proved"), () -> name + ": " + r);
+            assertTrue(r.out().contains("assertion does not hold"), () -> name + ": " + r);
         }
     }
 
@@ -237,7 +237,7 @@ class MainTest {
         var r = run(write(tmp, "UseDep.java", USE_DEP.replace("dep.Mid", "sun.nio.ch.Mid")).toString(),
                 "--classpath", classes.toString());
         assertEquals(4, r.exitCode(), r::toString);
-        assertTrue(r.out().contains("assertion could not be proved"), r::toString);
+        assertTrue(r.out().contains("assertion does not hold"), r::toString);
     }
 
     /**
@@ -276,7 +276,7 @@ class MainTest {
                 }
                 """).toString(), "--classpath", classes.toString());
         assertEquals(4, r.exitCode(), r::toString);
-        assertTrue(r.out().contains("assertion could not be proved"), r::toString);
+        assertTrue(r.out().contains("assertion does not hold"), r::toString);
     }
 
     /** Sources on --classpath are not compiled: javac reports the class they declare missing. */

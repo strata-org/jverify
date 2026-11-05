@@ -27,8 +27,8 @@ class WishlistCastObligation {
     static int castObligation(int x) throws AppException {
         throwsOn(x < 0).postcondition((AppException e) ->
                 ((ParseError) e) instanceof ParseError);
-//               ^ Error: precondition could not be proved
-//               ^ Error: postcondition could not be proved
+//               ^ Error: precondition does not hold
+//               ^ Error: postcondition does not hold
         if (x < 0) {
             throw new AppException();
         }
