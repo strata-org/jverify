@@ -1,0 +1,218 @@
+# Fixtures expected to fail on the Cortex pipeline (cortexCorpusTest, cortexExamplesTest).
+#   XFAIL <fqcn> <BLOCKER> <reason>   run, invert the outcome; a pass is XPASS
+#   RUN   <fqcn> <reason>             run normally despite expectedToFail
+#   SKIP  <fqcn> <reason>             do not run
+
+XFAIL org.strata.jverify.langref.jls12.s12_5.ImplicitSuperCall_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls12.s12_5.ThisCtorChain_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls14.s14_11.SwitchOnInteger_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls14.s14_17.ReturnStatement_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_11.FieldAccessUsingPrimary_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_11.FieldAccessUsingPrimary_2 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_11.FieldAccessUsingPrimary_3 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_12.IsChosenMethodAppropriate_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_12.IsChosenMethodAppropriate_2 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_16.CastExpression_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_16.CastExpression_4 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_16.CastExpression_5 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_16.CastExpression_BoxingCast CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_16.CastExpression_UnboxingCast CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_21.ReferenceEqualityOperators_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_21.ReferenceEqualityOperators_2 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_21.ReferenceEqualityOperators_3 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_21.ReferenceEqualityOperators_4 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_25.NumericConditionalExpression_8 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_8.ThisExpression_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_8.ThisExpression_2 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_9.DeterminingClassInstantiated_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_9.DeterminingClassInstantiated_2 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls15.s15_9.DeterminingClassInstantiated_3 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls3.s3_9.Keywords_10 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls4.s4_12.FinalVariables_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls4.s4_12.FinalVariables_2 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls4.s4_12.FinalVariables_3 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls4.s4_12.FinalVariables_4 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls4.s4_12.KindsOfVariables_2 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls4.s4_12.KindsOfVariables_4 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls4.s4_12.KindsOfVariables_5 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls4.s4_12.ReferenceTypeVariable_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls4.s4_3.Objects_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls4.s4_3.Objects_2 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls4.s4_3.WhenReferenceTypesAreTheSame_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls4.s4_3.WhenReferenceTypesAreTheSame_2 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls4.s4_4.TypeVariables_2 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls4.s4_8.RawTypes_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls4.s4_8.RawTypes_3 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls5.s5_1.BoxingConversion_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls5.s5_1.BoxingConversion_2 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls5.s5_1.BoxingConversion_4 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls5.s5_1.UnboxingConversion_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls5.s5_1.UnboxingConversion_2 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls5.s5_1.UnboxingConversion_3 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls5.s5_1.UnboxingConversion_4 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls5.s5_2.AssignmentContexts_11 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls5.s5_2.AssignmentContexts_12 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls5.s5_2.AssignmentContexts_13 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls5.s5_5.CastingContexts_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls5.s5_5.CastingContexts_10 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls5.s5_5.CastingContexts_11 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls5.s5_5.CastingContexts_2 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls5.s5_5.CastingContexts_9 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls6.s6_7.FullyQualified_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls8.s8_1.AbstractClass CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls8.s8_3.FieldInitialization_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls8.s8_3.FieldInitialization_2 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls8.s8_3.FieldInitialization_ReferenceEarlier CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls8.s8_3.FinalField_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls8.s8_3.FinalField_2 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls8.s8_4.AbstractMethods CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls8.s8_4.MethodResult_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls8.s8_8.ConstructorOverloading_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls8.s8_8.ConstructorOverloading_2 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls8.s8_8.ConstructorOverloading_3 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls8.s8_8.DefaultConstructor CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls8.s8_8.ExplicitConstructorInvocation_1 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls8.s8_8.ExplicitConstructorInvocation_2 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls8.s8_8.PreventingInstantiation CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls9.s9_1.GenericInterfaces CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.algorithms.Ackermann CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.algorithms.AlignUp CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.algorithms.AlignUpInvalid CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.algorithms.EvenOdd CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.algorithms.EvenOddInvalid CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.algorithms.IntegerSqrt CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.algorithms.IntegerSqrtInvalid CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.algorithms.McCarthy91 CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.algorithms.RecursiveMultiply CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.algorithms.RecursiveMultiplyInvalid CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.examples.Basic CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.examples.BoundedInts CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.examples.LongPostconditionFailure CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.examples.LongPostconditions CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.examples.NameCollision CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.examples.PostconditionFailure CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.examples.Postconditions CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.examples.ProcedureCalls CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.examples.WhileLoop CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.interpret.InterpretCalleePreconditionFails CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.interpret.InterpretPostconditionFails CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.CallToOptedOutOverload CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.InstanceContractsChecked CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.Jequals CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.OptedOutOverloadSibling CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.OverloadsTest CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.StaticOverloadRefusal CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.arrays.ArrayBoundsFailures CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.arrays.ArrayRefusals CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.arrays.IntArraysVerification CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.arrays.PrimitiveArrays CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.boxing.BoxingRefusals CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.boxing.BoxingVerification CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.classes.AbstractLibraryMethod CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.classes.ConstructorsVerified CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.classes.CrossClassOverloadRefusal CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.classes.FinalReceiverInheritedCall CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.classes.InheritedNameOverload CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.classes.InstanceMethodCallVerifies CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.classes.InstanceMethodContractViolated CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.classes.InstanceMethodVerifies CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.classes.InterfaceObjectMethod CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.classes.InterfaceOnlyOverload CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.classes.LibraryOverload CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.classes.OverrideWithSubclassOverload CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.classes.PolyDispatchSoundness CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.classes.PrivateNamesake CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.classes.PrivateSupertypeOverload CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.classes.PureCallResult CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.classes.SkippedConstructorContractNotVerified CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.classes.SubtypeFlow CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.classes.SubtypeSortFlow CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.exceptions.AllowUncheckedExceptionsLevels CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.exceptions.AllowUncheckedExceptionsOverrides CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.exceptions.AllowUncheckedExceptionsProjectLevel CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.exceptions.AllowUncheckedExceptionsThrowsOn CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.exceptions.ImplicitExceptions CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.exceptions.ThrowsOnContract CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.exceptions.TryCatchFinally CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.exceptions.WishlistConstructorData CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.exceptions.uncheckedpkg.PackageLevel CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.FieldAccessModifies CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.FreshAndOld CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.IncrementDecrement CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.OldExpressions CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.PrimitiveCasts CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.generics.OverrideOfGenericInstantiation CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.generics.PolymorphicStaticsVerification CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.lambdas.LambdaBodyContract CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.lambdas.LambdaCapturesThisInGenericClass CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.localClasses.LocalAndAnonymousClasses CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.packages.MultiPackageTest CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.statements.AssertVsCheck CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.statements.HoistedNameReuse CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.statements.LeadingBreakGuard CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.statements.LoopHeaderShapes CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.statements.ParameterReassignment CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.statements.SwitchArmNestedLoop CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.statements.SwitchDesugaring CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.statements.VerifyBreakContinue CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.jcl.BigIntegerContracts CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.jcl.StringContracts CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.verification.InvariantsAndStaticMethodsInSameClass CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.verification.MethodContractsVerification CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.verification.externalcontracts.InterfaceContractVerification CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.verification.externalcontracts.LibraryContractGhostFieldVerification CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.verification.externalcontracts.UserContractApplies CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.verification.externalcontracts.UserContractThrowsOnFrame CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.verification.pure.PureMethodVerification CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.verification.pure.PureMethodWithLoop CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.langref.jls4.s4_12.InitialValues_7 CORTEX_DEFAULT_FIELD_VALUE reads a field whose Java default value the Core interpreter cannot produce
+XFAIL org.strata.jverify.langref.jls4.s4_12.InitialValues_8 CORTEX_DEFAULT_FIELD_VALUE reads a field whose Java default value the Core interpreter cannot produce
+XFAIL org.strata.jverify.langref.jls4.s4_12.InitialValues_InstanceByte CORTEX_DEFAULT_FIELD_VALUE reads a field whose Java default value the Core interpreter cannot produce
+XFAIL org.strata.jverify.langref.jls4.s4_12.InitialValues_InstanceChar CORTEX_DEFAULT_FIELD_VALUE reads a field whose Java default value the Core interpreter cannot produce
+XFAIL org.strata.jverify.langref.jls4.s4_12.InitialValues_InstanceLong CORTEX_DEFAULT_FIELD_VALUE reads a field whose Java default value the Core interpreter cannot produce
+XFAIL org.strata.jverify.langref.jls4.s4_12.InitialValues_InstanceShort CORTEX_DEFAULT_FIELD_VALUE reads a field whose Java default value the Core interpreter cannot produce
+XFAIL org.strata.jverify.langref.jls8.s8_1.StaticNestedClass CORTEX_DEFAULT_FIELD_VALUE reads a field whose Java default value the Core interpreter cannot produce
+XFAIL org.strata.jverify.verifier.tests.javasupport.exceptions.AllowUncheckedExceptionsGenericFamily CORTEX_GENERICS generic composite types
+XFAIL org.strata.jverify.verifier.tests.javasupport.generics.GenericNoArgConstructor CORTEX_GENERICS generic composite types
+XFAIL org.strata.jverify.verifier.tests.javasupport.generics.InferredGenericsForConstructor CORTEX_GENERICS generic composite types
+XFAIL org.strata.jverify.verifier.tests.javasupport.generics.LibraryExceptionTypeArgument CORTEX_GENERICS generic composite types
+XFAIL org.strata.jverify.verifier.tests.javasupport.nestedClasses.NestedPolymorphism CORTEX_GENERICS generic composite types
+XFAIL org.strata.jverify.verifier.tests.examples.ForLoop CORTEX_LOOP_INVARIANT loop invariants
+XFAIL org.strata.jverify.verifier.tests.javasupport.statements.VerifyDoWhile CORTEX_LOOP_INVARIANT loop invariants
+XFAIL org.strata.jverify.verifier.tests.javasupport.statements.VerifyStatements CORTEX_LOOP_INVARIANT loop invariants
+XFAIL org.strata.jverify.verifier.tests.javasupport.statements.VerifyValuelessReturn CORTEX_LOOP_INVARIANT loop invariants
+XFAIL org.strata.jverify.examples.SourceContract CORTEX_VERDICT diagnostics differ from the Laurel pipeline
+XFAIL org.strata.jverify.verifier.tests.examples.PureFunction CORTEX_VERDICT diagnostics differ from the Laurel pipeline
+XFAIL org.strata.jverify.verifier.tests.examples.Quantifiers CORTEX_VERDICT diagnostics differ from the Laurel pipeline
+XFAIL org.strata.jverify.verifier.tests.javasupport.MissingContractVoidCallFrame CORTEX_VERDICT diagnostics differ from the Laurel pipeline
+XFAIL org.strata.jverify.verifier.tests.javasupport.RequireNonNullContract CORTEX_VERDICT diagnostics differ from the Laurel pipeline
+XFAIL org.strata.jverify.verifier.tests.javasupport.classes.BodylessVoidCalleeFrame CORTEX_VERDICT diagnostics differ from the Laurel pipeline
+XFAIL org.strata.jverify.verifier.tests.javasupport.exceptions.AllowUncheckedExceptionsInterfaceFamily CORTEX_VERDICT diagnostics differ from the Laurel pipeline
+XFAIL org.strata.jverify.verifier.tests.javasupport.exceptions.AllowUncheckedExceptionsLibraryOverride CORTEX_VERDICT diagnostics differ from the Laurel pipeline
+XFAIL org.strata.jverify.verifier.tests.javasupport.exceptions.ThrowsOnForcingFailure CORTEX_VERDICT diagnostics differ from the Laurel pipeline
+XFAIL org.strata.jverify.verifier.tests.javasupport.exceptions.WishlistCastObligation CORTEX_VERDICT diagnostics differ from the Laurel pipeline
+XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.FieldAccess CORTEX_VERDICT diagnostics differ from the Laurel pipeline
+XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.FieldAccessCrossUnit CORTEX_VERDICT diagnostics differ from the Laurel pipeline
+XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.Operators CORTEX_VERDICT diagnostics differ from the Laurel pipeline
+XFAIL org.strata.jverify.verifier.tests.javasupport.nestedClasses.NestedInstanceClass CORTEX_VERDICT diagnostics differ from the Laurel pipeline
+XFAIL org.strata.jverify.verifier.tests.javasupport.packages.SameSimpleNameAB CORTEX_VERDICT diagnostics differ from the Laurel pipeline
+XFAIL org.strata.jverify.verifier.tests.javasupport.packages.SameSimpleNameBA CORTEX_VERDICT diagnostics differ from the Laurel pipeline
+XFAIL org.strata.jverify.verifier.tests.jcl.StringOverloads CORTEX_VERDICT diagnostics differ from the Laurel pipeline
+XFAIL org.strata.jverify.verifier.tests.verification.TranslatorSkip CORTEX_VERDICT diagnostics differ from the Laurel pipeline
+XFAIL org.strata.jverify.verifier.tests.verification.externalcontracts.NestedContractsTest CORTEX_VERDICT diagnostics differ from the Laurel pipeline
+XFAIL org.strata.jverify.verifier.tests.verification.externalcontracts.UserContractSoundness CORTEX_VERDICT diagnostics differ from the Laurel pipeline
+XFAIL org.strata.jverify.verifier.tests.verification.shouldVerify.InheritedUnverifiedMembers CORTEX_VERDICT diagnostics differ from the Laurel pipeline
+XFAIL org.strata.jverify.langref.jls8.s8_4.Overloading_1 CORTEX_CONTRACT procedure with a contract
+XFAIL org.strata.jverify.langref.jls8.s8_4.Overloading_2 CORTEX_CONTRACT procedure with a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.exceptions.WishlistSwitchExpressionThrow CORTEX_CONTRACT procedure with a contract
+XFAIL org.strata.jverify.verifier.tests.javasupport.expressions.PrimitiveCastsMultiFile CORTEX_CONTRACT procedure with a contract
+XFAIL org.strata.jverify.verifier.tests.jcl.BoxedIntegerBuiltin CORTEX_CONTRACT procedure with a contract
+XFAIL org.strata.jverify.verifier.tests.verification.externalcontracts.RefineContractOfInheritedMethod CORTEX_CONTRACT procedure with a contract
+XFAIL org.strata.jverify.verifier.tests.verification.shouldVerify.UnusedUnverifiedContractRequirement CORTEX_CONTRACT procedure with a contract
+XFAIL org.strata.jverify.langref.jls8.s8_8.ConstructorBody CORTEX_FRAME procedure with a frame other than modifies *
+XFAIL org.strata.jverify.verifier.tests.verification.shouldVerify.ShouldVerify CORTEX_FRAME procedure with a frame other than modifies *
+XFAIL org.strata.jverify.verifier.tests.javasupport.statements.InvariantQuantifierBoundsObligation CORTEX_LOOP_INVARIANT loop invariants
+XFAIL org.strata.jverify.verifier.tests.javasupport.statements.LoopCounterSnapshot CORTEX_LOOP_INVARIANT loop invariants
+XFAIL org.strata.jverify.verifier.tests.javasupport.statements.LoopCounterSnapshotInvalid CORTEX_LOOP_INVARIANT loop invariants
+XFAIL org.strata.jverify.verifier.tests.verification.pure.PrefixQuantifierInvariant CORTEX_LOOP_INVARIANT loop invariants
+XFAIL org.strata.jverify.verifier.tests.verification.pure.PrefixQuantifierInvariantInvalid CORTEX_LOOP_INVARIANT loop invariants

@@ -118,10 +118,11 @@ public class StrataBackend {
          */
         static Invocation of(VerifierOptions options) {
             var arguments = new ArrayList<String>();
+            boolean cortex = Boolean.getBoolean("jverify.cortex");
             if (options.interpret()) {
                 // Interpret mode shares the `==== DIAGNOSTICS ====` output format
                 // with laurelAnalyzeBinary, so parseStrataOutput is reused as is.
-                arguments.add("laurelInterpretBinary");
+                arguments.add(cortex ? "cortexInterpretBinary" : "laurelInterpretBinary");
                 if (options.entry() != null) {
                     arguments.add("--entry");
                     arguments.add(entryProcedure(options.entry()));
@@ -130,22 +131,31 @@ public class StrataBackend {
                     arguments.add("--fuel");
                     arguments.add(Integer.toString(options.fuel()));
                 }
-                if (options.interpreter() != null) {
+                if (cortex) {
+                    arguments.add("--interpreter");
+                    arguments.add("core");
+                } else if (options.interpreter() != null) {
                     arguments.add("--interpreter");
                     arguments.add(options.interpreter());
                 }
             } else {
-                arguments.add("laurelAnalyzeBinary");
+                arguments.add(cortex ? "cortexAnalyzeBinary" : "laurelAnalyzeBinary");
                 arguments.add("--solver");
                 arguments.add("z3");
             }
-            if (!"laurel".equals(options.interpreter())) {
+            if (!cortex && !"laurel".equals(options.interpreter())) {
                 arguments.add("--skip-phases");
                 arguments.add(String.join(",", UNUSED_LAUREL_PHASES));
             }
             var projectDir = options.strataProjectDir();
+            if (cortex && projectDir != null) {
+                throw new IllegalArgumentException("jverify.cortex cannot be combined with a Strata project "
+                        + "directory: the Cortex commands are in strataLaurel, not in StrataCLI's strata. "
+                        + "Use -Djverify.strataLaurel=<path> to select a local build.");
+            }
+            var binary = System.getProperty("jverify.strataLaurel", "strataLaurel");
             return projectDir == null
-                    ? new Invocation(List.of("strataLaurel"), List.copyOf(arguments), null)
+                    ? new Invocation(List.of(binary), List.copyOf(arguments), null)
                     : new Invocation(List.of("lake", "exe", "-q", "strata"), List.copyOf(arguments),
                             projectDir.resolve("StrataCLI"));
         }
@@ -176,7 +186,13 @@ public class StrataBackend {
     public JVerifyResults runVerifier(PositionResolver positions,
                                       Map<URI, IntervalTree<Integer, MethodVerificationStatus>> methodStatuses,
                                       IonValue serializedProgram) {
-        var invocation = Invocation.of(verifierOptions);
+        Invocation invocation;
+        try {
+            invocation = Invocation.of(verifierOptions);
+        } catch (IllegalArgumentException e) {
+            verifierOptions.outWriter().println(e.getMessage());
+            return new JVerifyResults.DidNotRun(new ArrayList<>(), -1, -1);
+        }
         var processBuilder = invocation.processBuilder();
         var abortUri = methodStatuses.keySet().stream().findFirst()
                 .orElse(Paths.get("strata").toUri());

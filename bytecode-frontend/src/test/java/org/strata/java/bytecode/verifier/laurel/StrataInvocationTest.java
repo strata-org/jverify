@@ -11,6 +11,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /** The Strata command line and directory {@link StrataBackend} runs, without running it. */
 class StrataInvocationTest {
@@ -69,5 +70,16 @@ class StrataInvocationTest {
                 StrataBackend.Invocation.of(options(false, null, null, null, null)).describe());
         assertEquals("`lake exe -q strata` in " + Path.of("/work/Strata/StrataCLI"),
                 StrataBackend.Invocation.of(options(false, null, null, null, Path.of("/work/Strata"))).describe());
+    }
+
+    @Test
+    void cortexWithProjectDirIsRejected() {
+        System.setProperty("jverify.cortex", "true");
+        try {
+            assertThrows(IllegalArgumentException.class, () ->
+                    StrataBackend.Invocation.of(options(false, null, null, null, Path.of("/work/Strata"))));
+        } finally {
+            System.clearProperty("jverify.cortex");
+        }
     }
 }

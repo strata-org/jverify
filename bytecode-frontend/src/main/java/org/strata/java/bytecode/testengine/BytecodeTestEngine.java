@@ -19,6 +19,7 @@ import org.strata.java.bytecode.verifier.VerifierOptions;
 import com.google.auto.service.AutoService;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Assumptions;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.platform.commons.support.ReflectionSupport;
 import org.junit.platform.engine.DiscoverySelector;
 import org.junit.platform.engine.EngineDiscoveryRequest;
@@ -172,7 +173,7 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
             }
             LOGGER.fine(() -> "Found source file: " + sourcePath);
 
-            testMarkedSource(sourcePath, testClass.getAnnotation(JVerifyTest.class));
+            testMarkedSource(sourcePath, testClass.getAnnotation(JVerifyTest.class), testClass.getName());
             return context;
         }
     }
@@ -202,8 +203,13 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
      * @see #testMarkedSource(SourceFile, JVerifyTest)
      */
     public static void testMarkedSource(Path markedSourcePath, JVerifyTest annotation) throws IOException {
+        testMarkedSource(markedSourcePath, annotation, null);
+    }
+
+    static void testMarkedSource(Path markedSourcePath, JVerifyTest annotation, @Nullable String className)
+            throws IOException {
         var markedSource = Files.readString(markedSourcePath);
-        testMarkedSource(new SourceFile(markedSourcePath, markedSource), annotation);
+        testMarkedSource(new SourceFile(markedSourcePath, markedSource), annotation, className);
     }
 
     /**
@@ -212,11 +218,46 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
      * code's test metadata.
      */
     public static void testMarkedSource(SourceFile markedSourceFile, JVerifyTest annotation) throws IOException {
+        testMarkedSource(markedSourceFile, annotation, null);
+    }
+
+    static void testMarkedSource(SourceFile markedSourceFile, JVerifyTest annotation, @Nullable String className)
+            throws IOException {
         var parsedMarkup = TestMarkup.getPositionsAndAnnotatedRanges(markedSourceFile.getCharContent(false));
         List<AnnotatedRange> ranges = new ArrayList<>(parsedMarkup.ranges());
         ranges.addAll(additionalFileRanges(markedSourceFile, annotation));
         ranges.addAll(JVerifyTestEngine.contractFileRanges(markedSourceFile, annotation));
-        verifyFile(markedSourceFile, annotation, ranges);
+        var options = getVerifierOptions(annotation, JVerifyTestEngine.contractSources(markedSourceFile, annotation));
+        if (className != null && Boolean.getBoolean(CortexXfailManifest.PROPERTY)) {
+            verifyFileOnCortex(markedSourceFile, annotation, ranges, options, className);
+        } else {
+            verifyFile(markedSourceFile, annotation, ranges, options);
+        }
+    }
+
+    private static final class CortexXfails {
+        static final CortexXfailManifest INSTANCE = CortexXfailManifest.load();
+    }
+
+    private static void verifyFileOnCortex(SourceFile sourceFile, JVerifyTest annotation,
+                                           List<AnnotatedRange> ranges, VerifierOptions options,
+                                           String className) throws IOException {
+        var skip = CortexXfails.INSTANCE.skipReason(className);
+        Assumptions.assumeTrue(skip == null, "SKIP on Cortex: " + skip);
+        var xfail = CortexXfails.INSTANCE.forcedXfail(className);
+        if (xfail != null) {
+            Assumptions.assumeTrue(annotation.skip() == null || annotation.skip().isEmpty(), annotation.skip());
+            applyXfailInversion("Cortex " + xfail.blocker() + ": " + xfail.reason(),
+                    "Remove its entry from cortex-xfails.txt.",
+                    () -> runAndCheck(sourceFile, annotation, ranges, options));
+            return;
+        }
+        if (CortexXfails.INSTANCE.isForcedRun(className)) {
+            Assumptions.assumeTrue(annotation.skip() == null || annotation.skip().isEmpty(), annotation.skip());
+            runAndCheck(sourceFile, annotation, ranges, options);
+            return;
+        }
+        verifyFile(sourceFile, annotation, ranges, options);
     }
 
     /**
@@ -269,6 +310,7 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
         }
         // xfail: run it, but invert the outcome.
         applyXfailInversion(describeBlockers(annotation),
+                "Remove expectedToFail/blockedBy and adopt it as a normal test.",
                 () -> runAndCheck(sourceFile, annotation, ranges, options));
     }
 
@@ -286,15 +328,14 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
      * failure means the blocker(s) cleared -> fail loudly (XPASS) to demand the
      * {@code expectedToFail} be removed.
      */
-    public static void applyXfailInversion(String why, VerificationCheck check) throws IOException {
+    public static void applyXfailInversion(String why, String remedy, VerificationCheck check) throws IOException {
         try {
             check.run();
         } catch (AssertionError expected) {
             Assumptions.assumeTrue(false, "Expected failure (" + why + "): " + expected.getMessage());
             return;
         }
-        Assertions.fail("XPASS: this test is marked expectedToFail (" + why + ") but now PASSES. "
-                + "Remove expectedToFail/blockedBy and adopt it as a normal test.");
+        Assertions.fail("XPASS: this test is marked expectedToFail (" + why + ") but now PASSES. " + remedy);
     }
 
     private static String describeBlockers(JVerifyTest annotation) {
