@@ -7,8 +7,11 @@ import org.strata.java.bytecode.frontend.StructException;
 import org.strata.jverify.laurel.AstNode;
 import org.strata.jverify.laurel.FileRange;
 import org.strata.jverify.laurel.StmtExpr;
+import org.strata.jverify.laurel.Variable;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -116,16 +119,54 @@ final class LoopEmitter {
      * {@code while (true)}, which the old pre-tested-while recovery made the
      * loop condition), descends into those tests' arms, and consumes the
      * marker runs it finds (several, deduplicated, when short-circuiting
-     * duplicated them). A marker behind anything else -- a user statement,
-     * or a user {@code if}'s arm -- is NOT a loop contract: it stays put and
-     * refuses the method as a misplaced contract call. Invariants convert
-     * (at their argument range, contract-checked), reads/modifies/decreases
-     * drop, and pre/postconditions refuse.
+     * duplicated them). Leading counter snapshots ({@code final int i0 = i;},
+     * see {@link HeaderScan}) are also part of the header: they are accepted
+     * as ghost definitions and substituted away inside the invariants. A
+     * marker behind anything else -- a user statement, or a user {@code
+     * if}'s arm -- is NOT a loop contract: it stays put and refuses the
+     * method as a misplaced contract call. Invariants convert (at their
+     * argument range, contract-checked), reads/modifies/decreases drop, and
+     * pre/postconditions refuse.
      */
     private List<AstNode<StmtExpr>> extractLoopInvariants(List<AstNode<StmtExpr>> bodyStmts, String label) {
         var invariants = new ArrayList<AstNode<StmtExpr>>();
-        scanPastHeader(bodyStmts, invariants, label);
+        scanPastHeader(bodyStmts, invariants, label, new HeaderScan());
         return invariants;
+    }
+
+    /**
+     * State of one loop's header scan: the counter snapshots accepted so far
+     * and the locals the skipped header statements assign.
+     *
+     * <p>A lambda in a contract clause cannot capture the loop counter --
+     * javac requires captured locals to be effectively final -- so the
+     * supported idiom copies the counter into a final local first:
+     *
+     * <pre>
+     *     while (i &lt; a.length) {
+     *         final int i0 = i;
+     *         invariant(forall((int j) -&gt; implies(0 &lt;= j &amp;&amp; j &lt; i0, ...)));
+     * </pre>
+     *
+     * The copy executes in the loop BODY, but Laurel checks invariants at the
+     * loop head, where {@code i0} is still the hoisted, unassigned variable.
+     * Keeping the copy as an assignment would therefore check an arbitrary
+     * value on entry and a stale one on back edges. Instead the copy is a
+     * ghost DEFINITION: {@code renames} substitutes {@code i0 -> i} inside
+     * every extracted invariant, which is exact because the copy runs before
+     * anything else in the body -- unless a skipped header statement already
+     * wrote the source variable (a store embedded in the loop condition,
+     * e.g. {@code while (i++ < n)}): {@code written} tracks those, and a
+     * copy from a written variable is not accepted (the markers behind it
+     * then refuse as misplaced). A quantifier binder cannot shadow a
+     * snapshot name -- Java forbids a lambda parameter shadowing a local in
+     * scope -- so the substitution needs no scope tracking.
+     */
+    private static final class HeaderScan {
+        /** Snapshot name -> the emitted name of the variable it copies. */
+        final Map<String, String> renames = new HashMap<>();
+        /** Locals assigned by the skipped header statements seen so far. */
+        final Set<String> written = new HashSet<>();
     }
 
     /**
@@ -151,22 +192,40 @@ final class LoopEmitter {
      * invariant.
      */
     private boolean scanPastHeader(List<AstNode<StmtExpr>> stmts, List<AstNode<StmtExpr>> invariants,
-                                   String label) {
+                                   String label, HeaderScan scan) {
         boolean found = false;
         for (int i = 0; i < stmts.size(); i++) {
             AstNode<StmtExpr> st = stmts.get(i);
             if (body.specStmts.get(st) != null) {
-                return consumeLeadingMarkers(stmts.subList(i, stmts.size()), invariants) > 0 || found;
+                return consumeLeadingMarkers(stmts.subList(i, stmts.size()), invariants, scan) > 0 || found;
             }
             boolean jumpGuard = isJumpGuard(st, label);
             boolean headerTest = !jumpGuard && i == stmts.size() - 1 && isHeaderTest(st, label);
             if (!jumpGuard && !headerTest && !s.condStmts.contains(st)) {
+                if (recordSnapshot(st, scan)) {
+                    continue;   // a counter snapshot: part of the header
+                }
                 return found;   // neither condition-emitted nor a header-shaped test: past the header
             }
+            if (st.val() instanceof StmtExpr.IfThenElse cond) {
+                // The arms are scanned (or jump-only); only the test's own
+                // expression runs before a later snapshot.
+                collectWrites(cond.cond(), scan.written);
+            } else {
+                collectWrites(st, scan.written);
+            }
+            if (writesInvalidateSnapshots(scan)) {
+                // A skipped header statement (e.g. a jump guard's `t++`) wrote a
+                // snapshot's name or its source AFTER the copy was recorded: the
+                // recorded definition no longer describes the value the markers
+                // see, so the whole header refuses (the markers behind it then
+                // refuse as misplaced) rather than substitute a false equality.
+                return found;
+            }
             if (!jumpGuard && st.val() instanceof StmtExpr.IfThenElse ite) {
-                AstNode<StmtExpr> thenB = scanArm(ite.thenBranch(), invariants, label);
+                AstNode<StmtExpr> thenB = scanArm(ite.thenBranch(), invariants, label, scan);
                 AstNode<StmtExpr> elseB = ite.elseBranch().isPresent()
-                        ? scanArm(ite.elseBranch().get(), invariants, label) : null;
+                        ? scanArm(ite.elseBranch().get(), invariants, label, scan) : null;
                 if (thenB != null || elseB != null) {
                     stmts.set(i, new AstNode<>(new StmtExpr.IfThenElse(ite.cond(),
                             thenB != null ? thenB : ite.thenBranch(),
@@ -231,19 +290,118 @@ final class LoopEmitter {
 
     /** The arm with its marker run consumed, or null when it has none. */
     private AstNode<StmtExpr> scanArm(AstNode<StmtExpr> branch, List<AstNode<StmtExpr>> invariants,
-                                      String label) {
+                                      String label, HeaderScan scan) {
         if (!(branch.val() instanceof StmtExpr.Block blk)) {
             return null;
         }
         List<AstNode<StmtExpr>> stmts = new ArrayList<>(blk.statements());
-        if (!scanPastHeader(stmts, invariants, label)) {
+        if (!scanPastHeader(stmts, invariants, label, scan)) {
             return null;
         }
         return new AstNode<>(new StmtExpr.Block(stmts, blk.label(), blk.invariants(), blk.decreases()),
                 branch.source());
     }
 
-    private int consumeLeadingMarkers(List<AstNode<StmtExpr>> stmts, List<AstNode<StmtExpr>> invariants) {
+    /**
+     * A leading counter snapshot: a single-target assignment of one local
+     * variable to another ({@code final int i0 = i;}). Recorded as a ghost
+     * definition in {@code scan.renames} (chained through earlier snapshots,
+     * so {@code final int a = i; final int b = a;} maps both to {@code i}).
+     * Not accepted -- so the scan ends and any markers behind it refuse as
+     * misplaced -- when the source variable was assigned by a skipped header
+     * statement (its loop-head value differs from its value here), or when
+     * either name is synthetic: a hoist-renamed {@code name@N} (the lambda's
+     * capture refers to the plain source name, which would no longer match)
+     * or a {@code $}/{@code t$} translator temp.
+     */
+    private static boolean recordSnapshot(AstNode<StmtExpr> st, HeaderScan scan) {
+        if (!(st.val() instanceof StmtExpr.Assign a) || a.targets().size() != 1) {
+            return false;
+        }
+        String lhs = switch (a.targets().get(0).val()) {
+            case Variable.Local l -> l.name().text();
+            case Variable.Declare d -> d.parameter().name().text();
+            case Variable.Field f -> null;
+        };
+        if (lhs == null || lhs.indexOf('@') >= 0 || lhs.indexOf('$') >= 0) {
+            return false;
+        }
+        AstNode<StmtExpr> value = ArrayAccessTranslator.stripLoadFacts(a.value());
+        if (!(value.val() instanceof StmtExpr.Var v && v.var_() instanceof Variable.Local src)) {
+            return false;
+        }
+        String rhs = src.name().text();
+        if (rhs.indexOf('@') >= 0 || rhs.indexOf('$') >= 0) {
+            return false;
+        }
+        rhs = scan.renames.getOrDefault(rhs, rhs);
+        if (scan.written.contains(rhs)) {
+            return false;
+        }
+        scan.renames.put(lhs, rhs);
+        return true;
+    }
+
+    /**
+     * A skipped header statement assigned a variable that a recorded snapshot
+     * names (its ghost name or the source it copies): the definition is stale
+     * for the markers that follow.
+     */
+    private static boolean writesInvalidateSnapshots(HeaderScan scan) {
+        for (var e : scan.renames.entrySet()) {
+            if (scan.written.contains(e.getKey()) || scan.written.contains(e.getValue())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Add every local the subtree assigns (assignment, compound, incr/decr) to {@code out}. */
+    private static void collectWrites(AstNode<StmtExpr> n, Set<String> out) {
+        switch (n.val()) {
+            case StmtExpr.Assign a -> {
+                for (var t : a.targets()) {
+                    addLocalName(t, out);
+                }
+            }
+            case StmtExpr.CompoundAssign c -> addLocalName(c.target(), out);
+            case StmtExpr.IncrDecr d -> addLocalName(d.target(), out);
+            default -> {
+            }
+        }
+        for (var c : BodyTranslator.childrenOf(n.val())) {
+            collectWrites(c, out);
+        }
+    }
+
+    private static void addLocalName(AstNode<Variable> target, Set<String> out) {
+        switch (target.val()) {
+            case Variable.Local l -> out.add(l.name().text());
+            case Variable.Declare d -> out.add(d.parameter().name().text());
+            case Variable.Field f -> {
+            }
+        }
+    }
+
+    /** Every free use of a snapshot name replaced by the variable it copies. */
+    private static AstNode<StmtExpr> applySnapshots(AstNode<StmtExpr> arg, Map<String, String> renames) {
+        if (renames.isEmpty()) {
+            return arg;
+        }
+        return LaurelTrees.map(arg, n -> {
+            if (n.val() instanceof StmtExpr.Var v && v.var_() instanceof Variable.Local l) {
+                String to = renames.get(l.name().text());
+                if (to != null) {
+                    return new AstNode<>(new StmtExpr.Var(
+                            new Variable.Local(LaurelFactory.reservedIdent(to))), n.source());
+                }
+            }
+            return n;
+        });
+    }
+
+    private int consumeLeadingMarkers(List<AstNode<StmtExpr>> stmts, List<AstNode<StmtExpr>> invariants,
+                                      HeaderScan scan) {
         int i = 0;
         for (; i < stmts.size(); i++) {
             var spec = body.specStmts.get(stmts.get(i));
@@ -269,6 +427,7 @@ final class LoopEmitter {
                         arg = spec.args().get(0);
                         body.checkContractArg(arg);
                     }
+                    arg = applySnapshots(arg, scan.renames);
                     arg = body.coerce(ArrayAccessTranslator.stripLoadFacts(arg), "Z");
                     AstNode<StmtExpr> inv = LaurelTrees.rerange(arg, argRange, ctx.method.statementNodes);
                     // A short-circuit || duplicates the body's marker run
