@@ -229,7 +229,7 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
         ranges.addAll(JVerifyTestEngine.contractFileRanges(markedSourceFile, annotation));
         var options = getVerifierOptions(annotation, JVerifyTestEngine.contractSources(markedSourceFile, annotation));
         if (className != null && Boolean.getBoolean(CortexXfailManifest.PROPERTY)) {
-            verifyFileOnCortex(markedSourceFile, annotation, ranges, options, className);
+            verifyFileOnCortex(CortexXfails.INSTANCE, markedSourceFile, annotation, ranges, options, className);
         } else {
             verifyFile(markedSourceFile, annotation, ranges, options);
         }
@@ -239,20 +239,20 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
         static final CortexXfailManifest INSTANCE = CortexXfailManifest.load();
     }
 
-    private static void verifyFileOnCortex(SourceFile sourceFile, JVerifyTest annotation,
-                                           List<AnnotatedRange> ranges, VerifierOptions options,
-                                           String className) throws IOException {
-        var skip = CortexXfails.INSTANCE.skipReason(className);
+    private static void verifyFileOnCortex(CortexXfailManifest manifest, SourceFile sourceFile,
+                                           JVerifyTest annotation, List<AnnotatedRange> ranges,
+                                           VerifierOptions options, String className) throws IOException {
+        var skip = manifest.skipReason(className);
         Assumptions.assumeTrue(skip == null, "SKIP on Cortex: " + skip);
-        var xfail = CortexXfails.INSTANCE.forcedXfail(className);
+        var xfail = manifest.forcedXfail(className);
         if (xfail != null) {
             Assumptions.assumeTrue(annotation.skip() == null || annotation.skip().isEmpty(), annotation.skip());
             applyXfailInversion("Cortex " + xfail.blocker() + ": " + xfail.reason(),
-                    "Remove its entry from cortex-xfails.txt.",
+                    "Remove its entry from " + manifest.fileName() + ".",
                     () -> runAndCheck(sourceFile, annotation, ranges, options));
             return;
         }
-        if (CortexXfails.INSTANCE.isForcedRun(className)) {
+        if (manifest.isForcedRun(className)) {
             Assumptions.assumeTrue(annotation.skip() == null || annotation.skip().isEmpty(), annotation.skip());
             runAndCheck(sourceFile, annotation, ranges, options);
             return;

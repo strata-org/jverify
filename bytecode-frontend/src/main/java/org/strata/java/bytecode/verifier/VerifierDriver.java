@@ -203,6 +203,9 @@ public class VerifierDriver {
             reporter.reportError(anchor, Reporter.NO_RANGE, e.getMessage());
             return new JVerifyResults.NoVerdict(new ArrayList<>(reporter.diagnostics()), 2);
         }
+        if (Boolean.getBoolean(StrataBackend.CORTEX)) {
+            return analyzeOnCortex(classes, sourceUris, reporter, javacTypes);
+        }
         org.strata.java.bytecode.verifier.compiler.BytecodeToLaurelCompiler.AnalysisResult analysis;
         try {
             analysis = options.time("Compiling bytecode to Laurel",
@@ -234,6 +237,29 @@ public class VerifierDriver {
             case JVerifyResults.Ran r -> new JVerifyResults.Ran(allDiagnostics, r.exitCode(), r.verificationResults());
             case JVerifyResults.DidNotRun d -> new JVerifyResults.DidNotRun(allDiagnostics, d.exitCode(), d.strataExitCode());
             case JVerifyResults.NoVerdict n -> new JVerifyResults.NoVerdict(allDiagnostics, n.exitCode());
+        };
+    }
+
+    private JVerifyResults analyzeOnCortex(List<BytecodeFrontend.ClassSource> classes, List<URI> sourceUris,
+                                           Reporter reporter,
+                                           Map<String, org.strata.java.bytecode.frontend.TypeFacts> javacTypes) {
+        var analysis = options.time("Compiling bytecode to Cortex",
+                () -> new org.strata.java.bytecode.verifier.compiler.BytecodeToCortexCompiler(reporter,
+                        options.verifyByDefault(), List.copyOf(options.classPathEntries()),
+                        options.interpret())
+                        .withJavacTypes(javacTypes)
+                        .analyze(sourceUris, classes));
+        var diagnostics = new ArrayList<Diagnostic<?>>(reporter.diagnostics());
+        if (reporter.hasErrors() && !options.continueOnErrors()) {
+            return new JVerifyResults.NoVerdict(diagnostics, 2);
+        }
+        var results = new StrataBackend(options)
+                .verifyCortexProgram(analysis.program(), analysis.positions(), analysis.methodStatuses());
+        diagnostics.addAll(results.diagnostics());
+        return switch (results) {
+            case JVerifyResults.Ran r -> new JVerifyResults.Ran(diagnostics, r.exitCode(), r.verificationResults());
+            case JVerifyResults.DidNotRun d -> new JVerifyResults.DidNotRun(diagnostics, d.exitCode(), d.strataExitCode());
+            case JVerifyResults.NoVerdict n -> new JVerifyResults.NoVerdict(diagnostics, n.exitCode());
         };
     }
 

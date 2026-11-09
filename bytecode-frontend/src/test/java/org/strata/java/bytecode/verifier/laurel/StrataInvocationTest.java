@@ -85,4 +85,19 @@ class StrataInvocationTest {
             System.clearProperty("jverify.cortex");
         }
     }
+
+    @Test
+    void cortexRunsTheCortexWireCommands() {
+        System.setProperty(StrataBackend.CORTEX, "true");
+        try {
+            assertEquals(List.of("strataLaurel", "cortexWireAnalyzeBinary", "--solver", "z3"),
+                    StrataBackend.Invocation.of(options(false, null, null, null, null)).command());
+            assertEquals(List.of("strataLaurel", "cortexWireInterpretBinary", "--entry", "p.C$m", "--fuel", "7"),
+                    StrataBackend.Invocation.of(options(true, "p.C#m", 7, "laurel", null)).command());
+            assertEquals(List.of("strataLaurel", "cortexWireInterpretBinary", "--fuel", "100000"),
+                    StrataBackend.Invocation.of(options(true, null, null, "laurel", null)).command());
+        } finally {
+            System.clearProperty(StrataBackend.CORTEX);
+        }
+    }
 }

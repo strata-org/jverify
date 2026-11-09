@@ -41,6 +41,13 @@ public class StrataBackend {
     static final List<String> UNUSED_LAUREL_PHASES = List.of(
             "CoroutineElaboration", "YieldElim");
 
+    /**
+     * The system property that makes the frontend translate bytecode to Cortex,
+     * Strata's unstructured IR, instead of Laurel, and run Strata's Cortex wire
+     * commands.
+     */
+    public static final String CORTEX = "jverify.cortex";
+
     private final VerifierOptions verifierOptions;
 
     public StrataBackend(VerifierOptions verifierOptions) {
@@ -99,6 +106,49 @@ public class StrataBackend {
         return runVerifier(positions, methodStatuses, serializedProgram);
     }
 
+    /**
+     * Serialize a Cortex program, translated from bytecode without Laurel, and
+     * run Strata's Cortex wire commands on it.
+     */
+    public JVerifyResults verifyCortexProgram(org.strata.jverify.cortex.Program program,
+                                              PositionResolver positions,
+                                              Map<URI, IntervalTree<Integer, MethodVerificationStatus>> methodStatuses) {
+        if (verifierOptions.interpret() && verifierOptions.entry() != null
+                && program.procedures().stream().noneMatch(p -> p.inputs().isEmpty() && p.body().isPresent()
+                        && p.name().equals(cortexEntryProcedure(verifierOptions.entry())))) {
+            verifierOptions.outWriter().println("--entry " + verifierOptions.entry()
+                    + " does not name a static no-argument method");
+            return new JVerifyResults.NoVerdict(new ArrayList<>(), 2);
+        }
+        var serializedProgram = verifierOptions.time("Serializing Cortex program", () -> {
+            var programIon = program.toIon(IonSystemBuilder.standard().build());
+            if (verifierOptions.printSerializedOutputProgram() != null) {
+                try {
+                    var outPath = verifierOptions.printSerializedOutputProgram();
+                    if (outPath.getParent() != null) {
+                        Files.createDirectories(outPath.getParent());
+                    }
+                    try (var out = Files.newOutputStream(outPath);
+                         var writer = IonBinaryWriterBuilder.standard().build(out)) {
+                        programIon.writeTo(writer);
+                    }
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            return programIon;
+        });
+        if (verifierOptions.emitLaurelOnly()) {
+            return new JVerifyResults.NoVerdict(new ArrayList<>(), 0);
+        }
+        return runVerifier(positions, methodStatuses, serializedProgram);
+    }
+
+    /** The Cortex procedure that the user-facing {@code pkg.Class#method} names: {@code pkg.Class$method}. */
+    static String cortexEntryProcedure(String entry) {
+        return entry.replace("#", "$");
+    }
+
     /** The Laurel procedure that the user-facing {@code pkg.Class#method} names: {@code pkg.Class::method}. */
     static String entryProcedure(String entry) {
         return entry.replace("#", "::");
@@ -118,36 +168,35 @@ public class StrataBackend {
          */
         static Invocation of(VerifierOptions options) {
             var arguments = new ArrayList<String>();
-            boolean cortex = Boolean.getBoolean("jverify.cortex");
+            boolean cortex = Boolean.getBoolean(CORTEX);
             if (options.interpret()) {
                 // Interpret mode shares the `==== DIAGNOSTICS ====` output format
                 // with laurelAnalyzeBinary, so parseStrataOutput is reused as is.
-                arguments.add(cortex ? "cortexInterpretBinary" : "laurelInterpretBinary");
+                // A Cortex program runs on the Cortex interpreter, so the
+                // fixture's `interpreter` does not apply to it.
+                arguments.add(cortex ? "cortexWireInterpretBinary" : "laurelInterpretBinary");
                 if (options.entry() != null) {
                     arguments.add("--entry");
-                    arguments.add(entryProcedure(options.entry()));
+                    arguments.add(cortex ? cortexEntryProcedure(options.entry()) : entryProcedure(options.entry()));
                 }
                 if (options.fuel() != null) {
                     arguments.add("--fuel");
                     arguments.add(Integer.toString(options.fuel()));
-                } else if (!"laurel".equals(options.interpreter())) {
-                    // Every checked int/long op is a helper call, roughly
-                    // tripling the Core interpreter's steps per iteration;
-                    // Strata's 10000-per-call default exhausts on a
-                    // ~300-iteration counting loop. 100000 matches the
-                    // Laurel interpreter's budget.
+                } else if (cortex || !"laurel".equals(options.interpreter())) {
+                    // Every checked int/long op is a helper call, multiplying
+                    // the interpreter's steps per iteration: Strata's defaults
+                    // (10000 per call on the Core interpreter, per entry on the
+                    // Cortex one) run out on a ~300-iteration counting loop.
+                    // 100000 matches the Laurel interpreter's budget.
                     arguments.add("--fuel");
                     arguments.add("100000");
                 }
-                if (cortex) {
-                    arguments.add("--interpreter");
-                    arguments.add("core");
-                } else if (options.interpreter() != null) {
+                if (!cortex && options.interpreter() != null) {
                     arguments.add("--interpreter");
                     arguments.add(options.interpreter());
                 }
             } else {
-                arguments.add(cortex ? "cortexAnalyzeBinary" : "laurelAnalyzeBinary");
+                arguments.add(cortex ? "cortexWireAnalyzeBinary" : "laurelAnalyzeBinary");
                 arguments.add("--solver");
                 arguments.add("z3");
             }
