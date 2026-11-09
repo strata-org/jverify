@@ -1343,10 +1343,11 @@ final class BodyTranslator {
     }
 
     /**
-     * Laurel lets an exception leave this method only if it declares no
-     * {@code throws} (the escape is then asserted not to happen), a covering
-     * one, or an inferred one (widened to cover it); otherwise an enclosing
-     * {@code catch} must cover it.
+     * Whether an implicit {@code exceptionFqn} may leave this point as an
+     * explicit throw: the method declares no {@code throws} (the escape is
+     * then asserted not to happen), a covering one, or an inferred one
+     * (widened to cover it), or an enclosing {@code catch} covers it. Laurel
+     * lets an exception leave a method only in those cases.
      *
      * <p>An enclosing {@code catch} arm unrelated to the exception (an
      * {@code IllegalStateException} arm around a division) is no obstacle: Laurel
@@ -1355,7 +1356,7 @@ final class BodyTranslator {
      * at the arm's type (see {@link #catchCasts}), so the wider join
      * Laurel then types the binding at does not change what the handler sees.
      */
-    private boolean mayThrowHere(String exceptionFqn) {
+    boolean mayThrowHere(String exceptionFqn) {
         if (ctx.method.enclosingCatchTypes.stream().anyMatch(arms ->
                 arms.stream().anyMatch(c -> ctx.resolver.isSubclassOf(exceptionFqn, c)))) {
             return true;

@@ -23,6 +23,9 @@ import java.lang.classfile.instruction.FieldInstruction;
 import java.lang.classfile.instruction.IncrementInstruction;
 import java.lang.classfile.instruction.InvokeInstruction;
 import java.lang.classfile.instruction.LoadInstruction;
+import java.lang.classfile.instruction.NewMultiArrayInstruction;
+import java.lang.classfile.instruction.NewPrimitiveArrayInstruction;
+import java.lang.classfile.instruction.NewReferenceArrayInstruction;
 import java.lang.classfile.instruction.StackInstruction;
 import java.lang.classfile.instruction.StoreInstruction;
 import java.lang.classfile.instruction.TypeCheckInstruction;
@@ -39,6 +42,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 /**
  * The control-flow structurer: the region walker over the CFG, emitting
@@ -677,6 +681,22 @@ final class ControlFlowStructurer {
         }
         int thenE = c.fall, elseE = c.branch;
         int follow = dom.ipdom[condBlk];
+        int[] exits = chainExits(condBlk, follow, stop);
+        if (exits != null) {
+            // `if ((a && b) || rest) S else E`: javac jumps from every operand
+            // to S or to E, so E is reached from several operands. Emitting
+            // each operand as its own `if` would copy E (and the operands after
+            // it) into every arm, doubling the output per operand. The chain is
+            // rebuilt as one expression, as for a value diamond, with reaching
+            // S standing for true and reaching E for false; S and E are then
+            // the two arms, emitted once each. Only the first operand's
+            // implicit exceptions were hoisted above: the others are evaluated
+            // conditionally and stay inside the expression.
+            cond = diamondValue(c, cond, Map.of(exits[0], true, exits[1], false), follow);
+            body.checkPlaceable(cond);
+            thenE = exits[0];
+            elseE = exits[1];
+        }
 
         Set<Integer> sub = plus(stop, follow);
         // An arm that leaves the region for an enclosing loop's header or exit,
@@ -712,6 +732,117 @@ final class ControlFlowStructurer {
                     Optional.of(blockOf(els)))), condBlk));
         }
         return follow;
+    }
+
+    /**
+     * The two blocks that the chain of condition blocks headed by
+     * {@code condBlk} decides between, in bytecode order (javac emits the then
+     * branch first), or null when {@code condBlk} does not head such a chain:
+     * fewer than two condition blocks, or not exactly two exits. A chain block
+     * is a condition block of the same source statement as the head (it does
+     * not start a statement of its own, so a nested {@code if}, an
+     * {@code assert} or a call statement before an inner {@code if} stays a
+     * statement), with no statements inside, that is not the join
+     * {@code follow}, not a block in {@code stop}, not a loop header, not the
+     * start of a try and not a boolean diamond; every other block the chain
+     * jumps to is an exit. A chain is also refused when a later operand's
+     * implicit exception (a division's ArithmeticException, a cast's
+     * ClassCastException) would be made an explicit throw here, because that
+     * throw is only emitted as a statement in front of an {@code if}: those
+     * operands keep their own {@code if}s, as before.
+     */
+    private int[] chainExits(int condBlk, int follow, Set<Integer> stop) {
+        Set<Integer> chain = new HashSet<>();
+        Set<Integer> exits = new TreeSet<>();
+        Deque<Integer> work = new ArrayDeque<>();
+        work.push(condBlk);
+        while (!work.isEmpty()) {
+            int id = work.pop();
+            if (chain.contains(id) || exits.contains(id)) {
+                continue;
+            }
+            BasicBlock b = id >= 0 ? cfg.blocks.get(id) : null;
+            boolean inChain = id == condBlk
+                    || (b != null && b.isConditional() && !b.isSwitch() && id != follow && !stop.contains(id)
+                        && !dom.isLoopHeader(id) && !triesByStart.containsKey(id) && !blockHasStatement(b)
+                        && booleanDiamond(id) == null && isOperandBlock(b));
+            if (!inChain) {
+                exits.add(id);
+                continue;
+            }
+            if (id != condBlk && operandThrowsExplicitly(b)) {
+                return null;
+            }
+            chain.add(id);
+            work.push(b.fall);
+            work.push(b.branch);
+        }
+        if (chain.size() < 2 || exits.size() != 2) {
+            return null;
+        }
+        int[] result = new int[2];
+        int i = 0;
+        for (int exit : exits) {
+            result[i++] = exit;
+        }
+        return result;
+    }
+
+    /**
+     * Whether condition block {@code b} is an operand of the statement that
+     * started before it, rather than the start of a statement of its own, and
+     * one that can live inside a condition expression. With a
+     * CharacterRangeTable the statement test is exact; without one it falls
+     * back to the LineNumberTable, and a block that pops a value, increments
+     * a local or reads {@code $assertionsDisabled} is a statement
+     * ({@code foo();}, {@code i++;}, {@code assert}). An operand that
+     * allocates an array keeps its own {@code if}: an allocation inside a
+     * condition expression is refused, in front of its own {@code if} it is
+     * a statement as before.
+     */
+    private boolean isOperandBlock(BasicBlock b) {
+        if (b.instrs.isEmpty() || startsOwnStatement(b.instrs.get(0))) {
+            return false;
+        }
+        boolean noCrt = body.crt == null || body.crt.isEmpty();
+        for (int i : b.instrs) {
+            CodeElement in = cfg.seq.get(i);
+            if (in instanceof NewPrimitiveArrayInstruction || in instanceof NewReferenceArrayInstruction
+                    || in instanceof NewMultiArrayInstruction) {
+                return false;
+            }
+            if (noCrt && (in instanceof IncrementInstruction
+                    || (in instanceof StackInstruction s && (s.opcode() == Opcode.POP || s.opcode() == Opcode.POP2))
+                    || (in instanceof FieldInstruction fi
+                        && fi.name().stringValue().equals("$assertionsDisabled")))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Whether an implicit exception of an operation in {@code b} is made an explicit throw in this method. */
+    private boolean operandThrowsExplicitly(BasicBlock b) {
+        for (int i : b.instrs) {
+            CodeElement in = cfg.seq.get(i);
+            if (in instanceof Instruction ins) {
+                switch (ins.opcode()) {
+                    case IDIV, IREM, LDIV, LREM -> {
+                        if (body.mayThrowHere(BodyTranslator.ARITHMETIC_EXCEPTION)) {
+                            return true;
+                        }
+                    }
+                    case CHECKCAST -> {
+                        if (body.mayThrowHere(BodyTranslator.CLASS_CAST_EXCEPTION)) {
+                            return true;
+                        }
+                    }
+                    default -> {
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     private AstNode<StmtExpr> armJump(int target, int follow, Set<Integer> stop) {
@@ -759,6 +890,30 @@ final class ControlFlowStructurer {
     }
 
     boolean armIsValue(int entry, int merge, Set<Integer> seen) {
+        return armIsValue(entry, merge, seen, new HashMap<>());
+    }
+
+    /**
+     * {@code memo} caches the answer per (entry, merge) for one top-level call.
+     * The walk recurses into both arms of every condition, and in a
+     * short-circuit chain both arms of each operand continue into the same
+     * rest of the chain, so without the memo a chain of n operands is walked
+     * 2^n times. Within one call {@link #skipLead} is fixed, so the cached
+     * answers stay valid; {@code seen} only guards against cycles, which
+     * javac never puts inside an expression.
+     */
+    private boolean armIsValue(int entry, int merge, Set<Integer> seen, Map<Long, Boolean> memo) {
+        long key = ((long) entry << 32) | (merge & 0xffffffffL);
+        Boolean known = memo.get(key);
+        if (known != null) {
+            return known;
+        }
+        boolean result = armIsValue0(entry, merge, seen, memo);
+        memo.put(key, result);
+        return result;
+    }
+
+    private boolean armIsValue0(int entry, int merge, Set<Integer> seen, Map<Long, Boolean> memo) {
         int cur = entry;
         while (cur != merge) {
             if (cur < 0 || !seen.add(cur)) {
@@ -778,7 +933,8 @@ final class ControlFlowStructurer {
                 if (m < 0 || m == cur) {
                     return false;
                 }
-                if (!armIsValue(b.fall, m, new HashSet<>(seen)) || !armIsValue(b.branch, m, new HashSet<>(seen))) {
+                if (!armIsValue(b.fall, m, new HashSet<>(seen), memo)
+                        || !armIsValue(b.branch, m, new HashSet<>(seen), memo)) {
                     return false;
                 }
                 cur = m;
@@ -870,14 +1026,315 @@ final class ControlFlowStructurer {
         // A pattern-bind instanceof (foldChainPatternBind) cannot carry a
         // binding in Laurel; the IsType/deferred marker refuses at placement,
         // so an instanceof with a pattern refuses the method.
-        AstNode<StmtExpr> thenVal = armValue(c.fall, merge);
-        AstNode<StmtExpr> elseVal = armValue(c.branch, merge);
-        body.stack.push(buildTernary(cond, thenVal, elseVal));
+        body.stack.push(diamondValue(c, cond, Map.of(), merge));
     }
 
-    AstNode<StmtExpr> armValue(int entry, int merge) {
+    // --- shared tails of short-circuit chains ---
+
+    /**
+     * The value of the diamond at condition block {@code c}, whose condition
+     * {@code cond} is already translated; every path from an arm ends at
+     * {@code merge} or at a block in {@code tails}.
+     *
+     * <p>javac compiles {@code (a && b) || rest} to jumps in which the block of
+     * {@code rest} is reached both when {@code a} fails and when {@code b}
+     * fails: it has two predecessors inside the diamond. Walking each arm to
+     * {@code merge} translates {@code rest} once per arm, so a chain of n such
+     * disjuncts doubles the Laurel program with every disjunct. Here a block
+     * reached by both arms is translated once and re-attached with the
+     * value the bytecode encodes: when every leaf the arms reach without
+     * passing through it is {@code iconst_1}, the diamond is
+     * {@code if head then 1 else rest}; when every such leaf is {@code iconst_0},
+     * it is {@code if head then rest else 0}. {@code head} is this diamond with
+     * reaching the shared block standing for the complementary literal, so it
+     * collapses to the chain before {@code rest}. {@link #buildTernary} then
+     * folds the ternary to {@code head || rest} or {@code head && rest} when
+     * {@code rest} is boolean, and keeps an {@code if} when it is not (the
+     * chain was the condition of an int-valued ternary). For
+     * {@code ite(c, X, Y)} with every leaf of X and Y either {@code 1} or the
+     * shared block, this is the identity
+     * {@code ite(c, X[rest], Y[rest]) = ite(ite(c, X[false], Y[false]), 1, rest)}
+     * (and dually for {@code 0}); the arms are still translated before the
+     * shared block, so evaluation order and short-circuiting are those of the
+     * bytecode. Shapes that are not chains of comparisons into literal sinks
+     * take the plain ternary, as before.
+     *
+     * <p>A chain of n operands has n shared blocks, one after the other. They
+     * are handled in a loop, not by recursing from each {@code rest} into the
+     * next, so the stack depth does not grow with the chain; the recursion
+     * into {@code head} only nests as deep as shared blocks nest.
+     *
+     * @param tails blocks outside this diamond that an arm may reach, each
+     *              mapped to the literal the enclosing factoring made it stand
+     *              for on this path
+     */
+    private AstNode<StmtExpr> diamondValue(BasicBlock c, AstNode<StmtExpr> cond, Map<Integer, Boolean> tails,
+                                           int merge) {
+        /** The value of the leaves other than the shared block: a literal, or the translated block they all reach. */
+        record Step(AstNode<StmtExpr> head, Leaf leaf, AstNode<StmtExpr> leafValue, int stmtsMark) {
+        }
+        List<Step> steps = new ArrayList<>();
+        AstNode<StmtExpr> last = null;
+        boolean inRest = false;
+        try {
+            while (last == null) {
+                Step step = null;
+                for (int shared : sharedBlocks(c, tails, merge)) {
+                    Leaf leaf = commonLeaf(c, shared, tails, merge);
+                    if (leaf == null) {
+                        continue;
+                    }
+                    Map<Integer, Boolean> inner = new HashMap<>(tails);
+                    AstNode<StmtExpr> leafValue = null;
+                    if (leaf.literal() != null) {
+                        inner.put(shared, !leaf.literal());
+                    } else {
+                        inner.put(leaf.block(), true);
+                        inner.put(shared, false);
+                    }
+                    AstNode<StmtExpr> head = diamondValue(c, cond, inner, merge);
+                    if (!inRest) {
+                        // The leaf block and the rest run only when the head decided: conditionally, like arms.
+                        body.enterConditional();
+                        inRest = true;
+                    }
+                    if (leaf.literal() == null) {
+                        leafValue = armValue(leaf.block(), tails, merge);
+                    }
+                    step = new Step(head, leaf, leafValue, body.stmts.size());
+                    steps.add(step);
+                    BasicBlock j = cfg.blocks.get(shared);
+                    int m = dom.ipdom[shared];
+                    boolean closed = m >= 0 && m != merge && !tails.containsKey(m);
+                    if (!j.isConditional() || booleanDiamond(shared) != null || closed) {
+                        // Not a condition whose paths end where this diamond's do: the rest is an arm.
+                        last = evalArm0(shared, tails, merge);
+                    } else {
+                        cond = translateCondition(j);
+                        c = j;
+                    }
+                    break;
+                }
+                if (step == null) {
+                    last = buildTernary(cond, armValue(c.fall, tails, merge), armValue(c.branch, tails, merge));
+                }
+            }
+        } finally {
+            if (inRest) {
+                body.exitConditional();
+            }
+        }
+        AstNode<StmtExpr> acc = last;
+        for (int i = steps.size() - 1; i >= 0; i--) {
+            Step step = steps.get(i);
+            acc = withArmStatements(acc, step.stmtsMark());
+            if (step.leaf().literal() == null) {
+                acc = buildTernary(step.head(), step.leafValue(), acc);
+            } else {
+                AstNode<StmtExpr> lit = body.e(body.pinnedLongLiteral(step.leaf().literal() ? 1 : 0));
+                body.noteDesc(lit, "I");
+                acc = step.leaf().literal() ? buildTernary(step.head(), lit, acc) : buildTernary(step.head(), acc, lit);
+            }
+        }
+        return acc;
+    }
+
+    /**
+     * What a leaf of a diamond stands for: the literal of an {@code iconst_1} /
+     * {@code iconst_0} sink or of a tail, or else the block the leaf is (a
+     * value block such as the {@code 5} of {@code chain ? 5 : 7}, or a
+     * statement block the chain of an {@code if} decides for).
+     */
+    private record Leaf(int block, Boolean literal) {
+        static Leaf of(boolean literal) {
+            return new Leaf(-1, literal);
+        }
+
+        static Leaf of(int block) {
+            return new Leaf(block, null);
+        }
+    }
+
+    /** Translate the instructions of condition block {@code c} before its jump and materialize the jump's comparison. */
+    private AstNode<StmtExpr> translateCondition(BasicBlock c) {
+        visited[c.id] = true;
+        body.pos = c.instrs.isEmpty() ? body.pos : c.instrs.get(0);
+        List<CodeElement> ins = elems(c);
+        body.translateSpan(ins, elemIdxs(c), 0, ins.size() - 1);
+        return body.materializeComparison(c.last.opcode());
+    }
+
+
+    /**
+     * The blocks reachable from an arm of {@code c} without entering
+     * {@code merge} or a tail, as candidates for the block to factor out. A
+     * block reached from one arm only is a valid candidate too (the other
+     * arm's leaves are then the ones that must agree): it lets a chain with
+     * no shared block, {@code a && b && c}, be handled in the loop rather than
+     * by recursing once per operand. Candidates whose own value the chain
+     * decides for come first, last in bytecode order first: value blocks other
+     * than {@code iconst_1}/{@code iconst_0} sinks, and conditions reached from
+     * both arms whose arms are not conditions (a ternary of its own, the
+     * {@code x} of {@code chain ? x : y}). With them first, the whole chain
+     * becomes the condition of one {@code if}, and javac puts {@code y} after
+     * {@code x}. Then the condition blocks, nearest first. Literal sinks are
+     * leaves, never candidates: translating a chain as
+     * {@code if chain then 1 else 0} would lose its boolean type.
+     */
+    private List<Integer> sharedBlocks(BasicBlock c, Map<Integer, Boolean> tails, int merge) {
+        Set<Integer> stop = new HashSet<>(tails.keySet());
+        stop.add(merge);
+        if (isLeafFor(c.fall, stop) && isLeafFor(c.branch, stop)) {
+            // Both arms are leaves: the plain ternary is already as small as it gets, and
+            // factoring would only reorder it (`if d <= 0 then 1 else 2` for `d > 0 ? 2 : 1`).
+            return List.of();
+        }
+        Set<Integer> fromFall = reachable(c.fall, stop);
+        Set<Integer> fromBranch = reachable(c.branch, stop);
+        Set<Integer> all = new HashSet<>(fromFall);
+        all.addAll(fromBranch);
+        List<Integer> values = new ArrayList<>();
+        List<Integer> conditions = new ArrayList<>();
+        for (int b : all) {
+            BasicBlock block = cfg.blocks.get(b);
+            if (block.isConditional()) {
+                if (isTerminalCondition(b)) {
+                    values.add(b);
+                } else {
+                    conditions.add(b);
+                }
+            } else if (!block.isSwitch() && literalSink(block, merge) == null) {
+                values.add(b);
+            }
+        }
+        values.sort(Collections.reverseOrder());
+        Collections.sort(conditions);
+        values.addAll(conditions);
+        return values;
+    }
+
+    /** Whether block {@code id} ends a path of the diamond: a stop (tail or merge), a non-condition, or a terminal condition. */
+    private boolean isLeafFor(int id, Set<Integer> stop) {
+        return id < 0 || stop.contains(id) || !cfg.blocks.get(id).isConditional() || isTerminalCondition(id);
+    }
+
+    /**
+     * A condition block whose arms are not conditions and are reached only
+     * through it: a ternary of its own that the chain decides for (such as
+     * {@code d > 0 ? 5 : 7} in {@code chain ? (d > 0 ? 5 : 7) : 0}), not an
+     * operand of the chain. Treated as a leaf, like a value block. The last
+     * operand of a chain is not one: its sinks are reached from the other
+     * operands too.
+     */
+    private boolean isTerminalCondition(int b) {
+        BasicBlock block = cfg.blocks.get(b);
+        if (!block.isConditional()) {
+            return false;
+        }
+        for (int s : List.of(block.fall, block.branch)) {
+            BasicBlock succ = cfg.blocks.get(s);
+            if (succ.isConditional() || succ.preds.size() != 1) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** The blocks reachable from {@code entry} (itself included) without entering a block in {@code stop}. */
+    private Set<Integer> reachable(int entry, Set<Integer> stop) {
+        Set<Integer> seen = new HashSet<>();
+        Deque<Integer> work = new ArrayDeque<>();
+        work.push(entry);
+        while (!work.isEmpty()) {
+            int b = work.pop();
+            if (b < 0 || stop.contains(b) || !seen.add(b)) {
+                continue;
+            }
+            for (int s : cfg.blocks.get(b).succ) {
+                work.push(s);
+            }
+        }
+        return seen;
+    }
+
+    /**
+     * What every leaf reachable from the arms of {@code c} without entering
+     * {@code shared} stands for: a tail's literal, a literal sink's constant,
+     * or one and the same block. Null when the leaves disagree, when there is
+     * none, or when a condition on the way jumps straight to {@code merge}:
+     * the shape is then not a short-circuit chain deciding between two
+     * outcomes.
+     */
+    private Leaf commonLeaf(BasicBlock c, int shared, Map<Integer, Boolean> tails, int merge) {
+        Leaf common = null;
+        Set<Integer> seen = new HashSet<>();
+        Deque<Integer> work = new ArrayDeque<>();
+        work.push(c.fall);
+        work.push(c.branch);
+        while (!work.isEmpty()) {
+            int id = work.pop();
+            if (id == shared || !seen.add(id)) {
+                continue;
+            }
+            Leaf leaf;
+            Boolean tail = tails.get(id);
+            if (tail != null) {
+                leaf = Leaf.of(tail);
+            } else if (id < 0 || id == merge) {
+                return null;    // a condition that jumps straight to the merge carries no value
+            } else {
+                BasicBlock b = cfg.blocks.get(id);
+                if (b.isConditional() && !isTerminalCondition(id)) {
+                    work.push(b.fall);
+                    work.push(b.branch);
+                    continue;
+                }
+                if (b.isSwitch()) {
+                    return null;
+                }
+                Boolean literal = b.isConditional() ? null : literalSink(b, merge);
+                leaf = literal != null ? Leaf.of(literal) : Leaf.of(id);
+            }
+            if (common != null && !common.equals(leaf)) {
+                return null;
+            }
+            common = leaf;
+        }
+        return common;
+    }
+
+    /** The constant of a literal sink, {@code iconst_1 [goto]} or {@code iconst_0 [goto]} into {@code merge}; else null. */
+    private Boolean literalSink(BasicBlock b, int merge) {
+        if (!only(b.succ, merge)) {
+            return null;
+        }
+        List<Opcode> o = ops(b);
+        if (o.size() == 2 && o.get(1) == Opcode.GOTO) {
+            o = o.subList(0, 1);
+        }
+        if (o.equals(List.of(Opcode.ICONST_1))) {
+            return true;
+        }
+        if (o.equals(List.of(Opcode.ICONST_0))) {
+            return false;
+        }
+        return null;
+    }
+
+    private AstNode<StmtExpr> boolLiteral(boolean value) {
+        AstNode<StmtExpr> lit = body.e(new StmtExpr.LiteralBool(value));
+        body.noteDesc(lit, "Z");
+        body.bools.add(lit);
+        return lit;
+    }
+
+    AstNode<StmtExpr> armValue(int entry, Map<Integer, Boolean> tails, int merge) {
         int mark = body.stmts.size();
-        AstNode<StmtExpr> v = evalArm(entry, merge);
+        return withArmStatements(evalArm(entry, tails, merge), mark);
+    }
+
+    /** Arm value {@code v} together with the statements emitted since {@code mark}, as a block if there are any. */
+    private AstNode<StmtExpr> withArmStatements(AstNode<StmtExpr> v, int mark) {
         if (body.stmts.size() == mark) {
             return v;
         }
@@ -901,7 +1358,11 @@ final class ControlFlowStructurer {
             elseVal = body.coerce(elseVal, "Z");
         }
         AstNode<StmtExpr> r;
-        if (boolish && LaurelTrees.isFalseLit(elseVal.val())) {
+        if (boolish && LaurelTrees.isTrueLit(thenVal.val()) && LaurelTrees.isFalseLit(elseVal.val())) {
+            r = cond;
+        } else if (boolish && LaurelTrees.isFalseLit(thenVal.val()) && LaurelTrees.isTrueLit(elseVal.val())) {
+            r = LaurelTrees.negate(cond, ctx.method.unordered);
+        } else if (boolish && LaurelTrees.isFalseLit(elseVal.val())) {
             r = body.e(LaurelFactory.primitiveOp(new Operation.AndThen(), cond, thenVal));
         } else if (boolish && LaurelTrees.isTrueLit(thenVal.val())) {
             r = body.e(LaurelFactory.primitiveOp(new Operation.OrElse(), cond, elseVal));
@@ -961,18 +1422,32 @@ final class ControlFlowStructurer {
     }
 
     AstNode<StmtExpr> evalArm(int entry, int merge) {
+        return evalArm(entry, Map.of(), merge);
+    }
+
+    AstNode<StmtExpr> evalArm(int entry, Map<Integer, Boolean> tails, int merge) {
         // A value arm runs only on its side of the condition.
         body.enterConditional();
         try {
-            return evalArm0(entry, merge);
+            return evalArm0(entry, tails, merge);
         } finally {
             body.exitConditional();
         }
     }
 
-    private AstNode<StmtExpr> evalArm0(int entry, int merge) {
+    private AstNode<StmtExpr> evalArm0(int entry, Map<Integer, Boolean> tails, int merge) {
         int cur = entry;
-        while (cur != merge) {
+        while (true) {
+            Boolean tail = tails.get(cur);
+            if (tail != null) {
+                // A block the enclosing diamondValue translates once (or, for the
+                // chain of an `if`, a branch it emits as a statement): on this path
+                // the chain so far has the literal it stands for.
+                return boolLiteral(tail);
+            }
+            if (cur == merge) {
+                break;
+            }
             visited[cur] = true;
             BasicBlock b = cfg.blocks.get(cur);
             body.pos = b.instrs.isEmpty() ? body.pos : b.instrs.get(0);
@@ -989,8 +1464,22 @@ final class ControlFlowStructurer {
                     cur = bd;
                 } else {
                     int m = dom.ipdom[cur];
-                    body.stack.push(evalTernaryValue(cur, m));
-                    cur = m;
+                    if (m >= 0 && m != merge && !tails.containsKey(m)) {
+                        // A ternary closed inside the arm: its value is then used by what follows.
+                        if (!tails.isEmpty()) {
+                            for (int reached : reachable(cur, Set.of(m))) {
+                                if (tails.containsKey(reached)) {
+                                    // Its value would be a tail's literal and the walk would go on past the tail.
+                                    throw new StructException("a shared block of a short-circuit chain inside a ternary");
+                                }
+                            }
+                        }
+                        body.stack.push(evalTernaryValue(cur, tails, m));
+                        cur = m;
+                    } else {
+                        // Its paths end where the arm's do: it is the rest of the arm.
+                        return evalTernaryValue(cur, tails, merge);
+                    }
                 }
             } else {
                 List<CodeElement> ins = elems(b);
@@ -1001,15 +1490,9 @@ final class ControlFlowStructurer {
         return body.stack.pop();
     }
 
-    AstNode<StmtExpr> evalTernaryValue(int condBlk, int merge) {
+    AstNode<StmtExpr> evalTernaryValue(int condBlk, Map<Integer, Boolean> tails, int merge) {
         BasicBlock c = cfg.blocks.get(condBlk);
-        visited[condBlk] = true;
-        List<CodeElement> ins = elems(c);
-        body.translateSpan(ins, elemIdxs(c), 0, ins.size() - 1);
-        AstNode<StmtExpr> cond = body.materializeComparison(c.last.opcode());
-        AstNode<StmtExpr> thenVal = armValue(c.fall, merge);
-        AstNode<StmtExpr> elseVal = armValue(c.branch, merge);
-        return buildTernary(cond, thenVal, elseVal);
+        return diamondValue(c, translateCondition(c), tails, merge);
     }
 
     boolean isBoolish(AstNode<StmtExpr> e) {

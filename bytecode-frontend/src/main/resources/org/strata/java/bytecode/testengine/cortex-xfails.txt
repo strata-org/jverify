@@ -267,6 +267,7 @@ XFAIL org.strata.jverify.verifier.tests.jcl.StringContracts CORTEX_CONTRACT proc
 XFAIL org.strata.jverify.verifier.tests.jcl.UnsupportedContractCalls CORTEX_CONTRACT checked arithmetic helper: procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.verification.InvariantsAndStaticMethodsInSameClass CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.verification.MethodContractsVerification CORTEX_CONTRACT procedure with a body and a contract
+XFAIL org.strata.jverify.verifier.tests.verification.ShortCircuitChains CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.verification.externalcontracts.InterfaceContractVerification CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.verification.externalcontracts.LibraryContractGhostFieldVerification CORTEX_CONTRACT procedure with a body and a contract
 XFAIL org.strata.jverify.verifier.tests.verification.externalcontracts.UserContractApplies CORTEX_CONTRACT procedure with a body and a contract
