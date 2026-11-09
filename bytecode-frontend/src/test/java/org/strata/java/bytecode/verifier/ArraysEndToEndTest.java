@@ -417,9 +417,8 @@ class ArraysEndToEndTest {
                 }
             }
             case StmtExpr.Assign n -> out.add(n.value());
-            case StmtExpr.StaticCall n -> out.addAll(n.arguments());
-            case StmtExpr.InstanceCall n -> {
-                out.add(n.target());
+            case StmtExpr.Call n -> {
+                n.receiver().ifPresent(out::add);
                 out.addAll(n.arguments());
             }
             case StmtExpr.Quantifier n -> out.add(n.body());
@@ -473,7 +472,7 @@ class ArraysEndToEndTest {
                 """;
         LaurelProgram p = translate(compile(tmp, "Shape", source), objectContracts());
         var news = new ArrayList<StmtExpr.New>();
-        var wrapperCalls = new ArrayList<StmtExpr.StaticCall>();
+        var wrapperCalls = new ArrayList<StmtExpr.Call>();
         var names = new ArrayList<String>();
         boolean[] fresh = {false};
         for (var proc : allProcedures(p)) {
@@ -481,9 +480,10 @@ class ArraysEndToEndTest {
             forEachNode(proc, n -> {
                 switch (n) {
                     case StmtExpr.New nw when nw.ref().text().equals("JArray") -> news.add(nw);
-                    case StmtExpr.StaticCall c when c.callee().text().startsWith("java?array_get")
-                            || c.callee().text().startsWith("java?array_length") -> wrapperCalls.add(c);
-                    case StmtExpr.StaticCall c -> names.add(c.callee().text());
+                    case StmtExpr.Call c when c.receiver().isEmpty()
+                            && (c.callee().text().startsWith("java?array_get")
+                                || c.callee().text().startsWith("java?array_length")) -> wrapperCalls.add(c);
+                    case StmtExpr.Call c when c.receiver().isEmpty() -> names.add(c.callee().text());
                     case StmtExpr.Fresh f -> fresh[0] = true;
                     default -> { }
                 }

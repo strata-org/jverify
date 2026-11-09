@@ -334,7 +334,7 @@ final class BodyTranslator {
      */
     StmtExpr pinnedLongLiteral(long v) {
         StmtExpr lit = LaurelFactory.longLiteral(v);
-        if (lit instanceof StmtExpr.StaticCall sc) {
+        if (lit instanceof StmtExpr.Call sc && sc.receiver().isEmpty()) {
             ctx.method.statementNodes.add(sc.arguments().get(0));
         }
         return lit;
@@ -376,7 +376,8 @@ final class BodyTranslator {
             case StmtExpr.LiteralBv x -> true;
             case StmtExpr.This x -> true;
             case StmtExpr.All x -> true;
-            case StmtExpr.StaticCall c when c.callee().text().equals("$neg") && c.arguments().size() == 1
+            case StmtExpr.Call c when c.receiver().isEmpty() && c.callee().text().equals("$neg")
+                    && c.arguments().size() == 1
                     && held(c.arguments().get(0)) -> true;
             case StmtExpr.Var v when v.var_() instanceof Variable.Stack -> true;
             case StmtExpr.Var v when v.var_() instanceof Variable.Local l
@@ -647,7 +648,7 @@ final class BodyTranslator {
             throw new JavaViolationException(
                     "object allocation (including lambdas) inside a contract is not yet supported");
         }
-        if (n.val() instanceof StmtExpr.StaticCall c && c.callee().text().startsWith(BoxModel.BOX_HELPER_PREFIX)) {
+        if (n.val() instanceof StmtExpr.Call c && c.receiver().isEmpty() && c.callee().text().startsWith(BoxModel.BOX_HELPER_PREFIX)) {
             throw new JavaViolationException("boxing inside a contract is not yet supported");
         }
     }
@@ -743,9 +744,8 @@ final class BodyTranslator {
                 out.add(n.target());
                 out.add(n.newValue());
             }
-            case StmtExpr.StaticCall n -> out.addAll(n.arguments());
-            case StmtExpr.InstanceCall n -> {
-                out.add(n.target());
+            case StmtExpr.Call n -> {
+                n.receiver().ifPresent(out::add);
                 out.addAll(n.arguments());
             }
             case StmtExpr.ReferenceEquals n -> {
@@ -1195,7 +1195,7 @@ final class BodyTranslator {
             return;
         }
         String helper = ctx.lf.registerArithHelper(opKey, symbol, op, false, isLong ? "int64" : "int32");
-        AstNode<StmtExpr> n = push(new StmtExpr.StaticCall(
+        AstNode<StmtExpr> n = push(LaurelFactory.staticCall(
                 LaurelFactory.ident(helper), List.of(a, b), List.of()));
         noteDesc(n, isLong ? "J" : "I");
     }
@@ -1219,7 +1219,7 @@ final class BodyTranslator {
         }
         String helper = ctx.lf.registerArithHelper("neg", "-", new Operation.Neg(), true,
                 isLong ? "int64" : "int32");
-        AstNode<StmtExpr> n = push(new StmtExpr.StaticCall(
+        AstNode<StmtExpr> n = push(LaurelFactory.staticCall(
                 LaurelFactory.ident(helper), List.of(v), List.of()));
         noteDesc(n, isLong ? "J" : "I");
     }
@@ -1252,7 +1252,7 @@ final class BodyTranslator {
         if (t != null && t.isUnbounded()) {
             return true;
         }
-        if (n.val() instanceof StmtExpr.StaticCall call) {
+        if (n.val() instanceof StmtExpr.Call call && call.receiver().isEmpty()) {
             String callee = call.callee().text();
             if (callee.startsWith("java?cast_to_int_from_") || callee.startsWith("java?cast_to_nat_from_")) {
                 return true;
@@ -1354,7 +1354,7 @@ final class BodyTranslator {
                     }
                 }
                 var args = java.util.stream.LongStream.range(0, reads).mapToObj(r -> stackRead(exception.source())).toList();
-                AstNode<StmtExpr> dup = e(new StmtExpr.Assign(targets, e(new StmtExpr.StaticCall(
+                AstNode<StmtExpr> dup = e(new StmtExpr.Assign(targets, e(LaurelFactory.staticCall(
                         LaurelFactory.reservedIdent(name.toString()), args, List.of()))));
                 guard = e(new StmtExpr.Block(List.of(dup, guard), Optional.empty(), List.of(), Optional.empty()));
             }
@@ -1419,7 +1419,7 @@ final class BodyTranslator {
         if (e instanceof StmtExpr.LiteralInt i) {
             return i.value() == -1;
         }
-        return e instanceof StmtExpr.StaticCall c
+        return e instanceof StmtExpr.Call c && c.receiver().isEmpty()
                 && "$neg".equals(c.callee().text())
                 && c.arguments().size() == 1
                 && c.arguments().get(0).val() instanceof StmtExpr.LiteralInt one
@@ -1468,12 +1468,12 @@ final class BodyTranslator {
 
     void pushCmp3() {
         AstNode<StmtExpr> b = stack.pop(), a = stack.pop();
-        noteDesc(push(new StmtExpr.StaticCall(LaurelFactory.reservedIdent("$cmp3"), List.of(a, b), List.of())), "I");
+        noteDesc(push(LaurelFactory.staticCall(LaurelFactory.reservedIdent("$cmp3"), List.of(a, b), List.of())), "I");
     }
 
     void refuseCmp3(String boxType) {
         AstNode<StmtExpr> b = stack.pop(), a = stack.pop();
-        AstNode<StmtExpr> n = push(new StmtExpr.StaticCall(
+        AstNode<StmtExpr> n = push(LaurelFactory.staticCall(
                 LaurelFactory.ident("java?cmp3$" + boxType), List.of(a, b), List.of()));
         defer(n, "Call to unknown class '" + boxType + "' is not supported");
     }
@@ -2210,7 +2210,7 @@ final class BodyTranslator {
         String sourceName = LaurelFactory.laurelTypeName(sourceType);
         String helperName = "java?cast_to_" + laurelTarget + "_from_" + sourceName;
         ctx.lf.registerCastHelper(helperName, sourceName, sourceType, laurelTarget, targetType);
-        AstNode<StmtExpr> n = push(new StmtExpr.StaticCall(
+        AstNode<StmtExpr> n = push(LaurelFactory.staticCall(
                 LaurelFactory.ident(helperName), List.of(operand), List.of()));
         noteDesc(n, ClassfileQueries.convDesc(cv.opcode()));
     }
@@ -2264,7 +2264,7 @@ final class BodyTranslator {
         stack.pop();
         String helperName = "java?cast_to_" + laurelTarget + "_from_" + sourceName;
         ctx.lf.registerCastHelper(helperName, sourceName, sourceType, laurelTarget, targetType);
-        AstNode<StmtExpr> n = push(new StmtExpr.StaticCall(LaurelFactory.ident(helperName), List.of(operand), List.of()));
+        AstNode<StmtExpr> n = push(LaurelFactory.staticCall(LaurelFactory.ident(helperName), List.of(operand), List.of()));
         if (d != null) {
             noteDesc(n, d);
         }
@@ -2299,7 +2299,7 @@ final class BodyTranslator {
                 // fall through to the defaults
             }
         }
-        if (operand.val() instanceof StmtExpr.StaticCall call
+        if (operand.val() instanceof StmtExpr.Call call && call.receiver().isEmpty()
                 && call.callee().text().startsWith("java?cast_to_")) {
             String t = call.callee().text().substring("java?cast_to_".length());
             int from = t.indexOf("_from_");
@@ -2555,8 +2555,7 @@ final class BodyTranslator {
             return takeCall(boxed);
         }
         AstNode<StmtExpr> value = unpush(v);
-        return value != null && (value.val() instanceof StmtExpr.StaticCall
-                || value.val() instanceof StmtExpr.InstanceCall) ? value : null;
+        return value != null && value.val() instanceof StmtExpr.Call ? value : null;
     }
 
     void drop(AstNode<StmtExpr> v) {
@@ -2569,7 +2568,7 @@ final class BodyTranslator {
         AstNode<StmtExpr> push = pushOf.get(read.val());
         if (push != null && !stmts.isEmpty() && stmts.get(stmts.size() - 1) == push
                 && push.val() instanceof StmtExpr.Assign a && a.targets().size() == 1
-                && (a.value().val() instanceof StmtExpr.StaticCall || a.value().val() instanceof StmtExpr.InstanceCall)) {
+                && a.value().val() instanceof StmtExpr.Call) {
             stmts.set(stmts.size() - 1, a.value());
             return;
         }
@@ -2631,7 +2630,7 @@ final class BodyTranslator {
             targets.add(new AstNode<>(new Variable.Stack(Optional.empty()), src));
         }
         var args = java.util.stream.IntStream.range(0, reads).mapToObj(r -> stackRead(src)).toList();
-        addStmt(new StmtExpr.Assign(targets, e(new StmtExpr.StaticCall(LaurelFactory.reservedIdent(name.toString()),
+        addStmt(new StmtExpr.Assign(targets, e(LaurelFactory.staticCall(LaurelFactory.reservedIdent(name.toString()),
                 args, List.of()))));
     }
 
@@ -2719,7 +2718,7 @@ final class BodyTranslator {
         String sourceName = LaurelFactory.laurelTypeName(sourceType);
         String helperName = "java?cast_to_" + narrow + "_from_" + sourceName;
         ctx.lf.registerCastHelper(helperName, sourceName, sourceType, narrow, targetType);
-        return e(new StmtExpr.StaticCall(LaurelFactory.ident(helperName), List.of(v), List.of()));
+        return e(LaurelFactory.staticCall(LaurelFactory.ident(helperName), List.of(v), List.of()));
     }
 
     boolean isNullMarker(AstNode<StmtExpr> v) {

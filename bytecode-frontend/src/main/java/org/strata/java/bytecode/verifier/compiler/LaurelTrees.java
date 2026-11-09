@@ -23,7 +23,7 @@ import java.util.Set;
  *   <li>{@link #structuralEquals}: structural node comparison via
  *       {@code toString()} with ranges excluded through canonicalization.</li>
  *   <li>{@link #negate}: logical negation of a condition — flips
- *       {@code $eq/$neq/$lt/$le/$gt/$ge} StaticCalls, honoring the
+ *       {@code $eq/$neq/$lt/$le/$gt/$ge} static Calls, honoring the
  *       NaN-unordered marker (float/double relationals must not flip), and
  *       unwraps/wraps {@code $not}.</li>
  *   <li>{@link #isBooleanish}: structural "this is a boolean" test over
@@ -113,7 +113,7 @@ final class LaurelTrees {
                     rerangeVar(n.target(), range, stop), rerange(n.rhs(), range, stop));
             case StmtExpr.PureFieldUpdate n -> new StmtExpr.PureFieldUpdate(rerange(n.target(), range, stop),
                     n.fieldName(), rerange(n.newValue(), range, stop));
-            case StmtExpr.StaticCall n -> new StmtExpr.StaticCall(n.callee(),
+            case StmtExpr.Call n -> new StmtExpr.Call(rerange(n.receiver(), range, stop), n.callee(),
                     rerangeAll(n.arguments(), range, stop), n.typeArgs());
             case StmtExpr.New n -> n;
             case StmtExpr.This n -> n;
@@ -121,8 +121,6 @@ final class LaurelTrees {
                     rerange(n.rhs(), range, stop));
             case StmtExpr.AsType n -> new StmtExpr.AsType(rerange(n.target(), range, stop), n.targetType());
             case StmtExpr.IsType n -> new StmtExpr.IsType(rerange(n.target(), range, stop), n.type());
-            case StmtExpr.InstanceCall n -> new StmtExpr.InstanceCall(rerange(n.target(), range, stop),
-                    n.callee(), rerangeAll(n.arguments(), range, stop), n.typeArgs());
             case StmtExpr.Quantifier n -> new StmtExpr.Quantifier(n.mode(), n.param(),
                     rerange(n.trigger(), range, stop), rerange(n.body(), range, stop));
             case StmtExpr.Assigned n -> new StmtExpr.Assigned(rerange(n.name(), range, stop));
@@ -208,12 +206,11 @@ final class LaurelTrees {
                     mapVar(n.target(), f), map(n.rhs(), f));
             case StmtExpr.PureFieldUpdate n -> new StmtExpr.PureFieldUpdate(map(n.target(), f),
                     n.fieldName(), map(n.newValue(), f));
-            case StmtExpr.StaticCall n -> new StmtExpr.StaticCall(n.callee(), mapAll(n.arguments(), f), n.typeArgs());
+            case StmtExpr.Call n -> new StmtExpr.Call(map(n.receiver(), f), n.callee(), mapAll(n.arguments(), f),
+                    n.typeArgs());
             case StmtExpr.ReferenceEquals n -> new StmtExpr.ReferenceEquals(map(n.lhs(), f), map(n.rhs(), f));
             case StmtExpr.AsType n -> new StmtExpr.AsType(map(n.target(), f), n.targetType());
             case StmtExpr.IsType n -> new StmtExpr.IsType(map(n.target(), f), n.type());
-            case StmtExpr.InstanceCall n -> new StmtExpr.InstanceCall(map(n.target(), f),
-                    n.callee(), mapAll(n.arguments(), f), n.typeArgs());
             case StmtExpr.Quantifier n -> new StmtExpr.Quantifier(n.mode(), n.param(),
                     map(n.trigger(), f), map(n.body(), f));
             case StmtExpr.Assigned n -> new StmtExpr.Assigned(map(n.name(), f));
@@ -269,15 +266,15 @@ final class LaurelTrees {
                 .equals(rerange(b, SourceMap.UNKNOWN_RANGE, NO_STOP));
     }
 
-    // --- Negation over $op StaticCalls ---
+    // --- Negation over $op static Calls ---
 
     /** Logical negation of a condition: a {@code $not} unwraps, anything else wraps in {@code $not}. */
     static AstNode<StmtExpr> negate(AstNode<StmtExpr> e) {
-        if (e.val() instanceof StmtExpr.StaticCall call && call.callee().text().equals("$not")
+        if (e.val() instanceof StmtExpr.Call call && call.receiver().isEmpty() && call.callee().text().equals("$not")
                 && call.arguments().size() == 1) {
             return call.arguments().get(0);
         }
-        return new AstNode<>(new StmtExpr.StaticCall(LaurelFactory.reservedIdent("$not"), List.of(e), List.of()), e.source());
+        return new AstNode<>(LaurelFactory.staticCall(LaurelFactory.reservedIdent("$not"), List.of(e), List.of()), e.source());
     }
 
     // --- Boolean shape test ---
@@ -301,7 +298,7 @@ final class LaurelTrees {
         return switch (e) {
             case StmtExpr.IsType t -> true;
             case StmtExpr.LiteralBool b -> true;
-            case StmtExpr.StaticCall c -> booleanProc(c.callee().text());
+            case StmtExpr.Call c when c.receiver().isEmpty() -> booleanProc(c.callee().text());
             default -> false;
         };
     }
@@ -320,8 +317,8 @@ final class LaurelTrees {
         return e instanceof StmtExpr.LiteralInt i && i.value() == 0;
     }
 
-    /** The {@code $op} StaticCall's proc name when {@code e} is one, else null. */
+    /** The {@code $op} static Call's proc name when {@code e} is one, else null. */
     static String staticCallName(StmtExpr e) {
-        return e instanceof StmtExpr.StaticCall c ? c.callee().text() : null;
+        return e instanceof StmtExpr.Call c && c.receiver().isEmpty() ? c.callee().text() : null;
     }
 }

@@ -88,7 +88,7 @@ final class InvokeTranslator {
                 if (target != null && Constructors.eligible(ocm, target)) {
                     String nm = Constructors.procName(ownerFqn, d);
                     ctx.constructorCalls.add(nm);
-                    b.addStmt(new StmtExpr.InstanceCall(recv, LaurelFactory.ident(nm), args, List.of()));
+                    b.addStmt(LaurelFactory.instanceCall(recv, LaurelFactory.ident(nm), args, List.of()));
                 }
                 return;
             }
@@ -145,7 +145,7 @@ final class InvokeTranslator {
                         new org.strata.jverify.laurel.Variable.Declare(new org.strata.jverify.laurel.ParameterOpt(
                                 LaurelFactory.ident(tmp), Optional.empty())), SourceMap.UNKNOWN_RANGE)), alloc));
                 b.addStmt(decl.val());
-                b.addStmt(new StmtExpr.InstanceCall(b.e(LaurelFactory.var_(tmp)), LaurelFactory.ident(nm), ctorArgs, List.of()));
+                b.addStmt(LaurelFactory.instanceCall(b.e(LaurelFactory.var_(tmp)), LaurelFactory.ident(nm), ctorArgs, List.of()));
                 AstNode<StmtExpr> nw = b.push(LaurelFactory.var_(tmp));
                 b.callNodes.add(nw);
                 b.staticTypeOf.put(nw, t);
@@ -419,7 +419,7 @@ final class InvokeTranslator {
                         LaurelFactory.noRange(LaurelFactory.reservedVar_(LaurelFactory.LAUREL_RESULT_BINDING)),
                         BodyTranslator.stackRead(SourceMap.UNKNOWN_RANGE));
                 posts.add(new org.strata.jverify.laurel.Condition(BodyTranslator.pushedBefore(
-                        LaurelFactory.noRange(new StmtExpr.StaticCall(LaurelFactory.ident(procName), callArgs, List.of())),
+                        LaurelFactory.noRange(LaurelFactory.staticCall(LaurelFactory.ident(procName), callArgs, List.of())),
                         LaurelFactory.noRange(eq)), Optional.empty(),
                         new org.strata.jverify.laurel.ConditionMode.Both()));
             }
@@ -440,7 +440,7 @@ final class InvokeTranslator {
         for (int i = 0; i < args.size(); i++) {
             args.set(i, b.coerceArg(args.get(i), d.parameterType(i).descriptorString()));
         }
-        AstNode<StmtExpr> call = b.e(new StmtExpr.StaticCall(LaurelFactory.ident(procName), args, List.of()));
+        AstNode<StmtExpr> call = b.e(LaurelFactory.staticCall(LaurelFactory.ident(procName), args, List.of()));
         b.callNodes.add(call);
         if (d.returnType().descriptorString().equals("V")) {
             b.calleeKeys.put(call.val(), procName);
@@ -525,7 +525,7 @@ final class InvokeTranslator {
             if (cm != null && !typeVarArgumentTrips(cm, args, d)) {
                 refuseStringValuedArguments(bareName, args, d);
                 String procName = JavaNames.staticProcedure(cm.sortOrFqn(), cm.laurelName());
-                AstNode<StmtExpr> call = b.e(new StmtExpr.StaticCall(LaurelFactory.ident(procName), args, List.of()));
+                AstNode<StmtExpr> call = b.e(LaurelFactory.staticCall(LaurelFactory.ident(procName), args, List.of()));
                 recordContractCall(cm, call, cm.sortOrFqn() + "_" + cm.laurelName());
                 finishCall(call, d, null, cm.returnsTypeVar());
                 return;
@@ -582,7 +582,7 @@ final class InvokeTranslator {
         if (bound != null) {
             args = unifyTypeVariableArgs(bound, args);
         }
-        AstNode<StmtExpr> call = b.e(new StmtExpr.StaticCall(
+        AstNode<StmtExpr> call = b.e(LaurelFactory.staticCall(
                 LaurelFactory.ident(JavaNames.staticProcedure(fqn, mangled)), args, List.of()));
         b.callNodes.add(call);
         // An unresolved (library) callee gets a key no purity entry matches, so it
@@ -642,7 +642,7 @@ final class InvokeTranslator {
                         Optional.empty(), false, List.of(), Optional.empty(), Optional.empty(), false, List.of(),
                         List.of(), List.of()));
             }
-            AstNode<StmtExpr> call = b.e(new StmtExpr.InstanceCall(recv, LaurelFactory.ident("equals"), args, List.of()));
+            AstNode<StmtExpr> call = b.e(LaurelFactory.instanceCall(recv, LaurelFactory.ident("equals"), args, List.of()));
             b.callNodes.add(call);
             finishCall(call, d);
             return true;
@@ -654,7 +654,7 @@ final class InvokeTranslator {
         if (ctx.method.info != null) {
             ctx.method.info.callees.add(sort + "#" + mangled);
         }
-        AstNode<StmtExpr> call = b.e(new StmtExpr.InstanceCall(recv, LaurelFactory.ident(mangled), args, List.of()));
+        AstNode<StmtExpr> call = b.e(LaurelFactory.instanceCall(recv, LaurelFactory.ident(mangled), args, List.of()));
         b.callNodes.add(call);
         b.calleeKeys.put(call.val(), Declarations.purityKey(contract.fqn(), target));
         finishCall(call, d);
@@ -719,8 +719,7 @@ final class InvokeTranslator {
         // Contract code: Strata rejects an instance call whose receiver is
         // another call's result (`chars.drop(n).take(m)`), so the member
         // that contains one is refused.
-        if (ctx.contractMode && (b.origin(recv).val() instanceof StmtExpr.InstanceCall
-                || b.origin(recv).val() instanceof StmtExpr.StaticCall)) {
+        if (ctx.contractMode && b.origin(recv).val() instanceof StmtExpr.Call) {
             throw new JavaViolationException("call to '" + bareName
                     + "' on the result of another call is not yet supported");
         }
@@ -733,7 +732,7 @@ final class InvokeTranslator {
         ContractMember member = contractMemberFor(recv, receiverFqn, ownerInternal, bareName, args, d);
         if (member != null) {
             refuseStringValuedArguments(bareName, args, d);
-            AstNode<StmtExpr> call = b.e(new StmtExpr.InstanceCall(
+            AstNode<StmtExpr> call = b.e(LaurelFactory.instanceCall(
                     recv, LaurelFactory.ident(member.laurelName()), args, List.of()));
             recordContractCall(member, call, member.sortOrFqn() + "_" + member.laurelName());
             finishCall(call, d, null, member.returnsTypeVar());
@@ -765,7 +764,7 @@ final class InvokeTranslator {
         if (ctx.method.info != null) {
             ctx.method.info.callees.add(callee.declaringFqn() + "#" + mangled);
         }
-        AstNode<StmtExpr> call = b.e(new StmtExpr.InstanceCall(recv, LaurelFactory.ident(mangled), args, List.of()));
+        AstNode<StmtExpr> call = b.e(LaurelFactory.instanceCall(recv, LaurelFactory.ident(mangled), args, List.of()));
         b.callNodes.add(call);
         b.calleeKeys.put(call.val(), Declarations.purityKey(callee.declaringFqn(), callee.method()));
         b.calleeModels.put(call.val(), new BodyTranslator.CalleeRef(callee.declaringFqn(), callee.method()));
@@ -862,8 +861,7 @@ final class InvokeTranslator {
                                              List<AstNode<StmtExpr>> args,
                                              java.lang.constant.MethodTypeDesc d) {
         if (receiverFqn == null || recv.val() instanceof StmtExpr.LiteralString
-                || b.origin(recv).val() instanceof StmtExpr.InstanceCall
-                || b.origin(recv).val() instanceof StmtExpr.StaticCall
+                || b.origin(recv).val() instanceof StmtExpr.Call
                 || b.typeVarValues.contains(recv)
                 || ctx.resolver.programClassModels.containsKey(receiverFqn)) {
             return null;
@@ -1019,11 +1017,9 @@ final class InvokeTranslator {
     private boolean passesModelledBox(StmtExpr call, java.lang.classfile.MethodModel callee) {
         AstNode<StmtExpr> receiver = null;
         List<AstNode<StmtExpr>> args = List.of();
-        if (call instanceof StmtExpr.StaticCall sc) {
-            args = sc.arguments();
-        } else if (call instanceof StmtExpr.InstanceCall ic) {
-            receiver = ic.target();
-            args = ic.arguments();
+        if (call instanceof StmtExpr.Call c) {
+            receiver = c.receiver().orElse(null);
+            args = c.arguments();
         }
         ResultVar rv = resultVar(callee);
         if (receiver != null && (isBoxOperand(receiver) || receiverMayCarryBox(receiver, rv))) {

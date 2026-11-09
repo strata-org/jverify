@@ -200,7 +200,7 @@ final class BoxModel {
      */
     StmtExpr box(Wrapper w, AstNode<StmtExpr> value) {
         String name = registerHelper(w);
-        return new StmtExpr.StaticCall(LaurelFactory.ident(name), List.of(value), List.of());
+        return LaurelFactory.staticCall(LaurelFactory.ident(name), List.of(value), List.of());
     }
 
     /** The primitive {@code receiver} boxes: a read of its value field. */

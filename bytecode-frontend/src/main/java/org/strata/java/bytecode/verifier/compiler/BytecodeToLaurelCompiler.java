@@ -49,7 +49,7 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Compiles JVM classfiles to Laurel: binary ops as {@code $op} StaticCalls,
+ * Compiles JVM classfiles to Laurel: binary ops as {@code $op} static Calls,
  * a constrained-integer prelude, cast helper procedures and a loop label
  * scheme, driven straight by the classfiles with CharacterRangeTable spans.
  *
@@ -314,7 +314,7 @@ public class BytecodeToLaurelCompiler {
         // callee's contract was never established. Iterated to a fixpoint so
         // A -> B -> C chains demote fully. Library members no surviving
         // program method reaches are then refused too, and every refused
-        // method's emitted procedure is dropped (an InstanceCall/StaticCall to
+        // method's emitted procedure is dropped (a Call to
         // an unemitted procedure would die in Strata resolution).
         demoteCallersOfRefusedMethods();
         graph.pruneUnreachableLibraryMembers();
@@ -1638,8 +1638,9 @@ public class BytecodeToLaurelCompiler {
                     return false;
                 }
             }
-            case StmtExpr.InstanceCall c when translationContext().constructorCalls.contains(c.callee().text()) -> {
-                if (!isSelf(c.target())) {
+            case StmtExpr.Call c when c.receiver().isPresent()
+                    && translationContext().constructorCalls.contains(c.callee().text()) -> {
+                if (!isSelf(c.receiver().get())) {
                     return false;
                 }
             }
@@ -1684,7 +1685,7 @@ public class BytecodeToLaurelCompiler {
                 continue;
             }
             if (stmt.val() instanceof StmtExpr.Assert || stmt.val() instanceof StmtExpr.Assume
-                    || (stmt.val() instanceof StmtExpr.InstanceCall c && isSelf(c.target())
+                    || (stmt.val() instanceof StmtExpr.Call c && c.receiver().isPresent() && isSelf(c.receiver().get())
                             && translationContext().constructorCalls.contains(c.callee().text()))) {
                 continue;
             }
@@ -1740,7 +1741,7 @@ public class BytecodeToLaurelCompiler {
             case StmtExpr.Var(Variable.Field f) -> {
                 return !isSelf(f.target()) && simpleValue(f.target(), params);
             }
-            case StmtExpr.StaticCall p when p.callee().text().startsWith("$") -> {
+            case StmtExpr.Call p when p.receiver().isEmpty() && p.callee().text().startsWith("$") -> {
                 for (var a : p.arguments()) {
                     if (!simpleValue(a, params)) {
                         return false;
@@ -1875,7 +1876,7 @@ public class BytecodeToLaurelCompiler {
                 && !nw.typeArgs().isEmpty()) {
             return true;
         }
-        if (n.val() instanceof StmtExpr.StaticCall c && c.callee().text().startsWith(BoxModel.BOX_HELPER_PREFIX)) {
+        if (n.val() instanceof StmtExpr.Call c && c.receiver().isEmpty() && c.callee().text().startsWith(BoxModel.BOX_HELPER_PREFIX)) {
             return true;
         }
         for (var c : BodyTranslator.childrenOf(n.val())) {
@@ -2374,13 +2375,12 @@ public class BytecodeToLaurelCompiler {
     }
 
     /**
-     * Add the callee identifier of every InstanceCall/StaticCall in {@code
+     * Add the callee identifier of every Call in {@code
      * n}'s subtree to {@code out}.
      */
     private static void collectCalleeNames(AstNode<StmtExpr> n, java.util.Set<String> out) {
         switch (n.val()) {
-            case StmtExpr.InstanceCall c -> out.add(c.callee().text());
-            case StmtExpr.StaticCall c -> out.add(c.callee().text());
+            case StmtExpr.Call c -> out.add(c.callee().text());
             default -> {
             }
         }
@@ -2961,7 +2961,7 @@ public class BytecodeToLaurelCompiler {
                 }
                 FileRange preRange = pres.isEmpty() ? UNKNOWN_RANGE : pres.get(0).source();
                 preconditions.clear();
-                preconditions.add(new Condition(BodyTranslator.pushedBefore(node(new StmtExpr.InstanceCall(
+                preconditions.add(new Condition(BodyTranslator.pushedBefore(node(LaurelFactory.instanceCall(
                         noRange(new StmtExpr.Var(new Variable.Local(inputs.get(0).name()))), ident(fnName), args, List.of()),
                         preRange), BodyTranslator.stackRead(preRange)), Optional.empty(), new ConditionMode.Both()));
             }
@@ -3437,7 +3437,7 @@ public class BytecodeToLaurelCompiler {
         }
         var calls = translationContext().constructorCalls;
         java.util.function.UnaryOperator<AstNode<StmtExpr>> f = n ->
-                n.val() instanceof StmtExpr.InstanceCall c && calls.contains(c.callee().text())
+                n.val() instanceof StmtExpr.Call c && c.receiver().isPresent() && calls.contains(c.callee().text())
                         && !live.contains(c.callee().text())
                         ? node(new StmtExpr.Block(List.of(), Optional.empty(), List.of(), Optional.empty()), n.source())
                         : n;

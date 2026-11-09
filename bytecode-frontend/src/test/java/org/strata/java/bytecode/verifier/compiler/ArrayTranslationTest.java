@@ -141,7 +141,7 @@ class ArrayTranslationTest {
     }
 
     private static boolean callsIn(AstNode<StmtExpr> n, String callee) {
-        if (n.val() instanceof StmtExpr.StaticCall c && c.callee().text().equals(callee)) {
+        if (n.val() instanceof StmtExpr.Call c && c.receiver().isEmpty() && c.callee().text().equals(callee)) {
             return true;
         }
         for (var child : BodyTranslator.childrenOf(n.val())) {
@@ -197,7 +197,7 @@ class ArrayTranslationTest {
         int read = indexOf(stmts, s -> s.val() instanceof StmtExpr.Assign a
                 && a.value().val() instanceof StmtExpr.Var v && v.var_() instanceof Variable.Field);
         int call = indexOf(stmts, s -> s.val() instanceof StmtExpr.Assign a
-                && a.value().val() instanceof StmtExpr.StaticCall c && c.callee().text().endsWith("mk"));
+                && a.value().val() instanceof StmtExpr.Call c && c.receiver().isEmpty() && c.callee().text().endsWith("mk"));
         int get = indexOf(stmts, ArrayTranslationTest::getCallIn);
         assertTrue(0 <= read && read < call && call < get, stmts::toString);
     }
@@ -205,7 +205,7 @@ class ArrayTranslationTest {
     private static boolean getCallIn(AstNode<StmtExpr> n) {
         boolean[] found = {false};
         LaurelTrees.map(n, x -> {
-            found[0] |= x.val() instanceof StmtExpr.InstanceCall c && c.callee().text().equals("get");
+            found[0] |= x.val() instanceof StmtExpr.Call c && c.receiver().isPresent() && c.callee().text().equals("get");
             return x;
         });
         return found[0];
@@ -214,7 +214,7 @@ class ArrayTranslationTest {
     private static boolean lengthCallIn(AstNode<StmtExpr> n) {
         boolean[] found = {false};
         LaurelTrees.map(n, x -> {
-            found[0] |= x.val() instanceof StmtExpr.InstanceCall c && c.callee().text().equals("length");
+            found[0] |= x.val() instanceof StmtExpr.Call c && c.receiver().isPresent() && c.callee().text().equals("length");
             return x;
         });
         return found[0];

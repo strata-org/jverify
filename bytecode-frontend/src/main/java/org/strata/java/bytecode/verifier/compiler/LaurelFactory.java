@@ -234,7 +234,16 @@ final class LaurelFactory {
 
     @SafeVarargs
     static StmtExpr primitiveOp(Operation op, AstNode<StmtExpr>... args) {
-        return new StmtExpr.StaticCall(reservedIdent(operationProcName(op)), List.of(args), List.of());
+        return staticCall(reservedIdent(operationProcName(op)), List.of(args), List.of());
+    }
+
+    static StmtExpr staticCall(Identifier callee, List<AstNode<StmtExpr>> args, List<AstNode<HighType>> typeArgs) {
+        return new StmtExpr.Call(Optional.empty(), callee, args, typeArgs);
+    }
+
+    static StmtExpr instanceCall(AstNode<StmtExpr> receiver, Identifier callee, List<AstNode<StmtExpr>> args,
+            List<AstNode<HighType>> typeArgs) {
+        return new StmtExpr.Call(Optional.of(receiver), callee, args, typeArgs);
     }
 
     static AstNode<StmtExpr> noRange(StmtExpr e) {

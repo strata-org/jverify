@@ -1,6 +1,6 @@
 package org.strata.jverify.laurel;
 
-public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, StmtExpr.Block, StmtExpr.While, StmtExpr.Goto, StmtExpr.Return, StmtExpr.LiteralInt, StmtExpr.LiteralBool, StmtExpr.LiteralString, StmtExpr.LiteralDecimal, StmtExpr.LiteralBv, StmtExpr.Var, StmtExpr.Assign, StmtExpr.IncrDecr, StmtExpr.CompoundAssign, StmtExpr.PureFieldUpdate, StmtExpr.StaticCall, StmtExpr.New, StmtExpr.This, StmtExpr.ReferenceEquals, StmtExpr.AsType, StmtExpr.IsType, StmtExpr.InstanceCall, StmtExpr.Quantifier, StmtExpr.Assigned, StmtExpr.Old, StmtExpr.OldGuarantee, StmtExpr.OldRelies, StmtExpr.Fresh, StmtExpr.Assert, StmtExpr.Assume, StmtExpr.Throw, StmtExpr.Try, StmtExpr.ProveBy, StmtExpr.ContractOf, StmtExpr.Abstract, StmtExpr.All, StmtExpr.Hole, StmtExpr.Yield, StmtExpr.Resume, StmtExpr.HasNext, StmtExpr.Snapshot {
+public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, StmtExpr.Block, StmtExpr.While, StmtExpr.Goto, StmtExpr.Return, StmtExpr.LiteralInt, StmtExpr.LiteralBool, StmtExpr.LiteralString, StmtExpr.LiteralDecimal, StmtExpr.LiteralBv, StmtExpr.Var, StmtExpr.Assign, StmtExpr.IncrDecr, StmtExpr.CompoundAssign, StmtExpr.PureFieldUpdate, StmtExpr.Call, StmtExpr.New, StmtExpr.This, StmtExpr.ReferenceEquals, StmtExpr.AsType, StmtExpr.IsType, StmtExpr.Quantifier, StmtExpr.Assigned, StmtExpr.Old, StmtExpr.OldGuarantee, StmtExpr.OldRelies, StmtExpr.Fresh, StmtExpr.Assert, StmtExpr.Assume, StmtExpr.Throw, StmtExpr.Try, StmtExpr.ProveBy, StmtExpr.ContractOf, StmtExpr.Abstract, StmtExpr.All, StmtExpr.Hole, StmtExpr.Yield, StmtExpr.Resume, StmtExpr.HasNext, StmtExpr.Snapshot {
     com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion);
 
     public record IfThenElse(AstNode<StmtExpr> cond, AstNode<StmtExpr> thenBranch, java.util.Optional<AstNode<StmtExpr>> elseBranch) implements StmtExpr {
@@ -181,18 +181,19 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         }
     }
 
-    public record StaticCall(Identifier callee, java.util.List<AstNode<StmtExpr>> arguments, java.util.List<AstNode<HighType>> typeArgs) implements StmtExpr {
+    public record Call(java.util.Optional<AstNode<StmtExpr>> receiver, Identifier callee, java.util.List<AstNode<StmtExpr>> arguments, java.util.List<AstNode<HighType>> typeArgs) implements StmtExpr {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
-        sexp.add(ion.newSymbol("StaticCall"));
+        sexp.add(ion.newSymbol("Call"));
+        sexp.add((receiver().isPresent() ? receiver().get().toIon(ion) : ion.newNull()));
         sexp.add(callee().toIon(ion));
-        var _l1 = ion.newEmptyList();
-        for (var e : arguments()) _l1.add(e.toIon(ion));
-        sexp.add(_l1);
         var _l2 = ion.newEmptyList();
-        for (var e : typeArgs()) _l2.add(e.toIon(ion));
+        for (var e : arguments()) _l2.add(e.toIon(ion));
         sexp.add(_l2);
+        var _l3 = ion.newEmptyList();
+        for (var e : typeArgs()) _l3.add(e.toIon(ion));
+        sexp.add(_l3);
         return sexp;
         }
     }
@@ -249,23 +250,6 @@ public sealed interface StmtExpr extends ToIon permits StmtExpr.IfThenElse, Stmt
         sexp.add(ion.newSymbol("IsType"));
         sexp.add(target().toIon(ion));
         sexp.add(type().toIon(ion));
-        return sexp;
-        }
-    }
-
-    public record InstanceCall(AstNode<StmtExpr> target, Identifier callee, java.util.List<AstNode<StmtExpr>> arguments, java.util.List<AstNode<HighType>> typeArgs) implements StmtExpr {
-        @Override
-        public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
-        var sexp = ion.newEmptySexp();
-        sexp.add(ion.newSymbol("InstanceCall"));
-        sexp.add(target().toIon(ion));
-        sexp.add(callee().toIon(ion));
-        var _l2 = ion.newEmptyList();
-        for (var e : arguments()) _l2.add(e.toIon(ion));
-        sexp.add(_l2);
-        var _l3 = ion.newEmptyList();
-        for (var e : typeArgs()) _l3.add(e.toIon(ion));
-        sexp.add(_l3);
         return sexp;
         }
     }

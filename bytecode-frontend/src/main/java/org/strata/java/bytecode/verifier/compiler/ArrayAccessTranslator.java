@@ -133,7 +133,7 @@ final class ArrayAccessTranslator {
         b.allocTemps.add(a);
         b.addStmt(declare(a, arrayType, b.e(new StmtExpr.New(LaurelFactory.ident(ArrayModel.SORT),
                 List.of(LaurelFactory.node(k.carrier()))))));
-        AstNode<StmtExpr> lengthCall = b.e(new StmtExpr.InstanceCall(b.e(local(a)),
+        AstNode<StmtExpr> lengthCall = b.e(LaurelFactory.instanceCall(b.e(local(a)),
                 LaurelFactory.ident("length"), List.of(), List.of()));
         record(length, lengthCall, "length");
         b.addStmt(new StmtExpr.Assume(b.e(LaurelFactory.primitiveOp(new Operation.Eq(), lengthCall, b.e(count)))));
@@ -141,7 +141,7 @@ final class ArrayAccessTranslator {
         AstNode<StmtExpr> inRange = b.e(LaurelFactory.primitiveOp(new Operation.And(),
                 b.e(LaurelFactory.primitiveOp(new Operation.Leq(), b.e(new StmtExpr.LiteralInt(0)), b.e(local(i)))),
                 b.e(LaurelFactory.primitiveOp(new Operation.Lt(), b.e(local(i)), b.e(count)))));
-        AstNode<StmtExpr> getCall = b.e(new StmtExpr.InstanceCall(b.e(local(a)),
+        AstNode<StmtExpr> getCall = b.e(LaurelFactory.instanceCall(b.e(local(a)),
                 LaurelFactory.ident("get"), List.of(b.e(local(i))), List.of()));
         record(get, getCall, "get");
         AstNode<StmtExpr> isZero = b.e(LaurelFactory.primitiveOp(new Operation.Eq(), getCall, b.e(k.zero())));
@@ -181,7 +181,7 @@ final class ArrayAccessTranslator {
             b.bools.add(value);
         } else {
             ctx.lf.registerArrayElementHelpers(k);
-            value = b.e(new StmtExpr.StaticCall(LaurelFactory.ident(ArrayModel.LOAD_HELPER_PREFIX + k.helperSuffix()),
+            value = b.e(LaurelFactory.staticCall(LaurelFactory.ident(ArrayModel.LOAD_HELPER_PREFIX + k.helperSuffix()),
                     List.of(read), List.of()));
         }
         b.stack.push(value);
@@ -190,7 +190,7 @@ final class ArrayAccessTranslator {
 
     private AstNode<StmtExpr> elementRead(AstNode<StmtExpr> arr, AstNode<StmtExpr> index,
                                           ArrayModel.ElementKind k, ContractMember get) {
-        AstNode<StmtExpr> call = b.e(new StmtExpr.InstanceCall(arr, LaurelFactory.ident("get"), List.of(index), List.of()));
+        AstNode<StmtExpr> call = b.e(LaurelFactory.instanceCall(arr, LaurelFactory.ident("get"), List.of(index), List.of()));
         record(get, call, "get");
         return call;
     }
@@ -215,10 +215,10 @@ final class ArrayAccessTranslator {
             }
         } else {
             ctx.lf.registerArrayElementHelpers(k);
-            stored = b.e(new StmtExpr.StaticCall(
+            stored = b.e(LaurelFactory.staticCall(
                     LaurelFactory.ident(ArrayModel.STORE_HELPER_PREFIX + k.helperSuffix()), List.of(value), List.of()));
         }
-        AstNode<StmtExpr> call = b.e(new StmtExpr.InstanceCall(arr, LaurelFactory.ident("set"),
+        AstNode<StmtExpr> call = b.e(LaurelFactory.instanceCall(arr, LaurelFactory.ident("set"),
                 List.of(index, stored), List.of()));
         record(set, call, "set");
         b.callNodes.add(call);
@@ -231,7 +231,7 @@ final class ArrayAccessTranslator {
         AstNode<StmtExpr> arr = b.stack.pop();
         ArrayModel.ElementKind k = receiverKind(arr, null);
         ContractMember length = ctx.composites.arrays.member("length");
-        AstNode<StmtExpr> call = b.e(new StmtExpr.InstanceCall(arr, LaurelFactory.ident("length"), List.of(), List.of()));
+        AstNode<StmtExpr> call = b.e(LaurelFactory.instanceCall(arr, LaurelFactory.ident("length"), List.of(), List.of()));
         record(length, call, "length");
         b.stack.push(call);
         b.noteDesc(call, "I");
@@ -434,10 +434,10 @@ final class ArrayAccessTranslator {
      */
     static AstNode<StmtExpr> pureLoads(AstNode<StmtExpr> n, LaurelFactory lf) {
         return rewriteLoads(n, (load, x) -> {
-            var c = (StmtExpr.StaticCall) load.val();
+            var c = (StmtExpr.Call) load.val();
             String suffix = c.callee().text().substring(ArrayModel.LOAD_HELPER_PREFIX.length());
             String helper = lf.registerPureArrayLoadHelper(ArrayModel.kindOfHelperSuffix(suffix));
-            return new AstNode<>(new StmtExpr.StaticCall(LaurelFactory.ident(helper), List.of(x), c.typeArgs()),
+            return new AstNode<>(LaurelFactory.staticCall(LaurelFactory.ident(helper), List.of(x), c.typeArgs()),
                     load.source());
         });
     }
@@ -448,21 +448,17 @@ final class ArrayAccessTranslator {
      * Returns {@code n} itself when it has no such call.
      */
     private static AstNode<StmtExpr> rewriteLoads(AstNode<StmtExpr> n, LoadRewrite onLoad) {
-        if (n.val() instanceof StmtExpr.StaticCall c && c.arguments().size() == 1
+        if (n.val() instanceof StmtExpr.Call c && c.receiver().isEmpty() && c.arguments().size() == 1
                 && c.callee().text().startsWith(ArrayModel.LOAD_HELPER_PREFIX)) {
             return onLoad.apply(n, rewriteLoads(c.arguments().get(0), onLoad));
         }
         StmtExpr v = n.val();
         StmtExpr rewritten = switch (v) {
-            case StmtExpr.StaticCall c -> {
+            case StmtExpr.Call c -> {
+                var receiver = c.receiver().map(r -> rewriteLoads(r, onLoad));
                 var args = rewriteAll(c.arguments(), onLoad);
-                yield args == c.arguments() ? v : new StmtExpr.StaticCall(c.callee(), args, c.typeArgs());
-            }
-            case StmtExpr.InstanceCall c -> {
-                var target = rewriteLoads(c.target(), onLoad);
-                var args = rewriteAll(c.arguments(), onLoad);
-                yield target == c.target() && args == c.arguments() ? v
-                        : new StmtExpr.InstanceCall(target, c.callee(), args, c.typeArgs());
+                yield receiver.orElse(null) == c.receiver().orElse(null) && args == c.arguments() ? v
+                        : new StmtExpr.Call(receiver, c.callee(), args, c.typeArgs());
             }
             case StmtExpr.IfThenElse c -> {
                 var cond = rewriteLoads(c.cond(), onLoad);

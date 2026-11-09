@@ -69,7 +69,7 @@ final class MethodGraph {
         boolean constructErrorReported;
         final java.util.Set<String> callees = new java.util.LinkedHashSet<>();
         /**
-         * Quiet infos only: callee identifiers of the InstanceCall/StaticCall
+         * Quiet infos only: callee identifiers of the Call
          * nodes in the emitted preconditions, postconditions, and throwsOn
          * blocks (the only parts of an opted-out method that are emitted).
          */

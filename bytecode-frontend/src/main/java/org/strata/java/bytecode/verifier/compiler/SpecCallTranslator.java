@@ -259,12 +259,12 @@ final class SpecCallTranslator {
             } else {
                 return null;
             }
-            call = b.e(new StmtExpr.StaticCall(LaurelFactory.ident(JavaNames.staticProcedure(fqn, name)), args, List.of()));
+            call = b.e(LaurelFactory.staticCall(LaurelFactory.ident(JavaNames.staticProcedure(fqn, name)), args, List.of()));
         } else {
             if (arity != 0 || !resultBinder) {
                 return null;
             }
-            call = b.e(new StmtExpr.InstanceCall(
+            call = b.e(LaurelFactory.instanceCall(
                     b.e(LaurelFactory.reservedVar_(BytecodeToLaurelCompiler.LAUREL_RESULT_BINDING)),
                     LaurelFactory.ident(name), List.of(), List.of()));
         }
