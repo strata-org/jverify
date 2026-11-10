@@ -1,6 +1,7 @@
 package org.strata.java.bytecode.testengine;
 
 import org.junit.jupiter.api.Test;
+import org.opentest4j.TestAbortedException;
 import org.strata.java.bytecode.verifier.laurel.StrataDiagnostic;
 import org.strata.jverify.common.AnnotatedRange;
 import org.strata.jverify.common.Position;
@@ -125,12 +126,20 @@ class ResultGuardsTest {
     }
 
     @Test
-    void aTimedOutInterpretRunStaysLoudAndSaysSo() {
+    void anExpectedToFailTestAbsorbsAStrataTimeout() {
+        assertThrows(TestAbortedException.class,
+                () -> BytecodeTestEngine.applyXfailInversion("blocker", "remedy", () -> {
+                    throw new BytecodeTestEngine.StrataTimeoutFailure("timed out");
+                }));
+    }
+
+    @Test
+    void aTimedOutInterpretRunIsASwallowableFailureAndSaysSo() {
         var reason = StrataTimeout.MESSAGE_PREFIX + "1 s (" + StrataTimeout.PROPERTY + ")";
         var pos = new Position(1, 1);
         var timedOut = new StrataDiagnostic(SRC.toUri(), new Range(pos, pos), reason);
         for (var strataExit : List.of(1, 2, 4, 137)) {
-            var e = assertThrows(IllegalStateException.class,
+            var e = assertThrows(BytecodeTestEngine.StrataTimeoutFailure.class,
                     () -> BytecodeTestEngine.checkResults(new JVerifyResults.DidNotRun(
                                     List.of(diagnostic(abort(strataExit, "Laurel resolution failed")), timedOut),
                                     strataExit, strataExit),

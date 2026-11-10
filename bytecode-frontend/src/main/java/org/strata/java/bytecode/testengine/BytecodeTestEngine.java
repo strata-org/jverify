@@ -321,10 +321,11 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
     }
 
     /**
-     * Run an expected-to-fail {@code check} and invert its outcome. Only
-     * AssertionError is an "expected failure"; a genuine infra error is NOT
-     * caught here and propagates, so an xfail test that stops *running* fails
-     * loudly instead of masquerading as still-broken. Completing with no
+     * Run an expected-to-fail {@code check} and invert its outcome. Any
+     * AssertionError is an "expected failure", including a Strata timeout
+     * ({@link StrataTimeoutFailure}), which is a bug like a missing assertion.
+     * Other infra errors are NOT caught here and propagate, so an xfail test
+     * that stops *running* for another reason fails loudly. Completing with no
      * failure means the blocker(s) cleared -> fail loudly (XPASS) to demand the
      * {@code expectedToFail} be removed.
      */
@@ -376,6 +377,17 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
         }
     }
 
+    /**
+     * Strata was killed for exceeding {@code jverify.strata.timeoutSeconds}.
+     * An AssertionError subtype so an {@code expectedToFail} test swallows it
+     * like any other bug, while a normal test fails loud.
+     */
+    public static final class StrataTimeoutFailure extends AssertionError {
+        StrataTimeoutFailure(String message) {
+            super(message);
+        }
+    }
+
     public static final List<String> STRATA_PROGRAM_REJECTIONS = List.of(
             "Laurel resolution failed",
             "Laurel to Core translation failed",
@@ -414,9 +426,12 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
             var timeoutReason = results.diagnostics().stream().map(d -> d.getMessage(null))
                     .filter(m -> m != null && m.contains(StrataTimeout.MESSAGE_PREFIX))
                     .findFirst().map(m -> m.substring(m.indexOf(StrataTimeout.MESSAGE_PREFIX)) + "; ").orElse("");
-            throw new IllegalStateException("Strata backend did not run (exit "
-                    + results.exitCode() + "): " + timeoutReason
-                    + "infrastructure failure, not a verification result.");
+            var message = "Strata backend did not run (exit " + results.exitCode() + "): " + timeoutReason
+                    + "infrastructure failure, not a verification result.";
+            if (timeoutReason.isEmpty()) {
+                throw new IllegalStateException(message);
+            }
+            throw new StrataTimeoutFailure(message);
         }
 
         var diagnosticsAsAnnotations = results.diagnostics().stream()
