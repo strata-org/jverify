@@ -5,7 +5,7 @@ Laurel (Strata's IR) directly:
 
 ```
 .java --javac -g -Xjcov--> .class --java.lang.classfile--> CFG + dominators
-    --direct translator (BodyTranslator + ControlFlowStructurer)--> Laurel
+    --direct translator (BodyTranslator + BlockEmitter)--> Laurel
         (+ CharacterRangeTable line:col / LineNumberTable line as positions)
     --Ion--> strataLaurel laurelAnalyzeBinary --> diagnostics
 ```
@@ -33,9 +33,11 @@ corpus, so don't "optimize" a consumer to interpret an offset as a byte index.
 There is no intermediate Java AST: instructions translate to Laurel
 expressions on a simulated operand stack (`BodyTranslator`, with
 `InvokeTranslator`/`SpecCallTranslator`/`FieldAccessTranslator` for calls,
-JVerify spec calls, and field access), and structured control flow is
-recovered from the CFG and emitted as Laurel statements (`ControlFlowStructurer`'s
-region walker, with `LoopEmitter`/`SwitchEmitter`/`TryEmitter` per construct).
+JVerify spec calls, and field access), and control flow is emitted as one
+labelled Laurel block per jump target and one guarded `goto` per branch
+(`BlockEmitter`), which Laurel's `RestructureGotos` nests; `ValueFolder` folds
+ternaries and boolean diamonds into conditional expressions, and `LoopEmitter`
+moves loop contracts onto the loop header's block.
 Declarations, contracts, and annotations are read straight off the classfiles
 (`Declarations`, validated by `ContractValidator`), orchestrated by
 `BytecodeToLaurelCompiler`.

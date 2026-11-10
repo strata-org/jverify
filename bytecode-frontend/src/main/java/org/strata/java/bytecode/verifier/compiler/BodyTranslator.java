@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -122,7 +123,7 @@ final class BodyTranslator {
      * Reference values that may be null although their Laurel type is a
      * composite: a field read, a load of a {@linkplain #heapReadSlots local}
      * filled from the heap, a cast of either, and a conditional expression with
-     * such an arm (ControlFlowStructurer.buildTernary). The box model refuses to
+     * such an arm (ValueFolder). The box model refuses to
      * unbox them (InvokeTranslator.boxMember), as a Laurel composite value is
      * never null where Java's may be.
      */
@@ -349,6 +350,22 @@ final class BodyTranslator {
     private final Map<StmtExpr, AstNode<StmtExpr>> pushOf = new IdentityHashMap<>();
     private final Map<StmtExpr, AstNode<StmtExpr>> spillOrigin = new IdentityHashMap<>();
     boolean spilling = true;
+    /**
+     * When set, a local first stored without a hoisted declaration is declared here
+     * instead, at its value's type, and placed at the method top with the hoisted
+     * ones ({@link BlockEmitter}): its uses may lie in other labelled blocks than the
+     * store.
+     */
+    List<AstNode<StmtExpr>> lateDecls;
+    /** The type a local with no recorded type was declared at, at its first store. */
+    final Map<String, TypeRef> lateDeclTypes = new HashMap<>();
+    /**
+     * The locals javac saves a catch-all handler's exception in to rethrow it: they are
+     * declared at the handler with the type Laurel infers for the exception, and their
+     * rethrow is not a new throw.
+     */
+    final Set<String> caughtAllSlots = new HashSet<>();
+    private final Set<AstNode<StmtExpr>> rethrows = Collections.newSetFromMap(new IdentityHashMap<>());
 
     static long countStackReads(AstNode<StmtExpr> n) {
         long[] count = {0};
@@ -516,6 +533,10 @@ final class BodyTranslator {
         pushOf.put(read.val(), stmts.get(stmts.size() - 1));
         spillOrigin.put(read.val(), n);
         return read;
+    }
+
+    void copyFacts(AstNode<StmtExpr> from, AstNode<StmtExpr> to) {
+        transfer(from, to);
     }
 
     private void transfer(AstNode<StmtExpr> from, AstNode<StmtExpr> to) {
@@ -1113,6 +1134,12 @@ final class BodyTranslator {
             untypedLoads.add(n);
         }
         TypeRef t = localTypeRef(li.slot());
+        if (t == null) {
+            t = lateDeclTypes.get(varKey(li.slot()));
+        }
+        if (caughtAllSlots.contains(varKey(li.slot()))) {
+            rethrows.add(n);
+        }
         if (t != null && !name.equals("this")) {
             staticTypeOf.put(n, t);
         }
@@ -1154,6 +1181,15 @@ final class BodyTranslator {
     void store(StoreInstruction si) {
         String desc = localDesc(si.slot());
         AstNode<StmtExpr> val = coerceTo(stack.pop(), desc);
+        if (lateDecls != null && caughtAllSlots.contains(varKey(si.slot()))) {
+            String nm = freshName(si.slot());
+            caughtAllSlots.add(varKey(si.slot()));
+            declared.add(varKey(si.slot()));
+            lateDecls.add(e(new StmtExpr.Var(new Variable.Declare(
+                    new ParameterOpt(LaurelFactory.ident(nm), Optional.empty())))));
+            addStmt(new StmtExpr.Assign(List.of(localVarTarget(si.slot())), val));
+            return;
+        }
         if (desc != null) {
             // A local with no recorded type keeps the value's own (untyped declaration).
             arrays.refuseAsObject(val, desc);
@@ -1190,6 +1226,20 @@ final class BodyTranslator {
             String nm = localName(si.slot());
             LaurelFactory.refuseReservedName(nm);
             TypeRef t = localTypeRef(si.slot());
+            if (lateDecls != null) {
+                TypeRef vt = t != null ? t : staticTypeOf.get(val);
+                if (vt == null && descOf.get(val) != null) {
+                    vt = TypeRef.ofDescriptor(descOf.get(val), false, false);
+                }
+                if (vt != null) {
+                    lateDeclTypes.put(varKey(si.slot()), vt);
+                    lateDecls.add(e(new StmtExpr.Var(new Variable.Declare(new ParameterOpt(LaurelFactory.ident(nm),
+                            Optional.of(LaurelFactory.node(vt.toLaurel(ctx.typeParams, ctx.methodTypeParams,
+                                    ctx.resolver, ctx.composites))))))));
+                    addStmt(new StmtExpr.Assign(List.of(localVarTarget(si.slot())), val));
+                    return;
+                }
+            }
             ParameterOpt param = t == null
                     ? new ParameterOpt(LaurelFactory.ident(nm), Optional.empty())
                     : new ParameterOpt(LaurelFactory.ident(nm),
@@ -1738,7 +1788,7 @@ final class BodyTranslator {
     final Map<AstNode<StmtExpr>, AstNode<StmtExpr>> boxedValue = new IdentityHashMap<>();
     /**
      * {@code INSTANCEOF} instructions that test a pattern-bind shape, filled by
-     * {@link ControlFlowStructurer#markPatternBindTests}. Laurel's {@code is} has
+     * BlockEmitter.markPatternBindTests. Laurel's {@code is} has
      * nowhere to put the binding, so an {@code instanceof} with a pattern
      * refuses.
      */
@@ -2033,7 +2083,10 @@ final class BodyTranslator {
             case LoadInstruction li -> load(li);
             case StoreInstruction si -> store(si);
             case IncrementInstruction ii -> increment(ii);
-            case java.lang.classfile.instruction.OperatorInstruction oi -> operator(oi);
+            case java.lang.classfile.instruction.OperatorInstruction oi -> {
+                operator(oi);
+                noteResultKind(oi.typeKind());
+            }
             case java.lang.classfile.instruction.ConvertInstruction cv -> convert(cv);
             case java.lang.classfile.instruction.TypeCheckInstruction tc -> typeCheck(tc);
             case java.lang.classfile.instruction.FieldInstruction fi -> fieldAccess.field(fi);
@@ -2129,8 +2182,10 @@ final class BodyTranslator {
                     // Coverage discipline first, then the hierarchy chain
                     // link for the `is` guard.
                     String thrownFqn = thrownStaticTypeFqn(v);
-                    checkThrowCoverage(thrownFqn, v);
-                    ctx.composites.registerHierarchyUpToThrowable(thrownFqn);
+                    if (!rethrows.contains(origin(v))) {
+                        checkThrowCoverage(thrownFqn, v);
+                        ctx.composites.registerHierarchyUpToThrowable(thrownFqn);
+                    }
                     FileRange range = stmtRange(pos, false);
                     for (AstNode<StmtExpr> t : explicitImplicitThrows(before)) {
                         AstNode<StmtExpr> placed = place(t, range);
@@ -2149,6 +2204,16 @@ final class BodyTranslator {
                     todo(in.opcode().toString());
                 }
             }
+        }
+    }
+
+    /** An int or long operator's result, when it carries no descriptor of its own, gets its kind's. */
+    private void noteResultKind(java.lang.classfile.TypeKind kind) {
+        if (stack.isEmpty() || descOf.containsKey(stack.peek()) || bools.contains(stack.peek())) {
+            return;
+        }
+        if (kind == java.lang.classfile.TypeKind.INT || kind == java.lang.classfile.TypeKind.LONG) {
+            descOf.put(stack.peek(), kind.upperBound().descriptorString());
         }
     }
 

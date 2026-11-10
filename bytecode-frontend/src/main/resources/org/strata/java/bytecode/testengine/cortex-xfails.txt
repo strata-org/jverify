@@ -348,3 +348,4 @@ XFAIL org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_2 CORTEX
 XFAIL org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_3 CORTEX_LAUREL_DIAGNOSTIC the fixture expects Laurel's 'Unsupported call: length'; Cortex models String.length
 XFAIL org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_4 CORTEX_LAUREL_DIAGNOSTIC the fixture expects Laurel's 'Unsupported call: length'; Cortex models String.length
 RUN   org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_5 passes on the direct Cortex translation: string constants, String.length and String.equals
+XFAIL org.strata.jverify.langref.jls15.s15_25.ReferenceConditional_LUB CORTEX_LIBRARY_CALL calls to library methods when interpreting

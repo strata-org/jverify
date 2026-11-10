@@ -232,24 +232,11 @@ class EndToEndTest {
     }
 
     @Test
-    void loopEndingInATryFinallyResolves(@TempDir Path tmp) throws Exception {
-        // The back-edge goto must go inside the try body's trailing if/else
-        // arms (Laurel's EliminateExceptions unwinds a goto leaving the try
-        // through the finally): with the goto after the try, the lowering
-        // leaves the if/else in non-tail position and the re-resolution
-        // rejects the arm types ("Internal error: resolution after
-        // 'EliminateExceptions' introduced this diagnostic: 'if' branches
-        // have incompatible types 'bool' and 'int32'").
-        //
-        // Full verification of a try inside ANY loop is a known Strata
-        // limitation independent of the goto placement: loop elimination
-        // havocs the $thrown flag EliminateExceptions introduces, so "no
-        // exception escapes this `try` uncaught" (and the procedure's
-        // implicit no-throw postcondition) cannot be proved -- see
-        // StrataLaurel/Tests/EndToEndTests/Execution/StmtExpr/Stmt/Goto.lean,
-        // which runs the equivalent Laurel with skipVerification and notes a
-        // `while` around the same try fails the same way. Pin exactly those
-        // two obligations, and nothing structural, as the outcome.
+    void loopEndingInATryFinallyVerifies(@TempDir Path tmp) throws Exception {
+        // The try body is translated as written, javac's inlined finally copy on
+        // the normal path included, and the handler as a catch-all that runs the
+        // finally and rethrows: the loop's invariant and the procedure's
+        // no-throw postcondition both verify.
         var source = """
                 import static org.strata.jverify.JVerify.*;
 
@@ -277,25 +264,15 @@ class EndToEndTest {
         var results = verify(tmp, "TryTail.java", source);
 
         var ran = assertInstanceOf(JVerifyResults.Ran.class, results, () -> "got: " + results);
-        assertEquals(
-                List.of("Error: no exception escapes this `try` uncaught could not be proved",
-                        "Error: postcondition could not be proved"),
-                ran.diagnostics().stream().map(d -> d.getMessage(null)).toList(),
-                "only the documented try-in-loop havoc obligations may fail");
-        // tf fails those obligations; the implicit constructor verifies.
-        assertEquals(1, ran.verificationResults().verificationPassedMethods());
-        assertEquals(1, ran.verificationResults().verificationFailedMethods());
+        assertEquals(List.of(), ran.diagnostics().stream().map(d -> d.getMessage(null)).toList());
+        assertEquals(2, ran.verificationResults().verificationPassedMethods());
     }
 
     @Test
-    void breakInsideATryFinallyInALoopIsRefusedNotVerified(@TempDir Path tmp) throws Exception {
-        // javac inlines one finally copy per normal exit of the protected
-        // range; only the copy at the range's end is stripped, so the
-        // fall-through path would keep its inlined copy AND unwind through
-        // the Laurel finally -- the model would run the finally twice per
-        // iteration, making c == 6 where Java computes c == 3, and this
-        // FALSE check would verify (a missed violation). The shape must be
-        // refused, with no verdict for the method.
+    void breakInsideATryFinallyInALoopRunsTheFinallyOnce(@TempDir Path tmp) throws Exception {
+        // javac inlines one finally copy per normal exit of the protected range;
+        // each copy is translated where it is, so every iteration runs the
+        // finally once: c == 3 verifies and the false c == 6 does not.
         var source = """
                 import static org.strata.jverify.JVerify.*;
 
@@ -304,6 +281,7 @@ class EndToEndTest {
                         int i = 0;
                         int c = 0;
                         while (i < 3) {
+                            invariant(0 <= i && i <= 3 && c == i);
                             try {
                                 if (i == 10) {
                                     break;
@@ -313,19 +291,17 @@ class EndToEndTest {
                                 c = c + 1;
                             }
                         }
+                        check(c == 3);
                         check(c == 6);
                         return c;
                     }
                 }
                 """;
         var results = verify(tmp, "BreakFin.java", source);
-
-        // The refusal stops the run with NO verdict: the false check must
-        // neither verify nor merely count as a failure.
-        var noVerdict = assertInstanceOf(JVerifyResults.NoVerdict.class, results, () -> "got: " + results);
-        assertEquals(1, noVerdict.diagnostics().size(), () -> "diagnostics: " + noVerdict.diagnostics());
-        assertTrue(noVerdict.diagnostics().getFirst().getMessage(null).contains("modelled as running twice"),
-                () -> noVerdict.diagnostics().getFirst().getMessage(null));
+        var ran = assertInstanceOf(JVerifyResults.Ran.class, results, () -> "got: " + results);
+        assertEquals(List.of("Error: assertion could not be proved"),
+                ran.diagnostics().stream().map(d -> d.getMessage(null)).toList());
+        assertEquals(19L, ran.diagnostics().getFirst().getLineNumber());
     }
 
     @Test

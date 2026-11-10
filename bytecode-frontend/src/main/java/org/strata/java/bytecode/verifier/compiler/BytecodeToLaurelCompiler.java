@@ -1342,7 +1342,7 @@ public class BytecodeToLaurelCompiler {
 
     // =====================================================================
     // Per-method translation: bytecode -> Laurel via BodyTranslator (expressions)
-    // and ControlFlowStructurer (control flow).
+    // and BlockEmitter (control flow).
     // =====================================================================
 
     /**
@@ -1464,10 +1464,9 @@ public class BytecodeToLaurelCompiler {
     }
 
     /**
-     * Structured when the CFG has real control flow, rolling back to the
-     * linear form on a structural bail. A JavaViolationException is a
-     * TRANSLATION refusal and propagates — a refusal on structured code must
-     * refuse the method, never silently retry it linearly.
+     * Labelled blocks and jumps ({@link BlockEmitter}) when the CFG has real
+     * control flow, else the straight-line form. A JavaViolationException is a
+     * TRANSLATION refusal and refuses the method.
      */
     private BodyRun runBody(java.lang.classfile.ClassModel cm,
                                 org.strata.java.bytecode.frontend.MethodBody shape,
@@ -1475,10 +1474,7 @@ public class BytecodeToLaurelCompiler {
         if (shape.dom() != null) {
             BodyTranslator sbody = newBodyTranslator(cm, shape, ctx);
             try {
-                var structurer = new ControlFlowStructurer(shape.cfg(), shape.dom(), sbody, ctx);
-                return new BodyRun(structurer.structure(), sbody, true, null);
-            } catch (org.strata.java.bytecode.frontend.StructException e) {
-                // fall through to the linear form
+                return new BodyRun(new BlockEmitter(shape.cfg(), shape.dom(), sbody, ctx).emit(), sbody, true, null);
             } catch (JavaViolationException e) {
                 return new BodyRun(null, sbody, true, e);
             }
@@ -1578,9 +1574,16 @@ public class BytecodeToLaurelCompiler {
         var out = new ArrayList<AstNode<StmtExpr>>();
         for (var h : shape.hoisted()) {
             LaurelFactory.refuseReservedName(h.name());
-            TypeRef t = h.genericSig() != null
-                    ? TypeRef.ofSignature(h.genericSig(), false, false)
-                    : TypeRef.ofDescriptor(h.desc(), false, false);
+            // The local's own type, annotations (@Nat, @Unbounded) included.
+            int savedPos = body.pos;
+            body.pos = h.seqIdx();
+            TypeRef t = body.localTypeRef(h.slot());
+            body.pos = savedPos;
+            if (t == null) {
+                t = h.genericSig() != null
+                        ? TypeRef.ofSignature(h.genericSig(), false, false)
+                        : TypeRef.ofDescriptor(h.desc(), false, false);
+            }
             var param = new ParameterOpt(ident(h.name()),
                     Optional.of(node(t.toLaurel(ctx.typeParams, ctx.methodTypeParams,
                             resolver, composites))));
@@ -2614,7 +2617,7 @@ public class BytecodeToLaurelCompiler {
     /**
      * Translate one method into a Laurel procedure: signature (params,
      * return, throws join), contract header (preconditions, postconditions,
-     * modifies, throwsOn cases), body via BodyTranslator/ControlFlowStructurer,
+     * modifies, throwsOn cases), body via BodyTranslator/BlockEmitter,
      * body-variant selection (Transparent/Opaque/Abstract), and the
      * verification-status record.
      *
@@ -3102,6 +3105,9 @@ public class BytecodeToLaurelCompiler {
 
         // --- Implementation: hoisted declarations, then the structured rest ---
         var implementation = new ArrayList<AstNode<StmtExpr>>(hoistedDeclStmts(shape, body, ctx));
+        if (body.lateDecls != null) {
+            implementation.addAll(body.lateDecls);
+        }
         if (isInterpretEntry) {
             for (var stmt : ctx.statics.entryPrologue(body)) {
                 implementation.add(noRange(stmt));

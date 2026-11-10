@@ -246,7 +246,8 @@ class ArrayTranslationTest {
                 """);
         assertEquals(List.of(), t.messages());
         var stmts = implementation(procedure(t.program(), "w"));
-        var loops = stmts.stream().filter(s -> s.val() instanceof StmtExpr.Block b && b.label().isPresent()).toList();
+        var loops = stmts.stream().filter(s -> s.val() instanceof StmtExpr.Block b && b.label().isPresent()
+                && jumpsBackTo(s, b.label().get())).toList();
         assertEquals(1, loops.size(), stmts::toString);
         assertTrue(lengthCallIn(loops.get(0)), stmts::toString);
         for (var s : stmts) {
@@ -254,6 +255,14 @@ class ArrayTranslationTest {
                 assertFalse(lengthCallIn(s), stmts::toString);
             }
         }
+    }
+
+    /** A jump back to the start of the block labelled {@code label} occurs inside {@code n}. */
+    private static boolean jumpsBackTo(AstNode<StmtExpr> n, String label) {
+        if (n.val() instanceof StmtExpr.Goto g && g.target().equals(label)) {
+            return true;
+        }
+        return BodyTranslator.childrenOf(n.val()).stream().anyMatch(c -> jumpsBackTo(c, label));
     }
 
     @Test
@@ -339,7 +348,7 @@ class ArrayTranslationTest {
     }
 
     @Test
-    void allocationInAHeaderSpecificationRefusesItsPlacement(@TempDir Path tmp) throws Exception {
+    void allocationInAHeaderSpecificationIsRefused(@TempDir Path tmp) throws Exception {
         var t = translate(tmp, "SpecAlloc", """
                 import static org.strata.jverify.JVerify.*;
                 public class SpecAlloc {
@@ -349,7 +358,8 @@ class ArrayTranslationTest {
                     }
                 }
                 """);
-        assertEquals(List.of("error: call to contract method must come before the rest of the body"), t.messages());
+        assertEquals(List.of("error: an array allocation or write inside a specification is not yet supported"),
+                t.messages());
     }
 
     @Test

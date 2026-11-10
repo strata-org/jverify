@@ -586,7 +586,7 @@ public final class MethodBodyFactory {
         if (cfg != null && cfg.blocks.size() > 1) {
             dom = analyze(cfg);
             loopConditionPcs(dom, cfg, code, seqToBci);
-            hoisted = hoistedDeclInfos(cfg, dom, locals, slotName, slotDesc, declared, crt, seqToBci);
+            hoisted = hoistedDeclInfos(cfg, locals, slotName, slotDesc, declared);
         }
         boolean localsWithoutDebugInfo = lvs.isEmpty() && code.maxLocals() > (isStatic ? 0 : 1);
         return new MethodBody(cfg, dom, locals, seq, slotName, slotDesc, declared,
@@ -651,39 +651,18 @@ public final class MethodBodyFactory {
     }
 
     /**
-     * The hoist detection: returns {@link MethodBody.HoistedDecl}
-     * records (slot/first-store-pos/name/descriptor/generic) for the direct translator. Mutates
-     * {@code preDeclared} identically (adds each hoisted key), so a hoisted local's first store becomes
-     * an assignment rather than a re-declaration.
+     * Every local declaration, hoisted to the method top: the body is a sequence of
+     * labelled blocks ({@code BlockEmitter}), so a declaration in one would not be in
+     * scope in the next. Returns {@link MethodBody.HoistedDecl} records
+     * (slot/first-store-pos/name/descriptor/generic) and adds each hoisted key to
+     * {@code preDeclared}, so a local's first store becomes an assignment.
      */
-    static List<MethodBody.HoistedDecl> hoistedDeclInfos(ControlFlowGraph cfg, DominanceFinder dom, Locals locals,
+    static List<MethodBody.HoistedDecl> hoistedDeclInfos(ControlFlowGraph cfg, Locals locals,
                                               Map<Integer, String> slotName, Map<Integer, String> slotDesc,
-                                              Set<String> preDeclared, List<CrtRange> crt, int[] seqToBci) {
-        // A debug-info-less input (no LVT) has no slot types at all; a local
-        // whose first store does not dominate its uses must still hoist, as
-        // an UNTYPED declaration, or the branch-scoped `var` leaves later
-        // uses unresolved.
-        boolean noDebugNames = (locals == null || locals.bySlot.isEmpty()) && slotName.isEmpty();
-        Map<String, Integer> firstStoreBlk = new HashMap<>();
+                                              Set<String> preDeclared) {
         Map<String, Integer> firstStorePos = new HashMap<>();
         Map<String, Integer> keySlot = new HashMap<>();
-        Map<String, Set<Integer>> refBlocks = new HashMap<>();
-        for (BasicBlock b : cfg.blocks) {
-            for (int idx : b.instrs) {
-                CodeElement e = cfg.seq.get(idx);
-                int s = slotOf(e);
-                if (s < 0) {
-                    continue;
-                }
-                String key = Locals.slotVarKey(locals, s, idx);
-                keySlot.putIfAbsent(key, s);
-                refBlocks.computeIfAbsent(key, k -> new HashSet<>()).add(b.id);
-                if (e instanceof StoreInstruction && !firstStoreBlk.containsKey(key)) {
-                    firstStoreBlk.put(key, b.id);
-                    firstStorePos.put(key, idx);
-                }
-            }
-        }
+        Map<String, Integer> storeAt = new HashMap<>();
         Set<Integer> handlerEntry = new HashSet<>();
         for (Trap ex : cfg.excs) {
             BasicBlock h = cfg.blocks.get(ex.handlerBlk());
@@ -691,77 +670,72 @@ public final class MethodBodyFactory {
                 handlerEntry.add(h.instrs.get(0));
             }
         }
-
+        for (BasicBlock b : cfg.blocks) {
+            for (int idx : b.instrs) {
+                CodeElement e = cfg.seq.get(idx);
+                int s = slotOf(e);
+                if (s < 0) {
+                    continue;
+                }
+                int at = handlerEntry.contains(idx) && cfg.nextInstr[idx + 1] >= 0 ? cfg.nextInstr[idx + 1] : idx;
+                String key = Locals.slotVarKey(locals, s, at);
+                keySlot.putIfAbsent(key, s);
+                if (e instanceof StoreInstruction && !firstStorePos.containsKey(key)) {
+                    firstStorePos.put(key, at);
+                    storeAt.put(key, idx);
+                }
+            }
+        }
         // Every declaration identity's source name (params + locals). A name
         // held by MORE than one identity -- sibling Java scopes reusing a
         // name, possibly at different types -- must not surface twice at
         // method level ("Duplicate definition"), so such a hoist is renamed.
         Map<String, Integer> nameHolders = new HashMap<>();
         Set<String> allKeys = new java.util.TreeSet<>(preDeclared);
-        allKeys.addAll(firstStoreBlk.keySet());
+        allKeys.addAll(firstStorePos.keySet());
         for (String k : allKeys) {
             nameHolders.merge(keyName(k), 1, Integer::sum);
         }
         Set<String> usedNames = new HashSet<>(nameHolders.keySet());
 
         List<MethodBody.HoistedDecl> out = new ArrayList<>();
-        for (String key : new java.util.TreeSet<>(firstStoreBlk.keySet())) {
+        for (String key : new java.util.TreeSet<>(firstStorePos.keySet())) {
             if (preDeclared.contains(key)) {
-                continue;
-            }
-            if (handlerEntry.contains(firstStorePos.get(key))) {
                 continue;
             }
             int slot = keySlot.get(key), dpos = firstStorePos.get(key);
             Locals.Scope sc = locals != null ? locals.at(slot, dpos) : null;
             if (sc == null && locals != null && locals.bySlot.containsKey(slot)) {
-                continue;   // synthetic (e.g. monitor temp)
+                continue;   // unnamed here (a synthetic temp): declared at its first store
             }
             java.lang.classfile.Signature genericSig = sc != null ? sc.genericSig() : null;
             String desc = sc != null ? sc.desc() : slotDesc.get(slot);
             if (genericSig == null && desc == null) {
-                if (!noDebugNames) {
-                    continue;   // no known type -> leave to the first store's `var`
-                }
-                // Debug-info-less input: fall back to the store opcode's type
-                // kind (reference types collapse to Object; int covers the
-                // whole int family, which is also the bytecode's own view) --
-                // except a boolean, which the surrounding call/return
-                // signatures can recover.
-                desc = storeKindDesc(cfg.seq.get(dpos));
-                if (desc == null) {
+                // No recorded type: a primitive takes the store opcode's type kind
+                // (int covers the whole int family, which is also the bytecode's own
+                // view); a reference is declared at its first store's value type
+                // (BodyTranslator.store).
+                desc = storeKindDesc(cfg.seq.get(storeAt.get(key)));
+                if (desc == null || desc.startsWith("L")) {
                     continue;
                 }
-                slotDesc.put(slot, desc);   // the coercion oracle needs it too
+                slotDesc.putIfAbsent(slot, desc);
             }
-            int db = firstStoreBlk.get(key);
-            boolean dominatesAll = refBlocks.get(key).stream().allMatch(rb -> dom.dominates(db, rb));
-            // A loop becomes a labelled Laurel block whose scope ends at the
-            // loop exit, so a declaration inside it is invisible to the code
-            // after the loop and to the block's invariants. Hoist a local
-            // first stored in a loop header (e.g. in the loop's own
-            // condition, which dominates every use but may be mentioned by
-            // an invariant), and a local first stored anywhere inside a loop
-            // that is also used outside that loop (the first store may
-            // dominate a use after the loop, yet its declaration would be
-            // scoped to the block).
-            if (!dominatesAll || dom.isLoopHeader(db) || storeEscapesLoop(dom, db, refBlocks.get(key))) {
-                String nm = sc != null ? sc.name() : name(slotName, slot);
-                // Shared source name: this method-level declaration gets a
-                // unique `name@N` ('@' cannot occur in a Java identifier, so
-                // it can never collide with a source name). Loads and stores
-                // of the same identity resolve through `key` to the new name.
-                if (nameHolders.getOrDefault(nm, 0) > 1) {
-                    int n = 1;
-                    String fresh;
-                    do {
-                        fresh = nm + "@" + n++;
-                    } while (!usedNames.add(fresh));
-                    nm = fresh;
-                }
-                out.add(new MethodBody.HoistedDecl(slot, dpos, key, nm, desc, genericSig));
-                preDeclared.add(key);
+            String nm = sc != null ? sc.name() : name(slotName, slot);
+            // Shared source name: this method-level declaration gets a
+            // unique `name@N` ('@' cannot occur in a Java identifier, so
+            // it can never collide with a source name). Loads and stores
+            // of the same identity resolve through `key` to the new name.
+            if (nameHolders.getOrDefault(nm, 0) > 1) {
+                int n = 1;
+                String fresh;
+                do {
+                    fresh = nm + "@" + n++;
+                } while (!usedNames.add(fresh));
+                nm = fresh;
             }
+            out.add(new MethodBody.HoistedDecl(slot, dpos, key, nm, desc, genericSig));
+            preDeclared.add(key);
         }
         return out;
     }
@@ -774,16 +748,6 @@ public final class MethodBodyFactory {
         }
         int b = key.lastIndexOf(':');
         return key.substring(a + 1, b);
-    }
-
-    /** The first store lies inside some loop that does not contain all the local's uses. */
-    private static boolean storeEscapesLoop(DominanceFinder dom, int storeBlk, Set<Integer> refBlocks) {
-        for (Set<Integer> loopBlocks : dom.loops.values()) {
-            if (loopBlocks.contains(storeBlk) && !loopBlocks.containsAll(refBlocks)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     static String name(Map<Integer,String> names, int slot) { return names.getOrDefault(slot, "v" + slot); }

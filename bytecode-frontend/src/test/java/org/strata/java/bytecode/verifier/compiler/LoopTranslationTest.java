@@ -106,13 +106,28 @@ class LoopTranslationTest {
         }
     }
 
-    /** The single labelled (loop) block of the procedure. */
+    /**
+     * The labelled blocks a jump goes back to: one jumped to from inside it or from a
+     * later statement, which Laurel's RestructureGotos makes a loop.
+     */
+    private static List<StmtExpr.Block> loopBlocks(AstNode<StmtExpr> body) {
+        var all = statements(body);
+        var loops = new ArrayList<StmtExpr.Block>();
+        for (int i = 0; i < all.size(); i++) {
+            if (all.get(i).val() instanceof StmtExpr.Block b && b.label().isPresent()) {
+                String l = b.label().get();
+                if (all.subList(i + 1, all.size()).stream().anyMatch(s -> s.val() instanceof StmtExpr.Goto g
+                        && g.target().equals(l))) {
+                    loops.add(b);
+                }
+            }
+        }
+        return loops;
+    }
+
+    /** The single loop block of the procedure. */
     private static StmtExpr.Block loopBlock(AstNode<StmtExpr> body) {
-        var labelled = statements(body).stream()
-                .map(AstNode::val)
-                .filter(v -> v instanceof StmtExpr.Block b && b.label().filter(l -> l.startsWith("loop")).isPresent())
-                .map(v -> (StmtExpr.Block) v)
-                .toList();
+        var labelled = loopBlocks(body);
         assertEquals(1, labelled.size(), "expected exactly one labelled loop block");
         return labelled.get(0);
     }
@@ -484,27 +499,17 @@ class LoopTranslationTest {
 
     // --- An early exit out of a try/finally leaves an inlined copy: refused ---
 
-    private static void assertFinallyCopyRefused(Translation t, String proc) {
-        assertEquals(1, t.messages().size(), () -> "messages: " + t.messages());
-        // The refusal itself -- or, when the refused loop carried invariant
-        // markers, the contract-refusal pass's message, which outranks the
-        // captured body refusal (same convention as assertMarkerRefused).
-        assertTrue(t.messages().get(0).contains("modelled as running twice")
-                        || t.messages().get(0).contains("invariants are not allowed in a method"),
-                () -> t.messages().get(0));
-        assertTrue(t.program().staticProcedures().stream()
-                        .noneMatch(p -> p.name().text().equals(proc)
-                                && p.body() instanceof Body.Opaque o && o.implementation().isPresent()),
-                proc + " must not be translated with an unstripped finally copy");
+    /** The method translated without diagnostics. */
+    private static void assertTranslated(Translation t, String proc) {
+        assertEquals(List.of(), t.messages());
+        bodyOf(t.program(), proc);
     }
 
     @Test
-    void breakInsideATryFinallyInALoopIsRefused(@TempDir Path tmp) throws Exception {
-        // javac inlines one finally copy per normal exit; only the copy at
-        // the protected range's end is stripped, so the fall-through path
-        // would keep its copy AND unwind through the Laurel finally -- the
-        // model runs the finally twice per iteration (c == 6 instead of 3)
-        // and the false check would wrongly verify. Refused instead.
+    void breakInsideATryFinallyInALoopTranslates(@TempDir Path tmp) throws Exception {
+        // javac inlines one finally copy per normal exit; each is translated
+        // where it is, so the finally runs once per iteration (EndToEndTest
+        // checks the verdicts).
         var t = translate(tmp, "BreakFin", """
                 import static org.strata.jverify.JVerify.*;
                 public class BreakFin {
@@ -526,13 +531,13 @@ class LoopTranslationTest {
                     }
                 }
                 """);
-        assertFinallyCopyRefused(t, "BreakFin::m");
+        assertTranslated(t, "BreakFin::m");
     }
 
     @Test
-    void falseInvariantOverDoubleCountedFinallyStateIsRefused(@TempDir Path tmp) throws Exception {
-        // `c == 2 * i` holds in the double-counting model but is false in
-        // Java (c == i): the shape must be refused, not verified.
+    void invariantOverFinallyStateIsExtracted(@TempDir Path tmp) throws Exception {
+        // The marker before the try is the loop's invariant (whether it holds is
+        // checked end to end).
         var t = translate(tmp, "BreakFinInv", """
                 import static org.strata.jverify.JVerify.*;
                 public class BreakFinInv {
@@ -554,13 +559,13 @@ class LoopTranslationTest {
                     }
                 }
                 """);
-        assertFinallyCopyRefused(t, "BreakFinInv::m");
+        assertLoopInvariants(t, "BreakFinInv::m", 1);
     }
 
     @Test
-    void continueInsideATryFinallyInALoopIsRefused(@TempDir Path tmp) throws Exception {
-        // A continue out of the try compiles to the same split protected
-        // range with its own inlined copy: equally mis-modelled, refused.
+    void continueInsideATryFinallyInALoopTranslates(@TempDir Path tmp) throws Exception {
+        // A continue out of the try compiles to a split protected range with
+        // its own inlined copy, translated where it is.
         var t = translate(tmp, "ContFin", """
                 import static org.strata.jverify.JVerify.*;
                 public class ContFin {
@@ -581,7 +586,7 @@ class LoopTranslationTest {
                     }
                 }
                 """);
-        assertFinallyCopyRefused(t, "ContFin::m");
+        assertTranslated(t, "ContFin::m");
     }
 
     @Test
@@ -636,77 +641,6 @@ class LoopTranslationTest {
     }
 
 
-
-    // --- A nested loop in a switch arm still takes the outer back edge ---
-
-    /** All labelled (loop) blocks under {@code body}, outermost first. */
-    private static List<StmtExpr.Block> labelledBlocks(AstNode<StmtExpr> body) {
-        return statements(body).stream()
-                .map(AstNode::val)
-                .filter(v -> v instanceof StmtExpr.Block b && b.label().filter(l -> l.startsWith("loop")).isPresent())
-                .map(v -> (StmtExpr.Block) v)
-                .toList();
-    }
-
-    /** The statement right after the one whose val is {@code target}, in whatever block holds it. */
-    private static AstNode<StmtExpr> statementAfter(AstNode<StmtExpr> root, StmtExpr target) {
-        for (AstNode<StmtExpr> s : statements(root)) {
-            if (!(s.val() instanceof StmtExpr.Block b)) {
-                continue;
-            }
-            List<AstNode<StmtExpr>> st = b.statements();
-            for (int i = 0; i + 1 < st.size(); i++) {
-                if (st.get(i).val() == target) {
-                    return st.get(i + 1);
-                }
-            }
-        }
-        return null;
-    }
-
-    @Test
-    void backEdgeFollowsANestedLoopInASwitchArm(@TempDir Path tmp) throws Exception {
-        // The case-0 arm is a single statement, unwrapped from its block by
-        // the switch emitter -- here a labelled block (the nested loop). The
-        // outer back edge must run right after it, inside the arm; with no
-        // back edge the arm would fall off the outer loop block (exit the
-        // loop after one more iteration), under-approximating the loop and
-        // letting a false outer invariant verify.
-        var t = translate(tmp, "SwitchArm", """
-                public class SwitchArm {
-                    static int f(int n) {
-                        int i = 0;
-                        int j = 0;
-                        int x = 0;
-                        while (i < n) {
-                            i = i + 1;
-                            switch (i % 2) {
-                                case 0:
-                                    while (j < 3) {
-                                        j = j + 1;
-                                    }
-                                    break;
-                                default:
-                                    x = x + 1;
-                            }
-                        }
-                        return x;
-                    }
-                }
-                """);
-        assertEquals(List.of(), t.messages());
-        AstNode<StmtExpr> body = bodyOf(t.program(), "SwitchArm::f");
-        List<StmtExpr.Block> labelled = labelledBlocks(body);
-        assertEquals(2, labelled.size(), "outer loop + nested loop");
-        String outerLabel = labelled.get(0).label().orElseThrow();
-        StmtExpr.Block inner = labelled.get(1);
-        AstNode<StmtExpr> after = statementAfter(body, inner);
-        assertTrue(after != null, "the nested loop must not be the last statement of its arm");
-        StmtExpr.Goto g = assertInstanceOf(StmtExpr.Goto.class, after.val(),
-                "the outer back edge must directly follow the nested loop");
-        assertEquals(outerLabel, g.target());
-        assertInstanceOf(GotoDestination.BlockStart.class, g.destination());
-    }
 
     // --- A leading break guard is part of the loop header ---
 

@@ -12,7 +12,6 @@ import org.strata.jverify.laurel.Variable;
 import org.strata.java.bytecode.frontend.ClassfileQueries;
 import org.strata.java.bytecode.frontend.ControlFlowGraph;
 import org.strata.java.bytecode.frontend.Locals;
-import org.strata.java.bytecode.frontend.StructException;
 import org.strata.java.bytecode.frontend.MethodBodyFactory;
 import org.strata.java.bytecode.frontend.Span;
 
@@ -408,34 +407,16 @@ final class SpecCallTranslator {
                 String dd = imt.parameterType(i).descriptorString();
                 slot += (dd.equals("J") || dd.equals("D")) ? 2 : 1;
             }
-            // Structured when the impl has real control flow (boolean
-            // diamonds, ternaries), with rollback to the linear form on a
-            // structural bail.
-            List<AstNode<StmtExpr>> top = null;
+            // An impl with real control flow (boolean diamonds, ternaries)
+            // folds each into a conditional value; any other jump is
+            // unsupported.
+            List<AstNode<StmtExpr>> top;
             if (ish.cfg() != null && ish.cfg().blocks.size() > 1) {
-                try {
-                    top = new ControlFlowStructurer(ish.cfg(), MethodBodyFactory.analyze(ish.cfg()),
-                            inner, ctx).structure();
-                } catch (StructException e) {
-                    inner = new BodyTranslator(ctx, ish.slotName(), ish.slotDesc(), Set.of());
-                    inner.cm = b.cm;
-                            inner.isInstance = !iStatic;   // as the primary path sets it: slot 0 is `this`
-                    inner.locals = ish.locals();
-                    inner.crt = ish.crt();
-                    inner.seqToBci = MethodBodyFactory.bciTable(seq);
-                    inner.retDesc = impl.methodTypeSymbol().returnType().descriptorString();
-                    seedCaptureTypes(inner, lambda, impl);
-                    int rslot = iStatic ? 0 : 1;
-                    for (int i = 0; i < imt.parameterCount(); i++) {
-                        var ps = inner.locals.at(rslot, 0);
-                        inner.declared.add(ps != null
-                                ? Locals.slotVarKey(inner.locals, rslot, 0) : ("v" + rslot));
-                        String dd = imt.parameterType(i).descriptorString();
-                        rslot += (dd.equals("J") || dd.equals("D")) ? 2 : 1;
-                    }
+                top = new BlockEmitter(ish.cfg(), MethodBodyFactory.analyze(ish.cfg()), inner, ctx).emitValue();
+                if (top.stream().anyMatch(st -> st.val() instanceof StmtExpr.Block || st.val() instanceof StmtExpr.Goto)) {
+                    throw new JavaViolationException("Unsupported lambda body");
                 }
-            }
-            if (top == null) {
+            } else {
                 inner.run(seq);
                 top = inner.stmts;
             }

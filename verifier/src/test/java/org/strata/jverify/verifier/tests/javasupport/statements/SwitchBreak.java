@@ -12,13 +12,8 @@ import static org.strata.jverify.JVerify.precondition;
  * leaves the switch only (JLS 14.15). A verifier that resolves the break to
  * the enclosing loop checks a loop that exits earlier than the Java loop:
  * switchBreakStaysInLoop fails and switchBreakBad verifies.
- *
- * <p>Kept separate from SwitchDesugaring and skipped: an arrow-case break
- * crashes ControlFlowStructurer (NoSuchElementException), which
- * {@code expectedToFail} cannot absorb.
  */
-@JVerifyTest(skip = "arrow-case break crashes ControlFlowStructurer (NoSuchElementException)",
-        exitCode = 4, methodsVerified = 5, methodsInvalid = 1, errorCount = 1)
+@JVerifyTest(exitCode = 4, methodsVerified = 5, methodsInvalid = 1, errorCount = 1)
 class SwitchBreak {
     static void switchBreakStaysInLoop() {
         int count = 0;
