@@ -204,6 +204,10 @@ public class VerifierDriver {
             return new JVerifyResults.NoVerdict(new ArrayList<>(reporter.diagnostics()), 2);
         }
         if (Boolean.getBoolean(StrataBackend.CORTEX)) {
+            if (!options.interpret()) {
+                options.outWriter().println(StrataBackend.CORTEX_INTERPRET_ONLY);
+                return new JVerifyResults.DidNotRun(new ArrayList<>(reporter.diagnostics()), -1, -1);
+            }
             return analyzeOnCortex(classes, sourceUris, reporter, javacTypes);
         }
         org.strata.java.bytecode.verifier.compiler.BytecodeToLaurelCompiler.AnalysisResult analysis;

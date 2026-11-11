@@ -242,6 +242,8 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
     private static void verifyFileOnCortex(CortexXfailManifest manifest, SourceFile sourceFile,
                                            JVerifyTest annotation, List<AnnotatedRange> ranges,
                                            VerifierOptions options, String className) throws IOException {
+        Assumptions.assumeTrue(annotation.interpret(),
+                "SKIP on Cortex: jverify.cortex supports interpret mode only");
         var skip = manifest.skipReason(className);
         Assumptions.assumeTrue(skip == null, "SKIP on Cortex: " + skip);
         var xfail = manifest.forcedXfail(className);

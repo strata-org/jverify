@@ -12,6 +12,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** The Strata command line and directory {@link StrataBackend} runs, without running it. */
 class StrataInvocationTest {
@@ -79,19 +80,32 @@ class StrataInvocationTest {
     void cortexWithProjectDirIsRejected() {
         System.setProperty("jverify.cortex", "true");
         try {
-            assertThrows(IllegalArgumentException.class, () ->
-                    StrataBackend.Invocation.of(options(false, null, null, null, Path.of("/work/Strata"))));
+            var rejection = assertThrows(IllegalArgumentException.class, () ->
+                    StrataBackend.Invocation.of(options(true, null, null, null, Path.of("/work/Strata"))));
+            assertTrue(rejection.getMessage().startsWith("jverify.cortex cannot be combined with a Strata project"),
+                    rejection.getMessage());
         } finally {
             System.clearProperty("jverify.cortex");
         }
     }
 
     @Test
-    void cortexRunsTheCortexWireCommands() {
+    void cortexVerificationIsRejected() {
         System.setProperty(StrataBackend.CORTEX, "true");
         try {
-            assertEquals(List.of("strataLaurel", "cortexWireAnalyzeBinary", "--solver", "z3"),
-                    StrataBackend.Invocation.of(options(false, null, null, null, null)).command());
+            var rejection = assertThrows(IllegalArgumentException.class, () ->
+                    StrataBackend.Invocation.of(options(false, null, null, null, null)));
+            assertTrue(rejection.getMessage().startsWith("jverify.cortex supports interpret mode only"),
+                    rejection.getMessage());
+        } finally {
+            System.clearProperty(StrataBackend.CORTEX);
+        }
+    }
+
+    @Test
+    void cortexInterpretationRunsTheCortexWireInterpreter() {
+        System.setProperty(StrataBackend.CORTEX, "true");
+        try {
             assertEquals(List.of("strataLaurel", "cortexWireInterpretBinary", "--entry", "p.C$m", "--fuel", "7"),
                     StrataBackend.Invocation.of(options(true, "p.C#m", 7, "laurel", null)).command());
             assertEquals(List.of("strataLaurel", "cortexWireInterpretBinary", "--fuel", "100000"),

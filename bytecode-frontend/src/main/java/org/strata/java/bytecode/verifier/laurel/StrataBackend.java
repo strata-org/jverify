@@ -43,10 +43,15 @@ public class StrataBackend {
 
     /**
      * The system property that makes the frontend translate bytecode to Cortex,
-     * Strata's unstructured IR, instead of Laurel, and run Strata's Cortex wire
-     * commands.
+     * Strata's unstructured IR, instead of Laurel, and run the program on
+     * Strata's Cortex interpreter. It supports interpret mode only.
      */
     public static final String CORTEX = "jverify.cortex";
+
+    /** Why {@link #CORTEX} refuses a verification run. */
+    public static final String CORTEX_INTERPRET_ONLY = "jverify.cortex supports interpret mode only: "
+            + "Strata runs Cortex programs on the Cortex interpreter and has no Cortex verifier. "
+            + "Pass --interpret, or drop -Djverify.cortex=true to verify.";
 
     private final VerifierOptions verifierOptions;
 
@@ -108,7 +113,7 @@ public class StrataBackend {
 
     /**
      * Serialize a Cortex program, translated from bytecode without Laurel, and
-     * run Strata's Cortex wire commands on it.
+     * run it on Strata's Cortex interpreter.
      */
     public JVerifyResults verifyCortexProgram(org.strata.jverify.cortex.Program program,
                                               PositionResolver positions,
@@ -196,7 +201,10 @@ public class StrataBackend {
                     arguments.add(options.interpreter());
                 }
             } else {
-                arguments.add(cortex ? "cortexWireAnalyzeBinary" : "laurelAnalyzeBinary");
+                if (cortex) {
+                    throw new IllegalArgumentException(CORTEX_INTERPRET_ONLY);
+                }
+                arguments.add("laurelAnalyzeBinary");
                 arguments.add("--solver");
                 arguments.add("z3");
             }

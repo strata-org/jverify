@@ -177,12 +177,8 @@ public enum Blocker {
     LANGREF_RESOLUTION_ERROR,
     LANGREF_ASSERT_FAILED,
     LANGREF_ERROR,
-    /** Cortex: a contract or another JVerify specification call or annotation. */
-    CORTEX_SPEC,
     /** Cortex: a construct the translation to Cortex refuses (null, arrays, static fields, ...). */
     CORTEX_UNSUPPORTED,
-    /** Cortex: a call to a library method, which has no body to interpret. */
-    CORTEX_LIBRARY_CALL,
-    /** Cortex: a verdict or diagnostic that differs from the Laurel pipeline's. */
-    CORTEX_OTHER
+    /** Cortex: a call to a library method, which the translation to Cortex refuses in interpret mode. */
+    CORTEX_LIBRARY_CALL
 }
