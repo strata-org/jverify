@@ -185,7 +185,8 @@ public class BytecodeToLaurelCompiler {
 
     public record AnalysisResult(LaurelProgram program,
                                  PositionResolver positions,
-                                 Map<URI, IntervalTree<Integer, MethodVerificationStatus>> methodStatuses) {
+                                 Map<URI, IntervalTree<Integer, MethodVerificationStatus>> methodStatuses,
+                                 StaticEffectNotes staticNotes) {
     }
 
     /**
@@ -349,12 +350,14 @@ public class BytecodeToLaurelCompiler {
         allProcedures.addAll(composites.boxes.helpers.values());
         allProcedures.addAll(translationContext().missingContractProcs.values());
         allProcedures.addAll(procedures);
-        var program = new LaurelProgram(allProcedures, List.of(), List.of(), types, List.of());
+        var program = new LaurelProgram(allProcedures, List.of(), translationContext().statics.declared(),
+                types, List.of());
 
         var knownUris = new java.util.HashSet<URI>(sourceUris);
         knownUris.addAll(contracts.loadedUris());
         return new AnalysisResult(program,
-                positionResolver(java.util.Set.copyOf(knownUris)), methodStatuses);
+                positionResolver(java.util.Set.copyOf(knownUris)), methodStatuses,
+                translationContext().staticNotes);
     }
 
     /**
@@ -742,8 +745,9 @@ public class BytecodeToLaurelCompiler {
         var fields = composites.declaredFields.computeIfAbsent(fqn, k -> new LinkedHashMap<>());
         for (var fm : cm.fields()) {
             int flags = fm.flags().flagsMask();
-            if ((flags & (java.lang.classfile.ClassFile.ACC_SYNTHETIC
-                    | java.lang.classfile.ClassFile.ACC_ENUM)) != 0
+            // An enum constant is a static field like any other; the synthetic
+            // $VALUES array behind values() is not modelled.
+            if ((flags & java.lang.classfile.ClassFile.ACC_SYNTHETIC) != 0
                     && !fm.fieldName().stringValue().startsWith("this$")
                     && !fm.fieldName().stringValue().startsWith("val$")) {
                 continue;
@@ -2653,7 +2657,9 @@ public class BytecodeToLaurelCompiler {
         boolean isCtor = bareName.equals("<init>");
         String procName = member != null ? member.laurelName()
                 : isCtor || translatingRelocatedContract
-                        ? info.laurelName : bareName + resolver.overloadSuffix(classFqn, m);
+                        ? info.laurelName
+                        : bareName.equals("<clinit>") ? StaticFields.CLINIT_PROCEDURE
+                        : bareName + resolver.overloadSuffix(classFqn, m);
         String methodName = isStatic ? JavaNames.staticProcedure(classFqn, procName) : procName;
 
         var mt = m.methodTypeSymbol();
@@ -3096,6 +3102,24 @@ public class BytecodeToLaurelCompiler {
 
         // --- Implementation: hoisted declarations, then the structured rest ---
         var implementation = new ArrayList<AstNode<StmtExpr>>(hoistedDeclStmts(shape, body, ctx));
+        if (isInterpretEntry) {
+            for (var stmt : ctx.statics.entryPrologue(body)) {
+                implementation.add(noRange(stmt));
+                // The guard runs before the first statement; for a failed check
+                // it is a call before every line of the method.
+                FileRange entryRange = src.methodCrtRange(m);
+                if (src.uri != null && entryRange != UNKNOWN_RANGE) {
+                    ctx.staticNotes.recordCall(src.uri, positionRange(entryRange).start().line(),
+                            StaticEffectNotes.describe(StaticEffectNotes.Kind.INITIALIZER, JavaNames.simpleName(classFqn)),
+                            StaticEffectNotes.Kind.INITIALIZER);
+                }
+            }
+        }
+        if (bareName.equals("<clinit>")) {
+            for (var stmt : ctx.statics.initializerPrologue(body, classFqn)) {
+                implementation.add(noRange(stmt));
+            }
+        }
         for (var stmt : isCtor ? ctorRest : topStmts.subList(hdr, topStmts.size())) {
             checkNoSpecMarkers(stmt, body);
             implementation.add(stmt);
@@ -3372,6 +3396,12 @@ public class BytecodeToLaurelCompiler {
             for (var m : methods) {
                 compileMethod(node, m, Declarations.ordinalOf(methods, m));
             }
+            // <clinit> is translated like a static method: the guards emitted
+            // where the class is first used call it (see StaticFields).
+            var clinit = StaticFields.initializerOf(translationContext(), node.fqn());
+            if (clinit != null) {
+                compileMethod(node, clinit, 0);
+            }
             // Where a constructor's contract calls sit is checked even when the
             // constructor is not translated: a misplaced clause would otherwise be
             // silently ignored.
@@ -3511,6 +3541,13 @@ public class BytecodeToLaurelCompiler {
             recordRefusedStatus(info, name, mRange);
         } catch (JavaViolationException e) {
             info.refused = true;
+            if (name.equals("<clinit>")) {
+                // Each method that needs the initializer is refused with this
+                // reason too (MethodGraph); the initializer itself is reported
+                // so that a refused one is not dropped in silence when no
+                // translated method uses its class.
+                graph.recordRefusalReason(info, e.getMessage());
+            }
             reportRefusal(info, e.getMessage());
             recordRefusedStatus(info, name, mRange);
         }

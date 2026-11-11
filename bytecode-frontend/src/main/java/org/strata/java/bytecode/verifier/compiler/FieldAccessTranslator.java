@@ -53,21 +53,19 @@ final class FieldAccessTranslator {
         }
         switch (fi.opcode()) {
             case GETSTATIC -> {
-                // Static reads are not modelled; the refusal is deferred. A
-                // program-class owner refuses with "static field access is
-                // not yet supported"; any other owner refuses with
-                // "Unsupported field access: <owner>.<name>".
-                if (ctx.resolver.knownClasses.containsKey(ownerRef.nameWithScope())) {
-                    AstNode<StmtExpr> n = b.push(new StmtExpr.LiteralString("$getstatic"));
-                    b.staticTypeOf.put(n, TypeRef.ofDescriptor(fdesc));
-                    b.defer(n, "static field access is not yet supported");
-                    b.noteDesc(n, fdesc);
-                } else {
+                String declaring = staticOwner(ownerRef, fn);
+                if (declaring != null) {
+                    readStatic(declaring, fn, fdesc);
+                } else if (ctx.resolver.knownClasses.containsKey(ownerRef.nameWithScope())) {
+                    // A program class that does not declare the field: a read
+                    // through a class of a field declared outside the program.
                     AstNode<StmtExpr> n = b.push(new StmtExpr.LiteralString("$getstatic"));
                     b.staticTypeOf.put(n, TypeRef.ofDescriptor(fdesc));
                     b.defer(n, "Unsupported field access: "
                             + ownerRef.nameWithScope() + "." + fn);
                     b.noteDesc(n, fdesc);
+                } else {
+                    readLibraryStatic(JavaNames.dottedFqn(fi.owner().asInternalName()), fn, fdesc);
                 }
             }
             case GETFIELD -> {
@@ -105,14 +103,30 @@ final class FieldAccessTranslator {
             }
             case PUTSTATIC -> {
                 AstNode<StmtExpr> v = b.coerce(b.stack.pop(), fdesc);
-                b.arrays.refuseAsObject(v, fdesc);
-                // A program-class owner refuses with "static field access is
-                // not yet supported".
-                if (ctx.resolver.knownClasses.containsKey(ownerRef.nameWithScope())) {
-                    throw new JavaViolationException("static field access is not yet supported");
+                if (StaticFields.isAssertionsDisabled(ctx, fi)) {
+                    // Assertions are translated as always enabled and the field
+                    // is never read, so the assignment in <clinit> is dropped.
+                    return;
                 }
-                throw new JavaViolationException("Unsupported field access: "
-                        + ownerRef.nameWithScope() + "." + fn);
+                if (StaticFields.isEnumValues(ctx, fi)) {
+                    // The array behind values() is not modelled; values() itself
+                    // is not translated, so nothing reads it.
+                    return;
+                }
+                b.arrays.refuseAsObject(v, fdesc);
+                if (ctx.method.pure) {
+                    // A transparent body is a function of its inputs; callers see
+                    // through it and expect no assignment in it.
+                    throw new JavaViolationException(
+                            "a static field assignment in a @Transparent method is not yet supported");
+                }
+                String declaring = staticOwner(ownerRef, fn);
+                if (declaring == null) {
+                    throw new JavaViolationException("Unsupported field access: "
+                            + ownerRef.nameWithScope() + "." + fn);
+                }
+                v = ctx.statics.initialize(b, declaring, List.of(v)).get(0);
+                b.addStmt(StaticFields.assign(ctx.statics.declare(ctx, declaring, fn), v));
             }
             case PUTFIELD -> {
                 AstNode<StmtExpr> v = b.coerce(b.stack.pop(), fdesc);
@@ -199,6 +213,41 @@ final class FieldAccessTranslator {
                     Optional.empty()));
         }
         return info.type();
+    }
+
+    /** The program class that declares the static field an access names, or null. */
+    private String staticOwner(TypeRef ownerRef, String fieldName) {
+        String fqn = ctx.resolver.knownClasses.get(ownerRef.nameWithScope());
+        return fqn == null ? null : StaticFields.declaringClass(ctx, fqn, fieldName);
+    }
+
+    /** A read of a static field: a read of its global (see {@link StaticFields} for how the value is kept). */
+    private void readStatic(String declaring, String fieldName, String fdesc) {
+        ctx.statics.initialize(b, declaring, List.of());
+        String global = ctx.statics.declare(ctx, declaring, fieldName);
+        TypeRef declared = ctx.composites.declaredFields.get(declaring).get(fieldName).type();
+        AstNode<StmtExpr> n = b.push(LaurelFactory.var_(global));
+        b.noteDesc(n, fdesc);
+        if (fdesc.startsWith("L")) {
+            // As for an instance field: a reference field may hold null.
+            b.heapReadValues.add(n);
+        }
+        if (fdesc.startsWith("L") || (fdesc.startsWith("[") && ctx.composites.arrays.enabled())) {
+            b.staticTypeOf.put(n, TypeRef.ofDescriptor(fdesc));
+        } else {
+            b.staticTypeOf.put(n, declared);
+        }
+    }
+
+    /** A read of a static field of a class outside the program: a read of its global, with nothing known about the value. */
+    private void readLibraryStatic(String ownerFqn, String fieldName, String fdesc) {
+        String global = ctx.statics.declareLibrary(ctx, ownerFqn, fieldName, fdesc);
+        AstNode<StmtExpr> n = b.push(LaurelFactory.var_(global));
+        b.noteDesc(n, fdesc);
+        if (fdesc.startsWith("L")) {
+            b.heapReadValues.add(n);
+        }
+        b.staticTypeOf.put(n, TypeRef.ofDescriptor(fdesc));
     }
 
     private boolean hasDeclaredField(String fqn, String fieldName) {

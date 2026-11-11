@@ -208,10 +208,14 @@ final class MethodGraph {
                         info.status.setVerificationStatus(
                                 MethodVerificationStatus.VerificationStatus.Skipped);
                     }
-                    String because = "call to '"
-                            + ClassResolver.demangle(
-                                    calleeKey.substring(calleeKey.indexOf('#') + 1))
-                            + "', which could not be translated";
+                    String calleeName = calleeKey.substring(calleeKey.indexOf('#') + 1);
+                    // A static initializer is not a method the user wrote: it is
+                    // named by its class, and the call to it is the use of the class.
+                    String because = calleeName.equals("<clinit>")
+                            ? "the static initializer of '"
+                                    + JavaNames.simpleName(calleeKey.substring(0, calleeKey.indexOf('#')))
+                                    + "', which this method may run, could not be translated"
+                            : "call to '" + ClassResolver.demangle(calleeName) + "', which could not be translated";
                     var libraryCallee = refusedLibrary.get(calleeKey);
                     String calleeReason = libraryCallee != null && libraryCallee.refusalReason != null
                             ? libraryCallee.refusalReason
@@ -315,6 +319,16 @@ final class MethodGraph {
      */
     void reportRefusal(MethodInfo info, String reason) {
         reportRefusal(info, reason, false);
+    }
+
+    /**
+     * Record why {@code info} was refused without reporting it, so that a
+     * caller's diagnostic can quote the reason. For a refused static
+     * initializer: it is reported where a method needs it, and a program in
+     * which no translated method does is not affected by it.
+     */
+    void recordRefusalReason(MethodInfo info, String reason) {
+        recordedReasons.computeIfAbsent(info.key(), k -> new java.util.LinkedHashSet<>()).add(reason);
     }
 
     /**

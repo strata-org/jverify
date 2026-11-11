@@ -1,13 +1,12 @@
 package org.strata.jverify.langref.jls8.s8_4;
 
-import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
 // JLS 8.4.5 -- Method Result: a method either declares a result type (and must
 // return a value of that type) or is declared void (and returns no value).
-@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls8.s8_4.MethodResult_3#run", expectedToFail = true, blockedBy = {Blocker.LANGREF_UNSUPPORTED})
+@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls8.s8_4.MethodResult_3#run")
 class MethodResult_3 {
     // A method with a primitive result type must return an int value.
     static int answer() {

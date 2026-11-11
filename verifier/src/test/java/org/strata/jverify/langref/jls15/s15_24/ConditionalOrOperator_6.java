@@ -1,13 +1,12 @@
 package org.strata.jverify.langref.jls15.s15_24;
 
-import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
 // JLS 15.24 -- Conditional-Or Operator ||: boolean result, truth table, and
 // short-circuit evaluation (right operand not evaluated when left is true).
-@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls15.s15_24.ConditionalOrOperator_6#run", expectedToFail = true, blockedBy = {Blocker.LANGREF_UNSUPPORTED})
+@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls15.s15_24.ConditionalOrOperator_6#run")
 class ConditionalOrOperator_6 {
     static int sideEffect = 0;
 

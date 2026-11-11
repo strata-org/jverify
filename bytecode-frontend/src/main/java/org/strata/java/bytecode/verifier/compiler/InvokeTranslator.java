@@ -66,6 +66,23 @@ final class InvokeTranslator {
             return;
         }
 
+        if (StaticFields.isEnumValuesMethod(ctx, inv)) {
+            // Only in an enum's <clinit>, as the value assigned to $VALUES, an
+            // assignment that is dropped (FieldAccessTranslator).
+            b.noteDesc(b.push(new StmtExpr.LiteralString("$values")), d.returnType().descriptorString());
+            return;
+        }
+        if (ctx.method.info != null && b.cm != null
+                && ClassInitialization.isAssertionStatusProbe(ctx.resolver, b.cm, ctx.method.info.name, inv)) {
+            // javac's probe in <clinit>, whose result is assigned to
+            // $assertionsDisabled, an assignment that is dropped
+            // (FieldAccessTranslator): any boolean does. Elsewhere the call is
+            // translated like any other, on the class literal it is made on.
+            b.stack.pop();
+            b.noteDesc(b.push(new StmtExpr.LiteralBool(true)), "Z");
+            return;
+        }
+
         List<AstNode<StmtExpr>> args = b.popArgs(n);
         // A lambda passed to a call is a VALUE (see BodyTranslator.materializeLambda) --
         // except on a throwsOn case chain, which consumes the raw handle as the
@@ -559,6 +576,17 @@ final class InvokeTranslator {
                     "Call to unknown class '" + ownerRef.nameWithScope() + "' is not supported");
         }
         var staticCm = ctx.resolver.programClassModels.get(fqn);
+        if (staticCm != null) {
+            // A static method inherited from a superclass: the call names the
+            // declaring class's procedure, and it is that class the call
+            // initializes (JLS 12.4.1), not the class the instruction names.
+            String declaring = ClassInitialization.declaringClassOfStaticMethod(ctx.resolver, fqn, bareName,
+                    d.descriptorString());
+            if (declaring != null && !declaring.equals(fqn)) {
+                fqn = declaring;
+                staticCm = ctx.resolver.programClassModels.get(fqn);
+            }
+        }
         // The overload javac bound is the one whose descriptor is on the invoke,
         // so the suffix is computed from it -- declaration and call site agree.
         String mangled = bareName;
@@ -581,6 +609,10 @@ final class InvokeTranslator {
         }
         if (bound != null) {
             args = unifyTypeVariableArgs(bound, args);
+        }
+        if (staticCm != null) {
+            // A call to a static method is a first use of its class.
+            args = new java.util.ArrayList<>(ctx.statics.initialize(b, fqn, args));
         }
         AstNode<StmtExpr> call = b.e(LaurelFactory.staticCall(
                 LaurelFactory.ident(JavaNames.staticProcedure(fqn, mangled)), args, List.of()));

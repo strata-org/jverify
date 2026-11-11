@@ -803,6 +803,50 @@ final class BodyTranslator {
         AstNode<StmtExpr> placed = place(raw, range);
         stmtSeq.put(placed, seqIdx);
         stmts.add(placed);
+        noteStaticEffects(raw, range);
+    }
+
+    /** Record, by source line, the static reads of {@code stmt} and the calls in it that may change a static. */
+    private void noteStaticEffects(AstNode<StmtExpr> stmt, FileRange range) {
+        if (range == SourceMap.UNKNOWN_RANGE || ctx.src.uri == null) {
+            return;
+        }
+        int line = ctx.src.positionRange(range).start().line();
+        if (StaticFields.readsGlobal(stmt)) {
+            ctx.staticNotes.recordStaticRead(ctx.src.uri, line);
+        }
+        noteOpaqueCalls(stmt, line);
+    }
+
+    private void noteOpaqueCalls(AstNode<StmtExpr> n, int line) {
+        String callee = switch (n.val()) {
+            case StmtExpr.Call c -> c.callee().text();
+            default -> null;
+        };
+        if (callee != null && !LaurelFactory.isOperationProcName(callee)
+                && LaurelFactory.arithHelperOp(callee) == null) {
+            if (callee.endsWith("::" + StaticFields.CLINIT_PROCEDURE)) {
+                String owner = callee.substring(0, callee.length() - 2 - StaticFields.CLINIT_PROCEDURE.length());
+                ctx.staticNotes.recordCall(ctx.src.uri, line,
+                        StaticEffectNotes.describe(StaticEffectNotes.Kind.INITIALIZER, JavaNames.simpleName(owner)),
+                        StaticEffectNotes.Kind.INITIALIZER);
+            } else {
+                CalleeRef ref = calleeModels.get(n.val());
+                boolean transparent = ref != null && Declarations.hasAnnotation(ref.method(), "Transparent");
+                if (!transparent) {
+                    // A static procedure's name is `Owner::method`; an instance call's is the bare method.
+                    int sep = callee.lastIndexOf("::");
+                    String shown = ref != null ? ref.method().methodName().stringValue()
+                            : ClassResolver.demangle(sep < 0 ? callee : callee.substring(sep + 2));
+                    var kind = ref != null ? StaticEffectNotes.Kind.BODY : StaticEffectNotes.Kind.NO_BODY;
+                    ctx.staticNotes.recordCall(ctx.src.uri, line,
+                            StaticEffectNotes.describe(kind, shown + "()"), kind);
+                }
+            }
+        }
+        for (AstNode<StmtExpr> c : childrenOf(n.val())) {
+            noteOpaqueCalls(c, line);
+        }
     }
 
     /**
@@ -2030,6 +2074,9 @@ final class BodyTranslator {
                         "Unsupported expression: ArrayCreationExpr");
             }
             case java.lang.classfile.instruction.NewObjectInstruction nw -> {
+                // `new` is a first use of the class, before the constructor's
+                // arguments are evaluated.
+                ctx.statics.initialize(this, JavaNames.dottedFqn(nw.className().asInternalName()), List.of());
                 AstNode<StmtExpr> marker = push(new StmtExpr.LiteralString("$new"));
                 pendingNew.put(marker, nw.className().asInternalName());
             }

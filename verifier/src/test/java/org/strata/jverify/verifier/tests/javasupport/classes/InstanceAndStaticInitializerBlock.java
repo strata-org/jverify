@@ -13,7 +13,6 @@ public class InstanceAndStaticInitializerBlock {
     }
     
     static {
-//  ^ error: an initializer block is not supported
         y = 2;
     }
 }

@@ -167,13 +167,17 @@ RUN   org.strata.jverify.langref.jls8.s8_6.InstanceInitializer_2 passes on the d
 RUN   org.strata.jverify.langref.jls8.s8_8.Constructor_Throws passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls9.s9_4.Default_CallsDefault passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls9.s9_4.Interface_Throws passes on the direct Cortex translation
-XFAIL org.strata.jverify.langref.jls14.s14_10.AssertStatement CORTEX_UNSUPPORTED static fields
+RUN   org.strata.jverify.langref.jls15.s15_7.EvaluationOrder_AbruptCompletion passes on the direct Cortex translation: static fields
+RUN   org.strata.jverify.langref.jls8.s8_8.ImplicitSuperCall_1 passes on the direct Cortex translation: static fields
+RUN   org.strata.jverify.langref.jls8.s8_9.EnumBodyDeclarations_1 passes on the direct Cortex translation: static fields
+RUN   org.strata.jverify.langref.jls8.s8_9.EnumBodyDeclarations_2 passes on the direct Cortex translation: static fields
+RUN   org.strata.jverify.langref.jls8.s8_9.EnumConstants_1 passes on the direct Cortex translation: static fields
+RUN   org.strata.jverify.langref.jls8.s8_9.EnumConstants_2 passes on the direct Cortex translation: static fields
 XFAIL org.strata.jverify.langref.jls14.s14_11.SwitchOnInteger_1 CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.valueOf)
 XFAIL org.strata.jverify.langref.jls14.s14_17.ReturnStatement_1 CORTEX_UNSUPPORTED arrays
 XFAIL org.strata.jverify.langref.jls15.s15_16.CastExpression_BoxingCast CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.valueOf)
 XFAIL org.strata.jverify.langref.jls15.s15_16.CastExpression_UnboxingCast CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.valueOf)
 XFAIL org.strata.jverify.langref.jls15.s15_25.NumericConditionalExpression_8 CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.valueOf)
-XFAIL org.strata.jverify.langref.jls3.s3_9.Keywords_12 CORTEX_UNSUPPORTED static fields
 XFAIL org.strata.jverify.langref.jls4.s4_4.TypeVariables_2 CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.valueOf)
 XFAIL org.strata.jverify.langref.jls4.s4_8.RawTypes_1 CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.valueOf)
 XFAIL org.strata.jverify.langref.jls4.s4_8.RawTypes_3 CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.valueOf)
@@ -194,3 +198,8 @@ XFAIL org.strata.jverify.langref.jls8.s8_4.MethodResult_1 CORTEX_UNSUPPORTED arr
 XFAIL org.strata.jverify.langref.jls9.s9_1.GenericInterfaces CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.intValue, Integer.valueOf)
 XFAIL org.strata.jverify.verifier.tests.interpret.InterpretCalleePreconditionFails CORTEX_UNSUPPORTED no verdict: the translation refused a construct
 XFAIL org.strata.jverify.verifier.tests.interpret.InterpretPostconditionFails CORTEX_UNSUPPORTED no verdict: the translation refused a construct
+XFAIL org.strata.jverify.langref.jls8.s8_4.MethodResult_3 CORTEX_UNSUPPORTED arrays
+XFAIL org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_1 CORTEX_LIBRARY_CALL calls to library methods when interpreting
+XFAIL org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_2 CORTEX_LIBRARY_CALL calls to library methods when interpreting
+XFAIL org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_3 CORTEX_LIBRARY_CALL calls to library methods when interpreting
+XFAIL org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_4 CORTEX_LIBRARY_CALL calls to library methods when interpreting

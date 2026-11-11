@@ -7,7 +7,7 @@ import static org.strata.jverify.JVerify.*;
 // JLS 9.3.1 -- Initialization of Fields in Interfaces: interface fields are
 // implicitly public static final constants that must have an initializer; the
 // initializer may reference earlier interface constants.
-@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_4#run")
+@JVerifyTest(interpret = true, interpreter = "laurel", continueOnErrors = true, entry = "org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_4#run")
 class InterfaceFieldInitialization_4 {
     static void run() {
 
@@ -21,4 +21,5 @@ interface Constants_InterfaceFieldInitialization_4 {
     int STEP = 5;
     int DERIVED = BASE + STEP;      // initializer references earlier interface constants
     int NAME_LEN = "hello".length(); // constant-evaluable initializer
+//               ^ error: Unsupported call: length
 }

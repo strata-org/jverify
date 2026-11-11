@@ -5,7 +5,7 @@ import org.strata.jverify.testengine.JVerifyTest;
 /**
  * A refusal must cascade to the WHOLE transitive caller chain, not just direct callers.
  *
- * <p>{@code depth3} is refused (a compound assignment is an unsupported expression).
+ * <p>{@code depth3} is refused (a null literal is an unsupported expression).
  * {@code depth2} calls it and is demoted. {@code depth1} calls {@code depth2} and must
  * be demoted too: the scan feeds each demotion back and re-runs, so the drop pass never
  * removes a procedure that a surviving caller still references.
@@ -27,11 +27,9 @@ import org.strata.jverify.testengine.JVerifyTest;
              errorCount = 0)
 class CascadeDepth3 {
 
-    static int counter;
-
     static void depth3() {
-//              ^ error: static field access is not yet supported
-        counter += 1;
+//              ^ error: Unsupported expression: AnonymousDynamicConstantDesc
+        Object none = null;
     }
 
     static void depth2() {

@@ -12,6 +12,9 @@ import org.strata.jverify.verifier.JVerifyResults;
 import org.strata.jverify.verifier.StrataTimeout;
 import org.strata.java.bytecode.verifier.MethodVerificationStatus;
 import org.strata.jverify.verifier.VerificationResults;
+import org.strata.java.bytecode.verifier.compiler.BytecodeToCortexCompiler;
+import org.strata.java.bytecode.verifier.compiler.StaticEffectNotes;
+import org.strata.java.bytecode.verifier.compiler.StaticFields;
 import org.strata.java.bytecode.verifier.VerifierOptions;
 import org.strata.jverify.verifier.Wrapper;
 import org.strata.jverify.verifier.laurel.StrataOutput;
@@ -54,6 +57,13 @@ public class StrataBackend {
             + "Pass --interpret, or drop -Djverify.cortex=true to verify.";
 
     private final VerifierOptions verifierOptions;
+    /** Per-line static reads and calls, for explaining a failed assertion about a static field; may be null. */
+    private @Nullable StaticEffectNotes staticNotes;
+
+    public StrataBackend withStaticEffectNotes(StaticEffectNotes notes) {
+        this.staticNotes = notes;
+        return this;
+    }
 
     public StrataBackend(VerifierOptions verifierOptions) {
         this.verifierOptions = verifierOptions;
@@ -348,18 +358,18 @@ public class StrataBackend {
                     if (diagnostic == null) {
                         continue;
                     }
-                    diagnostics.add(diagnostic);
-                    failedAssertionsCount.setValue(failedAssertionsCount.getValue() + 1);
-
                     var uriMethods = methodStatuses.get(diagnostic.getUri());
                     var failedJavaMethod = uriMethods == null
                             ? null
                             : uriMethods.findInnermostAtPoint(diagnostic.getRange().start().line());
                     if (failedJavaMethod != null) {
                         failedJavaMethod.setVerificationStatus(MethodVerificationStatus.VerificationStatus.Failed);
+                        diagnostic = explainStaticEffects(diagnostic, failedJavaMethod);
                     } else {
                         unattributedErrorCount++;
                     }
+                    diagnostics.add(diagnostic);
+                    failedAssertionsCount.setValue(failedAssertionsCount.getValue() + 1);
                 }
             }
 
@@ -470,6 +480,25 @@ public class StrataBackend {
      *
      * @return the diagnostic, or {@code null} for a blank line.
      */
+    /**
+     * A failed condition that reads a static field, after a call in the same
+     * method that may have changed one, names that call (see
+     * {@link StaticEffectNotes}). The Cortex pipeline treats a call to a
+     * bodiless procedure as changing every global; the Laurel pipeline does not.
+     */
+    private StrataDiagnostic explainStaticEffects(StrataDiagnostic diagnostic, MethodVerificationStatus method) {
+        if (staticNotes == null || method.getPosition() == null) {
+            return diagnostic;
+        }
+        String extra = staticNotes.explain(diagnostic.getUri(), method.getPosition(),
+                diagnostic.getRange().start().line(), Boolean.getBoolean(CORTEX));
+        if (extra == null) {
+            return diagnostic;
+        }
+        return new StrataDiagnostic(diagnostic.getUri(), diagnostic.getRange(),
+                diagnostic.message() + extra, diagnostic.severity());
+    }
+
     static StrataDiagnostic parseDiagnosticLine(String line, PositionResolver positions, URI malformedFallbackUri) {
         Matcher matcher = DIAGNOSTIC_PATTERN.matcher(line);
         if (!matcher.matches()) {

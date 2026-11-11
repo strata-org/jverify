@@ -194,11 +194,12 @@ final class ContractPlacementChecker {
      * mistaken for it.
      */
     /**
-     * Report every initializer block of {@code cm}: an
-     * instance block {@code { ... }} or a static one {@code static { ... }}.
+     * Report every instance initializer block {@code { ... }} of {@code cm}. A
+     * static one, {@code static { ... }}, is not reported: it is part of
+     * {@code <clinit>}, which is translated as a procedure.
      *
      * <p>Not visible in the instructions -- javac splices a block's statements into
-     * every constructor, or into {@code <clinit>} -- but the CharacterRangeTable keeps
+     * every constructor -- but the CharacterRangeTable keeps
      * the block itself: an entry flagged STATEMENT|BLOCK spanning its braces. A field
      * initializer is a STATEMENT only, and a constructor's own body is a BLOCK that is
      * not a statement, so the initializer block is the outermost STATEMENT|BLOCK
@@ -211,7 +212,9 @@ final class ContractPlacementChecker {
         var seen = new java.util.HashSet<Span>();
         for (var m : cm.methods()) {
             String n = m.methodName().stringValue();
-            if (!n.equals("<init>") && !n.equals("<clinit>")) {
+            // Only instance initializer blocks: a static block is part of
+            // <clinit>, which is translated as a procedure.
+            if (!n.equals("<init>")) {
                 continue;
             }
             var code = m.findAttribute(java.lang.classfile.Attributes.code()).orElse(null);

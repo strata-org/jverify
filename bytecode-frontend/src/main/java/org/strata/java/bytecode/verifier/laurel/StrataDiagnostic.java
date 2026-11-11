@@ -32,6 +32,15 @@ public class StrataDiagnostic implements Diagnostic<JavaFileObject>, DiagnosticW
         this.severity = severity;
     }
 
+    public int severity() {
+        return severity;
+    }
+
+    /** The message without the severity prefix {@link #getMessage(Locale)} adds. */
+    public String message() {
+        return message;
+    }
+
     @Override
     public URI getUri() {
         return uri;

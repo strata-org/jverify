@@ -20,7 +20,7 @@ import static org.strata.jverify.JVerify.throwsOn;
         continueOnErrors = true,
         exitCode = 0,
         methodsVerified = 5, // fine() + 4 implicit constructors
-        methodsSkipped = 5,
+        methodsSkipped = 6, // 5 cases + the static initializer, which assigns null to DETACHED
         methodsInvalid = 0, // also arms the errorCount expectation below
         errorCount = 0
 )
@@ -32,6 +32,7 @@ class ThrowsOnSkips {
 
     /** A detached handle a clause could be called on (see detachedClause). */
     static final JVerify.ThrowsOnCase DETACHED = null;
+//                                ^ error: Unsupported expression: AnonymousDynamicConstantDesc
 
     /** A case without a declared throws clause. */
     static int caseWithoutThrows(int x) {

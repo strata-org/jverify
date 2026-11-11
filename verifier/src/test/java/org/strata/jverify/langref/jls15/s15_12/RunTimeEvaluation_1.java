@@ -1,6 +1,5 @@
 package org.strata.jverify.langref.jls15.s15_12;
 
-import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
@@ -10,7 +9,7 @@ import static org.strata.jverify.JVerify.*;
 // to run is selected by dynamic dispatch on the run-time class of the target. Here the
 // static type is RteBase_RunTimeEvaluation_1 but the run-time class is RteChild_RunTimeEvaluation_1, so the overriding method
 // runs.
-@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls15.s15_12.RunTimeEvaluation_1#run", expectedToFail = true, blockedBy = {Blocker.LANGREF_UNSUPPORTED})
+@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls15.s15_12.RunTimeEvaluation_1#run")
 class RunTimeEvaluation_1 {
     static int counter = 0;
 

@@ -113,6 +113,23 @@ construct responsible.
   the body. A lambda the translation cannot handle is reported as not verified.
 - **Reference operations:** upcasts, downcasts, and `instanceof` on types declared in
   the code under verification.
+- **Static fields**, including enum constants and `static` initializer blocks. A static
+  field holds an arbitrary value when a method starts, like an instance field: a method
+  that needs a fact about it states it as a precondition. The first use of a class in a
+  method (a `new`, a static field access, or a static method call) may run the class's
+  static initializer, and the translation follows the JVM rules for when it runs: the
+  class that declares the member is initialized, its superclass first. On the
+  Cortex route (interpret mode) the initializer runs at the first use, and an exception that
+  escapes it reaches the use as an `ExceptionInInitializerError`, after
+  which every use of the class throws `NoClassDefFoundError`; on the Laurel pipeline a
+  method learns nothing from the initializer, and an initializer that may let an
+  exception escape is refused like a constructor, and so is each method that may run it.
+  A method whose use of a class may run an initializer that is not verified
+  (`@Verify(false)`) or could not be translated is refused with that reason. Not yet: a
+  static field of a library class is read with an unknown value, and the Laurel pipeline
+  keeps it unchanged across library calls; a static field access inside a specification
+  or a condition is refused when it may run an initializer.
+  See the caveat below on narrowing.
 - **Wrapper types** (`Integer`, `Long`, …): boxing and unboxing of a value held in a
   local, a parameter or a method result, and storing a box in a field. Not yet: `==`
   and `!=` on two boxes, unboxing or `equals` on a box read from a field or an array,
@@ -135,7 +152,6 @@ Major gaps being actively worked on or planned:
 - `float` and `double` — a floating-point literal is rejected outright.
 - Arrays of objects, multi-dimensional arrays, and the other array gaps listed above.
 - `null`: the `null` literal is rejected, so `@Nullable` has no use yet.
-- Static fields and enum constants.
 - Records, beyond being treated as values: a component accessor is not emitted.
 - `@Invariant` is accepted but the invariant is not checked. `@InheritContract` is
   accepted but adds nothing to the check that an override refines what it overrides.
@@ -171,7 +187,6 @@ message JVerify prints for each:
 - **Throwing a standard exception**, as in `throw new IllegalArgumentException("...")`:
   `Unsupported thrown expression type: IllegalArgumentException`.
 - **`float` and `double`**: `Unsupported type: double`.
-- **A static field or an enum constant**: `static field access is not yet supported`.
 - **The enhanced `for` loop over an array**: `array access through a local variable with
   no recorded type (for example an enhanced for loop) is not yet supported`.
 - **A loop with no exit**, such as `while (true) { }`: a message starting with
@@ -194,7 +209,7 @@ The constructs rejected this way are:
 - `%` on `float` or `double`
 - `==` and `!=` on references where neither operand's type is impure — including boxed
   comparisons such as `Integer == Integer`
-- Instance and static initializer blocks
+- Instance initializer blocks
 - `isAbstract()` anywhere but a precondition
 - In a constructor, a contract call (`precondition`, `postcondition`, …) that comes
   neither immediately after the call to `super` or `this` nor at the end of the body.

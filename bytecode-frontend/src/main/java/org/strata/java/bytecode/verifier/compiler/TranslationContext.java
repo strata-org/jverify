@@ -55,6 +55,10 @@ final class TranslationContext {
     /** Every lambda sort ever queued: a method translated twice queues its lambdas once. */
     final Set<String> queuedLambdaSorts = new java.util.HashSet<>();
     final Map<String, org.strata.jverify.laurel.Procedure> missingContractProcs = new java.util.LinkedHashMap<>();
+    /** The globals that model static fields and class initialization. */
+    final StaticFields statics = new StaticFields();
+    /** Calls and static reads per source line, for explaining a failed assertion about a static field. */
+    final StaticEffectNotes staticNotes = new StaticEffectNotes();
 
     // --- Per-class state ---
 

@@ -19,6 +19,7 @@ import org.strata.jverify.cortex.Composite;
 import org.strata.jverify.cortex.Expr;
 import org.strata.jverify.cortex.Field;
 import org.strata.jverify.cortex.FileRange;
+import org.strata.jverify.cortex.Global;
 import org.strata.jverify.cortex.Handler;
 import org.strata.jverify.cortex.Param;
 import org.strata.jverify.cortex.Procedure;
@@ -90,14 +91,30 @@ import java.util.Set;
  * error: JVerify specifications (every {@code JVerify} call but {@code check},
  * {@code assume} and {@code implies}, and the specification annotations such
  * as {@code @Transparent}), {@code @Nat} and {@code @Unbounded}, {@code null}
- * literals and null tests, arrays, floating point, static fields and fields of
- * library classes, class literals, {@code invokedynamic} and monitors; and,
- * when interpreting, calls to library methods.
+ * literals and null tests, arrays, floating point, fields of library classes,
+ * class literals, {@code invokedynamic} and monitors; and, when interpreting,
+ * calls to library methods.
+ *
+ * <p>A static field is a global variable named {@code owner:field}, holding
+ * the JVM default of its type when an entry procedure starts and an arbitrary
+ * value when any other procedure starts. A class's {@code <clinit>} is a
+ * procedure, and a boolean global per class, {@code owner:<initialized>},
+ * records whether it has run: at a {@code new}, a static field access or a
+ * static method call on the class that declares the member, the translation
+ * branches on the flag and, if it is false, sets it and calls the
+ * initializer, as the JVM does the first time a class is used
+ * ({@link ClassInitialization} has the rules). An exception that escapes the
+ * initializer reaches the use as an {@code ExceptionInInitializerError}
+ * unless it is an {@code Error}, a second flag marks the class erroneous, and
+ * every later use throws {@code NoClassDefFoundError}. An entry procedure
+ * initializes its own class first. A static field of a library class is a
+ * global with an arbitrary value.
  */
 public final class BytecodeToCortexCompiler {
 
     public record AnalysisResult(Program program, PositionResolver positions,
-                                 Map<URI, IntervalTree<Integer, MethodVerificationStatus>> methodStatuses) {
+                                 Map<URI, IntervalTree<Integer, MethodVerificationStatus>> methodStatuses,
+                                 StaticEffectNotes staticNotes) {
     }
 
     static final class Refusal extends RuntimeException {
@@ -137,6 +154,22 @@ public final class BytecodeToCortexCompiler {
     private final Map<String, ClassModel> programClasses = new LinkedHashMap<>();
     private final Set<String> referenced = new LinkedHashSet<>();
     private final Map<String, Procedure> procedures = new LinkedHashMap<>();
+    /** The globals of static fields and initialization flags, by name, in first-use order. */
+    private final Map<String, Global> globals = new LinkedHashMap<>();
+    private final StaticEffectNotes staticNotes = new StaticEffectNotes();
+    /** Each procedure's source file and verification status, for {@link #refuseUsersOfUntranslatedInitializers}. */
+    private final Map<String, URI> uriOf = new HashMap<>();
+    private final Map<String, MethodVerificationStatus> statusOf = new HashMap<>();
+    /** The refusal of each {@code <clinit>} that was not translated, by procedure name. */
+    private final Map<String, String> initializerRefusals = new HashMap<>();
+    static final String INIT_FLAG = "<initialized>";
+    static final String INIT_FAILED_FLAG = "<initFailed>";
+    static final String THROWABLE = "java.lang.Throwable";
+    static final String ERROR = "java.lang.Error";
+    static final String EXCEPTION_IN_INITIALIZER_ERROR = "java.lang.ExceptionInInitializerError";
+    static final String NO_CLASS_DEF_FOUND_ERROR = "java.lang.NoClassDefFoundError";
+    public static final String CLINIT = "<clinit>";
+    static final MethodTypeDesc CLINIT_DESC = MethodTypeDesc.of(ClassDesc.ofDescriptor("V"));
 
     public BytecodeToCortexCompiler(Reporter reporter, boolean verifyByDefault, List<Path> classPath,
                                     boolean interpret) {
@@ -174,10 +207,12 @@ public final class BytecodeToCortexCompiler {
             }
         }
         addInheritedForwarders();
-        var program = new Program(composites(), List.of(), List.copyOf(procedures.values()), List.of(PRELUDE));
+        refuseUsersOfUntranslatedInitializers();
+        var program = new Program(composites(), List.of(), List.copyOf(procedures.values()),
+                List.copyOf(globals.values()), List.of(PRELUDE));
         var knownUris = new java.util.HashSet<URI>(sourceUris);
         return new AnalysisResult(program, BytecodeToLaurelCompiler.positionResolver(Set.copyOf(knownUris)),
-                methodStatuses);
+                methodStatuses, staticNotes);
     }
 
     private static List<ClassModel> modelsOf(ClassSource cls) {
@@ -496,13 +531,81 @@ public final class BytecodeToCortexCompiler {
     private void compileClass(ClassModel cm) {
         String fqn = fqnOf(cm);
         referenced.add(fqn);
+        boolean isEnum = cm.flags().has(AccessFlag.ENUM);
         for (var m : cm.methods()) {
             String name = m.methodName().stringValue();
-            if (isSynthetic(m) && !isDispatchBridge(cm, m) || name.equals("<clinit>")) {
+            if (isSynthetic(m) && !isDispatchBridge(cm, m) || name.equals(CLINIT)) {
                 continue;
+            }
+            if (isEnum && (name.equals("values") || name.equals("valueOf") || name.equals("$values"))) {
+                continue;   // javac's enum members, over the $VALUES array, which is not modelled
             }
             compileMethod(cm, fqn, m);
         }
+        // <clinit> is translated like a static method; the guards emitted where
+        // the class is first used call it.
+        var clinit = ClassInitialization.initializerOf(resolver, fqn);
+        if (clinit != null) {
+            compileMethod(cm, fqn, clinit);
+        }
+    }
+
+    // --- Static fields ---
+
+    /** The global of static field {@code name} of {@code ownerFqn}; a single {@code :} occurs in no other emitted name. */
+    static String globalName(String ownerFqn, String name) {
+        return ownerFqn + ":" + name;
+    }
+
+    /** Declare the global of a static field of program class {@code ownerFqn} on first use and return its name. */
+    private String declareGlobal(String ownerFqn, String name, ClassDesc type, FileRange at) {
+        String global = globalName(ownerFqn, name);
+        if (!globals.containsKey(global)) {
+            Ty ty = tyOf(type, at);
+            globals.put(global, new Global(global, ty, defaultOf(ty), at));
+        }
+        return global;
+    }
+
+    /**
+     * Declare the global of a static field of a class outside the program.
+     * Nothing is known about it: no initializer of the class is translated, so
+     * it has no initializer and holds an arbitrary value, in an entry procedure
+     * too, and the class has no initialization flag.
+     */
+    private String declareLibraryGlobal(String ownerFqn, String name, ClassDesc type, FileRange at) {
+        String global = globalName(ownerFqn, name);
+        if (!globals.containsKey(global)) {
+            globals.put(global, new Global(global, tyOf(type, at), Optional.empty(), at));
+        }
+        return global;
+    }
+
+    private String declareInitFlag(String fqn, FileRange at) {
+        return declareFlag(globalName(fqn, INIT_FLAG), at);
+    }
+
+    /** The flag that records that initializing {@code fqn} completed abruptly (JLS 12.4.2: the class is erroneous). */
+    private String declareInitFailedFlag(String fqn, FileRange at) {
+        return declareFlag(globalName(fqn, INIT_FAILED_FLAG), at);
+    }
+
+    private String declareFlag(String flag, FileRange at) {
+        globals.computeIfAbsent(flag, f -> new Global(f, new Ty.Bool(), Optional.of(new Expr.Bool(false)), at));
+        return flag;
+    }
+
+    /** The JVM default of a value of type {@code ty}: zero or false; none for a reference, which this translation has no null for. */
+    private static Optional<Expr> defaultOf(Ty ty) {
+        return switch (ty) {
+            case Ty.Bool b -> Optional.of(new Expr.Bool(false));
+            case Ty.Bv bv -> Optional.of(new Expr.Bv(bv.width(), 0));
+            default -> Optional.empty();
+        };
+    }
+
+    private int lineOf(FileRange at) {
+        return src.positionRange(laurelRange(at)).start().line();
     }
 
     private static boolean isBridge(MethodModel m) {
@@ -570,16 +673,21 @@ public final class BytecodeToCortexCompiler {
                             range);
                 }
                 if (code != null && verify) {
-                    body = Optional.of(new MethodTranslator(cm, fqn, m, (CodeAttribute) code, range).translate());
+                    body = Optional.of(new MethodTranslator(cm, fqn, m, (CodeAttribute) code, range, entry)
+                            .translate());
                     translated = true;
                 }
             } catch (Refusal r) {
                 reportRefusal(r, range);
                 body = Optional.empty();
+                if (name.equals(CLINIT)) {
+                    initializerRefusals.put(proc, r.getMessage());
+                }
             }
         }
         procedures.put(proc, new Procedure(proc, inputs, outputs, throwsOf(cm, m), List.of(), body,
                 entry && translated, range));
+        uriOf.put(proc, src.uri);
         if (code == null) {
             return;
         }
@@ -590,9 +698,67 @@ public final class BytecodeToCortexCompiler {
             return;
         }
         boolean implicitCtor = name.equals("<init>") && !hasCrt((CodeAttribute) code);
-        recordStatus(implicitCtor ? SourceMap.UNKNOWN_RANGE : mRange, new MethodVerificationStatus(name,
+        var record = new MethodVerificationStatus(name,
                 implicitCtor || mRange == SourceMap.UNKNOWN_RANGE ? Reporter.NO_RANGE : src.positionRange(mRange),
-                status));
+                status);
+        statusOf.put(proc, record);
+        recordStatus(implicitCtor ? SourceMap.UNKNOWN_RANGE : mRange, record);
+    }
+
+    /**
+     * A method whose guard calls a {@code <clinit>} that has no body (its
+     * translation was refused) is refused with that reason, as on the Laurel
+     * route: the interpreter runs a call to a bodiless procedure as one that
+     * leaves every global unchanged, which the initializer would not have.
+     * The method keeps its signature only. Repeated until nothing changes: a
+     * refused initializer may itself be one another method's guard calls.
+     */
+    private void refuseUsersOfUntranslatedInitializers() {
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (var e : List.copyOf(procedures.entrySet())) {
+                if (refuseIfGuardCallsUntranslatedInitializer(e.getKey(), e.getValue())) {
+                    changed = true;
+                }
+            }
+        }
+    }
+
+    private boolean refuseIfGuardCallsUntranslatedInitializer(String name, Procedure p) {
+        if (p.body().isEmpty()) {
+            return false;
+        }
+        String clinit = null;
+        for (Block b : p.body().get().blocks()) {
+            for (Cmd c : b.cmds()) {
+                if (c instanceof Cmd.Call call && call.proc().endsWith("$" + CLINIT)
+                        && procedures.containsKey(call.proc()) && procedures.get(call.proc()).body().isEmpty()) {
+                    clinit = call.proc();
+                }
+            }
+        }
+        if (clinit == null) {
+            return false;
+        }
+        String owner = clinit.substring(0, clinit.length() - 1 - CLINIT.length());
+        String reason = initializerRefusals.get(clinit);
+        String message = "the static initializer of '" + JavaNames.simpleName(owner)
+                + "', which this method may run, could not be translated" + (reason == null ? "" : ": " + reason);
+        URI uri = uriOf.get(name);
+        if (uri != null) {
+            reporter.reportError(uri, src.pointOf(laurelRange(p.source())), message);
+        }
+        if (name.endsWith("$" + CLINIT)) {
+            initializerRefusals.put(name, message);
+        }
+        procedures.put(name, new Procedure(p.name(), p.inputs(), p.outputs(), p.throws_(), p.requires(),
+                Optional.empty(), false, p.source()));
+        var status = statusOf.get(name);
+        if (status != null) {
+            status.setVerificationStatus(MethodVerificationStatus.VerificationStatus.Skipped);
+        }
+        return true;
     }
 
     private void reportRefusal(Refusal r, FileRange range) {
@@ -655,6 +821,8 @@ public final class BytecodeToCortexCompiler {
         private final Map<String, Ty> declared = new LinkedHashMap<>();
         private final List<Block> blocks = new ArrayList<>();
         private final Map<Integer, List<String>> labelsOf = new HashMap<>();
+        /** The handlers of the guards' initializer calls ({@link #guard}); tried before the method's own. */
+        private final List<Handler> guardHandlers = new ArrayList<>();
         private final Map<Integer, List<Kind>> entryShape = new HashMap<>();
         private final Map<Integer, List<String>> entryTypes = new HashMap<>();
         private int fresh;
@@ -664,12 +832,19 @@ public final class BytecodeToCortexCompiler {
         private String label;
         private List<Cmd> cmds;
         private int blockId;
+        /** An entry procedure: it starts by initializing its own class. */
+        private final boolean entry;
+        /** The types whose initialization has started when this method runs: no guard for them. */
+        private final Set<String> initializationStarted;
 
-        MethodTranslator(ClassModel cm, String owner, MethodModel method, CodeAttribute code, FileRange methodRange) {
+        MethodTranslator(ClassModel cm, String owner, MethodModel method, CodeAttribute code, FileRange methodRange,
+                         boolean entry) {
             this.cm = cm;
             this.owner = owner;
             this.method = method;
             this.methodRange = methodRange;
+            this.entry = entry;
+            this.initializationStarted = ClassInitialization.initializationStarted(resolver, owner);
             this.cfg = MethodBodyFactory.buildCfg(cm, method);
             this.crt = MethodBodyFactory.crtRanges(code);
             this.lines = LineNumbers.of(code);
@@ -678,10 +853,21 @@ public final class BytecodeToCortexCompiler {
 
         Body translate() {
             var work = new ArrayDeque<Integer>();
+            String first = "b0";
             if (!cfg.blocks.isEmpty()) {
                 entryShape.put(0, List.of());
                 entryTypes.put(0, nulls(0));
                 work.add(0);
+                // The prologue precedes b0 in blocks of its own: b0 may be a loop
+                // header (a leading `while` test is at offset 0), and the prologue
+                // must run once, not on every iteration.
+                blockId = -1;
+                startBlock("prologue");
+                prologue();
+                if (!cmds.isEmpty() || !label.equals("prologue")) {
+                    seal(new Transfer.Goto("b0", methodRange));
+                    first = "prologue";
+                }
             }
             for (Trap t : cfg.excs) {
                 if (!entryShape.containsKey(t.handlerBlk())) {
@@ -712,7 +898,7 @@ public final class BytecodeToCortexCompiler {
                     }
                 }
             }
-            var handlers = new ArrayList<Handler>();
+            var handlers = new ArrayList<Handler>(guardHandlers);
             for (Trap t : cfg.excs) {
                 if (!done.contains(t.handlerBlk())) {
                     continue;
@@ -754,7 +940,7 @@ public final class BytecodeToCortexCompiler {
             }
             entryCmds.addAll(copies);
             var all = new ArrayList<Block>();
-            all.add(new Block("entry", entryCmds, new Transfer.Goto("b0", methodRange)));
+            all.add(new Block("entry", entryCmds, new Transfer.Goto(first, methodRange)));
             all.addAll(blocks);
             return new Body("entry", all, handlers);
         }
@@ -816,7 +1002,7 @@ public final class BytecodeToCortexCompiler {
         }
 
         private String freshLabel() {
-            return "b" + blockId + "_" + (fresh++);
+            return (blockId < 0 ? "prologue" : "b" + blockId) + "_" + (fresh++);
         }
 
         // --- Stack ---
@@ -929,6 +1115,217 @@ public final class BytecodeToCortexCompiler {
             return new Refusal("not supported by the direct Cortex translation: " + what, at);
         }
 
+        // --- Class initialization ---
+
+        /**
+         * The statements that start the body. An entry procedure runs with no
+         * class initialized and initializes its own class before anything
+         * else, as the JVM does before it runs a class's {@code main}.
+         * {@code <clinit>} runs once, while its flag is still false, so its
+         * class's static fields hold their defaults unless an initializer that
+         * runs before it may have written them
+         * ({@link ClassInitialization#staticsAtDefaultsInInitializer}): it
+         * assigns the default to each field of a primitive type.
+         */
+        private void prologue() {
+            if (entry) {
+                guard(owner, Set.of(), methodRange);
+            }
+            if (method.methodName().stringValue().equals(CLINIT)
+                    && ClassInitialization.staticsAtDefaultsInInitializer(resolver, owner)) {
+                for (var f : cm.fields()) {
+                    int flags = f.flags().flagsMask();
+                    if ((flags & AccessFlag.STATIC.mask()) == 0 || (flags & ClassFile.ACC_SYNTHETIC) != 0) {
+                        continue;
+                    }
+                    Ty ty = fieldTy(f.fieldTypeSymbol());
+                    var defaultValue = ty == null ? Optional.<Expr>empty() : defaultOf(ty);
+                    if (defaultValue.isEmpty()) {
+                        continue;
+                    }
+                    String global = declareGlobal(owner, f.fieldName().stringValue(), f.fieldTypeSymbol(), methodRange);
+                    // An assignment, not an assumption: the same fact, and it runs on the interpreter.
+                    cmds.add(new Cmd.Set(global, defaultValue, methodRange));
+                }
+            }
+        }
+
+        /** Emit the guard for a use of class {@code fqn} here, if the use may run an initializer. */
+        private void initialize(String fqn, FileRange at) {
+            guard(fqn, initializationStarted, at);
+        }
+
+        /**
+         * The guard for a use of {@code fqn}, as blocks: the current block ends
+         * with the tests, and translation continues in the block the paths join in.
+         * <pre>
+         * if (failed) throw new NoClassDefFoundError();
+         * if (!flag) {
+         *   flag := true;
+         *   try { <guards of the types initialized before>; } catch (Throwable t) { failed := true; throw t; }
+         *   try { <clinit>(); } catch (Throwable t) {
+         *     failed := true;
+         *     throw t instanceof Error ? t : new ExceptionInInitializerError();
+         *   }
+         *   flag := true;
+         * }
+         * </pre>
+         * The flag is set before the initializer runs, as the JVM marks a class
+         * before running its initializer, so a class reached again during its
+         * own initialization is not initialized twice; and again after the
+         * call, which states a fact the JVM guarantees (nothing clears the
+         * flag) where a caller that knows nothing about the callee's effect on
+         * globals would otherwise lose it. An exception from the initializer
+         * marks the class erroneous and reaches the caller wrapped, unless it
+         * is an {@code Error} (JLS 12.4.2, step 11); one from a type
+         * initialized before marks the class erroneous too and propagates as
+         * it is (step 7). Every later use
+         * throws {@code NoClassDefFoundError}. A type with nothing of its own
+         * to run contributes only the guards of the types before it. An
+         * initializer that is not verified ({@code @Verify(false)}) refuses
+         * the method: the call would be to a procedure without a body.
+         */
+        private void guard(String fqn, Set<String> started, FileRange at) {
+            if (!ClassInitialization.runsInitializer(resolver, fqn, started)) {
+                return;
+            }
+            MethodModel clinit = ClassInitialization.initializerOf(resolver, fqn);
+            if (clinit == null) {
+                for (String before : ClassInitialization.initializedBefore(resolver, fqn)) {
+                    guard(before, started, at);
+                }
+                return;
+            }
+            if (resolver.isOptedOut(programClasses.get(fqn), clinit)) {
+                throw new Refusal(StaticFields.notVerified(fqn), at);
+            }
+            String flag = declareInitFlag(fqn, at);
+            String failed = declareInitFailedFlag(fqn, at);
+            throwIf(new Expr.Var(failed), NO_CLASS_DEF_FOUND_ERROR, at);
+            String init = freshLabel();
+            String cont = freshLabel();
+            seal(new Transfer.CondGoto(new Expr.Var(flag), cont, init, at));
+            startBlock(init);
+            cmds.add(new Cmd.Set(flag, Optional.of(new Expr.Bool(true)), at));
+            String call = freshLabel();
+            var before = ClassInitialization.initializedBefore(resolver, fqn);
+            if (!before.isEmpty()) {
+                // The guards of the types initialized before, in blocks of their
+                // own: if one of them throws, this class is erroneous too and the
+                // exception propagates as it is (JLS 12.4.2, step 7).
+                String supertypes = freshLabel();
+                seal(new Transfer.Goto(supertypes, at));
+                startBlock(supertypes);
+                int mark = blocks.size();
+                for (String b : before) {
+                    guard(b, started, at);
+                }
+                seal(new Transfer.Goto(call, at));
+                var covered = new ArrayList<String>();
+                for (Block b : blocks.subList(mark, blocks.size())) {
+                    covered.add(b.label());
+                }
+                referenced.add(THROWABLE);
+                String caughtBefore = temp(new Ty.Named(THROWABLE));
+                String failedBefore = freshLabel();
+                guardHandlers.add(new Handler(covered, Optional.empty(), caughtBefore, failedBefore, at));
+                startBlock(failedBefore);
+                cmds.add(new Cmd.Set(failed, Optional.of(new Expr.Bool(true)), at));
+                cmds.add(new Cmd.Throw(new Expr.Var(caughtBefore), Optional.of(uncaught(THROWABLE)), at));
+                seal(new Transfer.Finish(at));
+            } else {
+                seal(new Transfer.Goto(call, at));
+            }
+            // The call sits in a block of its own, the only one its handler covers.
+            startBlock(call);
+            cmds.add(new Cmd.Call(List.of(), procName(fqn, CLINIT, CLINIT_DESC), List.of(), at));
+            staticNotes.recordCall(src.uri, lineOf(at),
+                    StaticEffectNotes.describe(StaticEffectNotes.Kind.INITIALIZER, JavaNames.simpleName(fqn)),
+                    StaticEffectNotes.Kind.INITIALIZER);
+            cmds.add(new Cmd.Set(flag, Optional.of(new Expr.Bool(true)), at));
+            seal(new Transfer.Goto(cont, at));
+            // The handler: mark the class erroneous, rethrow an Error, wrap anything else.
+            referenced.add(THROWABLE);
+            referenced.add(ERROR);
+            referenced.add(EXCEPTION_IN_INITIALIZER_ERROR);
+            String caught = temp(new Ty.Named(THROWABLE));
+            String handler = freshLabel();
+            guardHandlers.add(new Handler(List.of(call), Optional.empty(), caught, handler, at));
+            startBlock(handler);
+            cmds.add(new Cmd.Set(failed, Optional.of(new Expr.Bool(true)), at));
+            String isError = temp(new Ty.Bool());
+            cmds.add(new Cmd.InstanceOf(isError, new Expr.Var(caught), ERROR, at));
+            String rethrow = freshLabel();
+            String wrap = freshLabel();
+            seal(new Transfer.CondGoto(new Expr.Var(isError), rethrow, wrap, at));
+            startBlock(rethrow);
+            cmds.add(new Cmd.Throw(new Expr.Var(caught), Optional.of(uncaught(ERROR)), at));
+            seal(new Transfer.Finish(at));
+            startBlock(wrap);
+            String wrapped = temp(new Ty.Named(EXCEPTION_IN_INITIALIZER_ERROR));
+            cmds.add(new Cmd.New(wrapped, EXCEPTION_IN_INITIALIZER_ERROR, at));
+            cmds.add(new Cmd.Throw(new Expr.Var(wrapped), Optional.of(uncaught(EXCEPTION_IN_INITIALIZER_ERROR)), at));
+            seal(new Transfer.Finish(at));
+            startBlock(cont);
+        }
+
+        /** The read or write of a static field. */
+        private void staticField(FieldInstruction fi, FileRange at) {
+            String name = fi.name().stringValue();
+            String target = JavaNames.dottedFqn(fi.owner().asInternalName());
+            ClassDesc type = fi.typeSymbol();
+            boolean read = fi.opcode() == Opcode.GETSTATIC;
+            if (ClassInitialization.isAssertionsDisabled(resolver, fi)) {
+                // Assertions are translated as always enabled: a read is false,
+                // and the assignment in <clinit> is dropped.
+                if (read) {
+                    push(Kind.I, lit(0), null, at);
+                } else {
+                    pop();
+                }
+                return;
+            }
+            if (ClassInitialization.isEnumValues(resolver, fi)) {
+                if (read) {
+                    throw refuse("arrays", at);
+                }
+                pop();   // values() is not translated, so nothing reads the array
+                return;
+            }
+            String declaring = ClassInitialization.declaringClassOfStatic(resolver, target, name);
+            if (declaring == null) {
+                if (programClasses.containsKey(target)) {
+                    throw refuse("fields of library classes", at);
+                }
+                if (!read) {
+                    throw refuse("writes to static fields of library classes", at);
+                }
+                String global = declareLibraryGlobal(target, name, type, at);
+                staticNotes.recordStaticRead(src.uri, lineOf(at));
+                push(kindOf(type, at), new Expr.Var(global), type.isPrimitive() ? null : classFqn(type), at);
+                return;
+            }
+            for (var f : programClasses.get(declaring).fields()) {
+                if (f.fieldName().stringValue().equals(name) && hasRangeAnnotation(f)) {
+                    throw refuse("@Nat and @Unbounded", at);
+                }
+            }
+            if (fieldTy(type) == null) {
+                throw refuse(type.isArray() ? "arrays" : "floating point", at);
+            }
+            if (read) {
+                initialize(declaring, at);
+                String global = declareGlobal(declaring, name, type, at);
+                staticNotes.recordStaticRead(src.uri, lineOf(at));
+                push(kindOf(type, at), new Expr.Var(global), type.isPrimitive() ? null : classFqn(type), at);
+            } else {
+                var value = pop();   // evaluated before the class is initialized, in a local the initializer cannot touch
+                initialize(declaring, at);
+                String global = declareGlobal(declaring, name, type, at);
+                cmds.add(new Cmd.Set(global, Optional.of(value.expr), at));
+            }
+        }
+
         // --- Implicit throws ---
 
         private void throwIf(Expr cond, String exception, FileRange at) {
@@ -995,6 +1392,7 @@ public final class BytecodeToCortexCompiler {
                 case NewObjectInstruction nw -> {
                     String c = JavaNames.dottedFqn(nw.className().asInternalName());
                     referenced.add(c);
+                    initialize(c, at);
                     cmds.add(new Cmd.New(pushTarget(Kind.A, c), c, at));
                 }
                 case FieldInstruction fi -> field(fi, at);
@@ -1168,7 +1566,8 @@ public final class BytecodeToCortexCompiler {
 
         private void field(FieldInstruction fi, FileRange at) {
             if (fi.opcode() == Opcode.GETSTATIC || fi.opcode() == Opcode.PUTSTATIC) {
-                throw refuse("static fields", at);
+                staticField(fi, at);
+                return;
             }
             String name = fi.name().stringValue();
             String declaredIn = fieldOwner(JavaNames.dottedFqn(fi.owner().asInternalName()), name);
@@ -1279,6 +1678,12 @@ public final class BytecodeToCortexCompiler {
                 return;
             }
             boolean isStatic = o == Opcode.INVOKESTATIC;
+            if (ClassInitialization.isEnumValuesMethod(resolver, inv)) {
+                // Only in an enum's <clinit>, as the value assigned to $VALUES, an
+                // assignment that is dropped: any reference does.
+                pushTarget(Kind.A, null);
+                return;
+            }
             var args = new ArrayList<Expr>();
             for (int i = 0; i < desc.parameterCount(); i++) {
                 args.addFirst(pop().expr);
@@ -1286,8 +1691,17 @@ public final class BytecodeToCortexCompiler {
             if (!isStatic) {
                 args.addFirst(pop().expr);
             }
+            String declaringIn = declaringClass(target, name, desc, isStatic);
+            if (isStatic && declaringIn != null) {
+                // A call to a static method is a first use of the class that
+                // declares it (JLS 12.4.1), not of the class the instruction
+                // names. The arguments are evaluated before, in locals the
+                // initializer cannot touch.
+                initialize(declaringIn, at);
+            }
             if (name.equals("<init>") && !programClasses.containsKey(target)
-                    && (target.equals(OBJECT) || resolver.isThrowableSubtype(target))) {
+                    && (target.equals(OBJECT) || target.equals("java.lang.Enum") || resolver.isThrowableSubtype(target))) {
+                // The name and ordinal an enum constructor passes to Enum are not modelled.
                 return;
             }
             var lhs = new ArrayList<String>();
@@ -1295,12 +1709,13 @@ public final class BytecodeToCortexCompiler {
                 var rt = desc.returnType();
                 lhs.add(pushTarget(kindOf(rt, at), rt.isPrimitive() ? null : rt.isArray() ? null : classFqn(rt)));
             }
-            String declaringIn = declaringClass(target, name, desc, isStatic);
             if (declaringIn == null && interpret) {
                 throw refuse("calls to library methods (" + target + "." + name + ") when interpreting", at);
             }
             MethodModel callee = declaringIn == null ? null : declared(programClasses.get(declaringIn), name, desc, isStatic);
             boolean isPrivate = callee != null && callee.flags().has(AccessFlag.PRIVATE);
+            var kind = declaringIn == null ? StaticEffectNotes.Kind.NO_BODY : StaticEffectNotes.Kind.BODY;
+            staticNotes.recordCall(src.uri, lineOf(at), StaticEffectNotes.describe(kind, name + "()"), kind);
             if ((o == Opcode.INVOKEVIRTUAL || o == Opcode.INVOKEINTERFACE) && !isPrivate) {
                 String ownerClass = declaringIn != null ? declaringIn : target;
                 if (declaringIn == null) {

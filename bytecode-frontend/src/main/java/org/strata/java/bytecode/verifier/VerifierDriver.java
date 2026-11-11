@@ -234,6 +234,7 @@ public class VerifierDriver {
 
         // Serialize + run Strata.
         var results = new StrataBackend(options)
+                .withStaticEffectNotes(analysis.staticNotes())
                 .verifyProgram(analysis.program(), analysis.positions(), analysis.methodStatuses());
         var allDiagnostics = new ArrayList<Diagnostic<?>>(diagnostics);
         allDiagnostics.addAll(results.diagnostics());
@@ -258,6 +259,7 @@ public class VerifierDriver {
             return new JVerifyResults.NoVerdict(diagnostics, 2);
         }
         var results = new StrataBackend(options)
+                .withStaticEffectNotes(analysis.staticNotes())
                 .verifyCortexProgram(analysis.program(), analysis.positions(), analysis.methodStatuses());
         diagnostics.addAll(results.diagnostics());
         return switch (results) {
