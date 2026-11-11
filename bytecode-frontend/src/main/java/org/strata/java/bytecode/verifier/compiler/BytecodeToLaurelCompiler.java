@@ -177,6 +177,15 @@ public class BytecodeToLaurelCompiler {
         return this;
     }
 
+    /**
+     * Give the cast helpers an implementation, which the interpreters run. Verification reads only the helpers'
+     * contracts: proving the implementations would only cost it solver calls.
+     */
+    public BytecodeToLaurelCompiler withCastImplementations(boolean implement) {
+        lf.implementCasts = implement;
+        return this;
+    }
+
     /** javac's account of the classes the input's classfiles mention, which the hierarchy walks take first. */
     public BytecodeToLaurelCompiler withJavacTypes(Map<String, org.strata.java.bytecode.frontend.TypeFacts> types) {
         resolver.useJavacTypes(types);

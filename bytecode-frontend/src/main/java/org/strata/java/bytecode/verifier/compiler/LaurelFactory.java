@@ -59,6 +59,9 @@ final class LaurelFactory {
     /** Cast-helper procedures, keyed by mangled name, in first-use order. */
     final LinkedHashMap<String, Procedure> castHelpers = new LinkedHashMap<>();
 
+    /** Whether the cast helpers get an implementation, for the interpreters. */
+    boolean implementCasts;
+
     LaurelFactory(SourceMap src) {
         this.src = src;
     }
@@ -321,6 +324,9 @@ final class LaurelFactory {
         throw new JavaViolationException("Unsupported cast source type: " + ty);
     }
 
+    /** The targets of Java's narrowing primitive conversions (JLS 5.1.3). */
+    private static final java.util.Set<String> NARROWED = java.util.Set.of("int8", "int16", "int32", "char");
+
     void registerCastHelper(String helperName, String sourceName, HighType sourceType,
                             String targetName, HighType targetType) {
         if (castHelpers.containsKey(helperName)) {
@@ -343,17 +349,32 @@ final class LaurelFactory {
             }
         }
         var resultEqX = primitiveOp(new Operation.Eq(), noRange(reservedVar_(LAUREL_RESULT_BINDING)), noRange(x));
-        var postconditions = List.of(
-                new Condition(noRange(resultEqX), Optional.empty(), new ConditionMode.Both()));
+        // Free: an interpreted run that reports a narrowing out of range goes on with Java's value for it, not x.
+        var postconditions = List.of(new Condition(noRange(resultEqX), Optional.empty(), new ConditionMode.Assume()));
+        HighType resultType = targetType;
+        Optional<AstNode<StmtExpr>> implementation = Optional.empty();
+        if (implementCasts) {
+            StmtExpr result = x;
+            if (NARROWED.contains(targetName)) {
+                var offset = primitiveOp(new Operation.Sub(), noRange(x), noRange(longLiteral(bounds[0])));
+                var rem = primitiveOp(new Operation.Mod(), noRange(offset),
+                        noRange(longLiteral(bounds[1] - bounds[0] + 1)));
+                result = primitiveOp(new Operation.Add(), noRange(rem), noRange(longLiteral(bounds[0])));
+            } else {
+                // A @Nat or @Unbounded cast keeps Java's value, which is outside the target's range when it fails.
+                resultType = new HighType.TInt();
+            }
+            implementation = Optional.of(noRange(new StmtExpr.Return(List.of(noRange(result)))));
+        }
         var proc = new Procedure(
                 ident(helperName),
                 /*typeArgs=*/List.of(),
                 List.of(new org.strata.jverify.laurel.Parameter(ident("x"), node(sourceType))),
-                List.of(new org.strata.jverify.laurel.Parameter(reservedIdent(LAUREL_RESULT_BINDING), node(targetType))),
+                List.of(new org.strata.jverify.laurel.Parameter(reservedIdent(LAUREL_RESULT_BINDING), node(resultType))),
                 preconditions,
                 new CoroutineContracts.Regular(),
                 Optional.empty(),
-                new Body.Opaque(postconditions, Optional.empty(), unguardedModifies(List.of())),
+                new Body.Opaque(postconditions, implementation, unguardedModifies(List.of())),
                 Optional.empty(), false, List.of(),
                 Optional.empty(), Optional.empty(), /*throwsInferred=*/false, List.of(),
                 /*readsGlobals=*/List.of(), /*writesGlobals=*/List.of());

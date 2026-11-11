@@ -1,6 +1,5 @@
 package org.strata.jverify.langref.jls15.s15_29;
 
-import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
@@ -11,7 +10,7 @@ import static org.strata.jverify.JVerify.*;
 // expressions. Constant expressions are evaluated at compile time; here we observe
 // their runtime values and the contexts they enable (case labels, narrowing
 // assignment conversion to byte/short/char).
-@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls15.s15_29.ConstantExpression_16#run", expectedToFail = true, blockedBy = {Blocker.LANGREF_INTERP_ERROR})
+@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls15.s15_29.ConstantExpression_16#run")
 class ConstantExpression_16 {
 
     // final fields initialized with constant expressions are themselves constants.

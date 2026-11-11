@@ -1,6 +1,5 @@
 package org.strata.jverify.langref.jls8.s8_4;
 
-import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
@@ -8,7 +7,7 @@ import static org.strata.jverify.JVerify.*;
 // JLS 8.4.9 -- Overloading: several methods share a name but differ in the
 // number or types of their formal parameters; the most specific applicable
 // method is chosen at compile time from the argument types.
-@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls8.s8_4.Overloading_3#run", expectedToFail = true, blockedBy = {Blocker.LANGREF_INTERP_ERROR})
+@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls8.s8_4.Overloading_3#run")
 class Overloading_3 {
     // Overload by parameter count.
     static int f(int a) {

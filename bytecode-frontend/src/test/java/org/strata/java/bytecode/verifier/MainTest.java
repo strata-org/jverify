@@ -481,6 +481,41 @@ class MainTest {
         assertFalse(core.out().contains("out of fuel"), core::toString);
     }
 
+    private static final String CASTS = """
+            package p;
+
+            import org.strata.jverify.Nat;
+            import static org.strata.jverify.JVerify.check;
+
+            class Casts {
+                static void run() {
+                    int i = -200;
+                    long l = 3000000000L;
+                    int n = (@Nat int) i;
+                    check(n == -200);
+                    check((byte) i == 56);
+                    check((short) (i * 200) == 25536);
+                    check((char) i == 65336);
+                    check((int) l == -1294967296);
+                }
+            }
+            """;
+
+    /**
+     * Casts run on both interpreters. Out of range, each cast fails its precondition, and the run goes on with Java's
+     * value: every check holds, so the five casts are the only errors.
+     */
+    @Test
+    void castsRunOnBothInterpreters(@TempDir Path tmp) throws Exception {
+        var file = write(tmp, "Casts.java", CASTS).toString();
+        for (var interpreter : List.of("core", "laurel")) {
+            var r = run("--interpret", "--interpreter", interpreter, "--entry", "p.Casts#run", file);
+            assertEquals(4, r.exitCode(), () -> interpreter + ": " + r);
+            assertTrue(r.out().contains("cast from int32 to int8 does not hold"), () -> interpreter + ": " + r);
+            assertTrue(r.out().contains("Found 5 errors"), () -> interpreter + ": " + r);
+        }
+    }
+
     @Test
     void verifyByDefaultFalseSkipsUnannotatedMethods(@TempDir Path tmp) throws Exception {
         var r = run("--verify-by-default=false", write(tmp, "Fails.java", FAILS).toString());
