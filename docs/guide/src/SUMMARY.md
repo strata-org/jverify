@@ -22,8 +22,7 @@
 - [Integers](integers.md)
 <!-- - [Abstract contracts](abstract_contracts.md) -->
 
-# Working with objects
-
+<!-- Draft chapters of a future "Working with objects" part: -->
 <!-- - [Reading and Modifying](reads_and_modifies.md) -->
 <!-- - [Time Traveling](time_traveling.md) -->
 <!-- - [Working with Null](working_with_null.md) -->

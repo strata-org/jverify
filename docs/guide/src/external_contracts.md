@@ -1,3 +1,5 @@
+> **Draft: not yet published; examples have not been checked against the current tool.**
+
 # Adding contracts to third party code
 
 In JVerify, when a verified method calls another method, then a contract must be defined for the callee. If the callee is owned by you, and has a body (as opposed to an abstract or interface method), then it is simplest to define its contract in its body.

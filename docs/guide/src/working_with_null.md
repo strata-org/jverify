@@ -1,3 +1,5 @@
+> **Draft: not yet published; examples have not been checked against the current tool.**
+
 # Working with null
 
 JVerify allows detecting all possible `NullReferenceException`s in your Java code. To make it easier to check this, JVerify requires that any reference variable which can be null is annotated with `@Nullable`. Example:

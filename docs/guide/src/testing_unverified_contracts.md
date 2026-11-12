@@ -158,7 +158,7 @@ This works as long as the expression inside `old(...)` refers only to the contra
 ### Frame clauses and soundness
 
 A `modifies(...)` clause is a *promise* about which objects a method may mutate
-(see [Reading and modifying objects](reads_and_modifies.md)). The verifier
+(the chapter on reading and modifying objects is not yet published). The verifier
 checks that promise, but a generated property test only evaluates the
 postcondition — it never observes which objects the method touched. So simply
 dropping the `modifies` clause would be **unsound**: a method that mutates more

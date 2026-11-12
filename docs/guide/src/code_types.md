@@ -1,3 +1,5 @@
+> **Draft: not yet published; examples have not been checked against the current tool.**
+
 # Code types
 In our previous binary search example, we had the following precondition:
 ```java

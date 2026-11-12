@@ -2,27 +2,102 @@
 
 JVerify intends to support the full Java language, but is actively under development. It is built on [Strata](https://github.com/strata-org/Strata) and currently supports a limited subset of Java. Support is being expanded incrementally — see issue [#384](https://github.com/strata-org/jverify/issues/384) for the roadmap.
 
+## What happens to code JVerify cannot handle
+
+A construct outside the supported subset is reported in one of two ways:
+
+- As an **error**, when it occurs in a static method or is one of the constructs listed
+  under [Rejected up front](#rejected-up-front-rather-than-skipped). The run stops with
+  exit code 2 and verifies nothing.
+- As a **warning**, when it occurs in an instance method. That method is skipped and the
+  rest of the code is verified.
+
+**A skipped method is not verified, yet the run still prints `Found 0 errors` and exits
+with code 0.** For example, `ratio` below uses `double`, which is not supported:
+
+```java
+import static org.strata.jverify.JVerify.*;
+import org.strata.jverify.*;
+
+class Skip {
+    double ratio(double x) {
+        return x * 0.5;
+    }
+    int ok(int x) {
+        precondition(x < 100);
+        postcondition((int r) -> r == x + 1);
+        return x + 1;
+    }
+}
+```
+
+```text
+Skip.java(5:28-5:29): warning: instance method 'ratio' was not verified: Unsupported type: double
+Found 0 errors
+Verified methods: 2
+Failed methods: 0
+Skipped methods: 1
+```
+
+So do not judge a run by `Found 0 errors` or by the exit code alone. A run is a pass only
+when it reports both `Failed methods: 0` and `Skipped methods: 0`. A method that you opted
+out yourself with `@Verify(false)` is also counted under `Skipped methods`, without a
+warning; every other skipped method has a `was not verified` warning that names the
+construct responsible.
+
 ## Currently supported
 
 - **Static and instance methods.** Instance methods are translated, including calls
   through a receiver. A method that cannot be translated is skipped with a warning
-  naming the construct responsible, not silently.
-- **Primitive integer types:** `byte`, `short`, `int`, `long`.
-- **Boolean type.**
+  naming the construct responsible, not silently. A skipped method is not verified even
+  though the run exits with code 0, as described above.
+- **Primitive types:** `byte`, `short`, `int`, `long`, `char`, `boolean`.
 - **Arithmetic, comparison, logical operators.**
+- **Increment and decrement** (`++`, `--`), prefix and postfix, on a local, a parameter,
+  a field or an array element.
+- **Compound assignment** (`+=`, `-=`, `*=`, `/=`, `%=`) on a local, a parameter, a field
+  or an array element. See the caveat below on narrowing.
 - **Ternary expressions.**
-- **Control flow:** `if`/`else`, `while`, `for`, `return`, `assert`, variable declarations, blocks.
-- **JVerify contract primitives:** `precondition()`, `postcondition()`, `check()`, `assume()`, `implies()`, `invariant()`.
+- **Control flow:** `if`/`else`, `while`, `do`/`while`, `for`, `break`, `continue`,
+  `return`, `assert`, variable declarations, blocks. A labelled `break` or `continue`
+  works in simple nested loops, but some shapes are still rejected. A loop with no exit,
+  such as `while (true) { }`, is rejected.
+- **`switch` statements and `switch` expressions** in arrow form (`case 0 -> ...`). A
+  statement arm may be a block. Not yet: `break` inside an arrow arm, and for `switch`
+  expressions the statement-group form (`case 0:` with `yield`), a block or `throw` as
+  an arm body, and `case` patterns.
+- **JVerify contract primitives:** `precondition()`, `postcondition()`, `check()`,
+  `assume()`, `implies()`, `invariant()`, `modifies()`, `old()`, `throwsOn()` and
+  `everything()`.
+  - `modifies(o)` states which objects a method may change; `modifies(everything())`
+    allows any object to change.
+  - `old(e)` in a postcondition is the value of `e` when the method was entered, for
+    example `postcondition(() -> count == old(count) + 1)`.
 - **Quantifiers:** `forall()`, `exists()`.
 - **Transparent methods** via `@Transparent`. The Strata back-end does not yet accept a
   loop, a heap write or a `throw` in a transparent body, and reports it.
 - **Static method calls.**
+- **Arrays of primitives:** one-dimensional `int[]`, `long[]`, `short[]`, `byte[]`,
+  `char[]` and `boolean[]`. This covers `new int[n]`, initializers such as `{1, 2, 3}`,
+  `length`, element reads and writes, and arrays as parameters, results and fields.
+  Every index is checked to be in bounds. Not yet: arrays of objects (this includes
+  `String[]`), multi-dimensional arrays, `float[]` and `double[]`, `@Nullable` arrays,
+  the enhanced `for` loop over an array, `clone()`, `System.arraycopy` and
+  `java.util.Arrays` methods.
+- **Constructors** of a class that is top-level or a static nested class and is not
+  generic. The constructor body is verified, and a caller of `new Box(5)` may rely on
+  the constructor's postcondition. Not yet: constructors of generic classes, inner
+  (non-static nested), local and anonymous classes, enums and records. Such a
+  constructor is not translated, so the fields of the new object are unconstrained
+  immediately after construction and an assertion about them fails.
 - **Exceptions:** `throws` clauses (unchecked types included; multi-`throws`
   joins to the closest common ancestor), `throw`, `try`/`catch`/`finally`
-  (multi-catch included), and exceptional behavior cases via
-  `throwsOn(...).postcondition(...).modifies(...)` — see the Exceptions
-  chapter. Not yet: try-with-resources, exceptions carrying constructor
-  data.
+  (multi-catch included), exceptions that carry data set by their constructor, and
+  exceptional behavior cases via `throwsOn(...).postcondition(...).modifies(...)` — see
+  the Exceptions chapter. An unchecked exception that may leave a method must be
+  declared in its `throws` clause unless `@AllowUncheckedExceptions` applies. Not yet:
+  try-with-resources, and throwing an exception class of the Java standard library such
+  as `IllegalArgumentException`; declare your own exception class instead.
 - **Classes and interfaces**, with dynamic dispatch on the receiver's runtime type.
   An override must refine what it overrides, and JVerify checks that obligation, so a
   caller may reason from the static type's contract.
@@ -37,31 +112,38 @@ JVerify intends to support the full Java language, but is actively under develop
   the body. A lambda the translation cannot handle is reported as not verified.
 - **Reference operations:** upcasts, downcasts, and `instanceof` on types declared in
   the code under verification.
-- **Compound assignment** (`+=`, `-=`, `*=`, `/=`, `%=`) on a local or parameter.
-  See the caveat below on narrowing.
-- **`switch` expressions** in arrow form (`case 0 -> 1`). Not yet: the
-  statement-group form (`case 0:` with `yield`), a block or `throw` as an arm body,
-  and `case` patterns.
-- **Annotations:** `@Transparent`, `@Impure`, `@Verify`, `@Contract`, `@Unbounded`, `@Nat`.
+- **Wrapper types** (`Integer`, `Long`, …): boxing and unboxing of a value held in a
+  local, a parameter or a method result, and storing a box in a field. Not yet: `==`
+  and `!=` on two boxes, unboxing or `equals` on a box read from a field or an array,
+  and boxing inside a contract.
+- **`String.length()` and `String.isEmpty()`**, in method bodies and in contracts. Not
+  yet: `charAt` and string concatenation.
+- **Annotations.** The JVerify library declares the annotations below.
+  - Used by the verifier: `@Transparent`, `@Impure`, `@Verify`, `@Contract`,
+    `@EmptyContract`, `@Unbounded`, `@Nat`, `@AllowUncheckedExceptions`.
+  - Used by other modes and tools, not by verification: `@InterpretEntry` marks an entry
+    point for `--interpret`; `@AsProperty` and `@CheckPreconditionsAtRuntime` are
+    for testing and runtime checking of contracts.
+  - Accepted but without effect on verification today: `@Erased`, `@Nullable`,
+    `@Invariant`, `@InheritContract`. See the list below.
 
 ## Not yet supported
 
 Major gaps being actively worked on or planned:
 
-- **Constructors.** A constructor is not translated and a `new` expression discards its
-  arguments, so an object's fields are unconstrained immediately after construction.
-  This is the single biggest gap: any assertion about a field of a freshly constructed
-  object fails, even when the constructor's own postcondition is provable.
 - `float` and `double` — a floating-point literal is rejected outright.
-- Arrays
+- Arrays of objects, multi-dimensional arrays, and the other array gaps listed above.
+- `null`: the `null` literal is rejected, so `@Nullable` has no use yet.
+- Static fields and enum constants.
 - Records, beyond being treated as values: a component accessor is not emitted.
-- Boxed primitive types (`Integer`, `Long`, …) beyond unboxing against a primitive
-- `old()` in postconditions
-- `@Nullable` (no null representation yet), `@InheritContract`, `@Invariant`
+- `@Invariant` is accepted but the invariant is not checked. `@InheritContract` is
+  accepted but adds nothing to the check that an override refines what it overrides.
+  `@Erased` is accepted and ignored by the verifier.
+- `decreases()` and `reads()` are accepted but not checked. In particular termination
+  is not checked: a method that calls itself forever verifies.
+- `sequence()` is rejected.
 - Lambdas beyond contract lambdas and lambdas passed as arguments: a lambda stored in a
   variable, a method reference, and a lambda for a generic functional interface
-- `break`, `continue`, `switch` *statements*
-- Increment/decrement (`++`, `--`)
 - A narrowing compound assignment such as `byte b = 100; b += 100;` reports an
   assertion failure rather than Java's wrap-around result — the narrowing is not
   modelled, by design, and the diagnostic is currently misleading.
@@ -70,6 +152,31 @@ Major gaps being actively worked on or planned:
   not yet resolve.
 
 If you encounter something not in either list, please open a [GitHub issue](https://github.com/strata-org/jverify/issues).
+
+### Typical Java that is rejected today
+
+These are the constructs most likely to stop a first attempt on existing code, with the
+message JVerify prints for each:
+
+- **`public static void main(String[] args)`**, and any other array of objects:
+  `arrays of reference types are not yet supported`. Put `@Verify(false)` on `main` to
+  verify the rest of the class.
+- **The `null` literal**, as in `x == null` or `return null`:
+  `Unsupported expression: NullLiteralExpr`.
+- **A call on a receiver whose type is an interface of the Java standard library**,
+  such as `List.get` or `Function.apply`:
+  `call to 'get' on a receiver whose static type is not a class is not yet supported`.
+  A call through an interface declared in the code under verification is supported.
+- **Throwing a standard exception**, as in `throw new IllegalArgumentException("...")`:
+  `Unsupported thrown expression type: IllegalArgumentException`.
+- **`float` and `double`**: `Unsupported type: double`.
+- **A static field or an enum constant**: `static field access is not yet supported`.
+- **The enhanced `for` loop over an array**: `array access through a local variable with
+  no recorded type (for example an enhanced for loop) is not yet supported`.
+- **A loop with no exit**, such as `while (true) { }`: `unsupported control flow`.
+
+In a static method each of these is an error and the run exits with code 2. In an
+instance method it is a warning and the method is skipped.
 
 ### Rejected up front, rather than skipped
 
@@ -92,49 +199,9 @@ The constructs rejected this way are:
 - A postcondition or `modifies` clause on a `@Transparent` method
 - A malformed `@Contract` class
 - Any construct that cannot be translated in a **static** method: a static method that
-  cannot be translated is an error, an instance method a warning
+  cannot be translated is an error, an instance method a warning. The warning does not
+  change the exit code: the instance method is skipped, not verified, and the run still
+  prints `Found 0 errors` and exits with code 0.
 
 To keep building while one of these is present, opt the code out of verification
 with `@Verify(false)`. It is honored on the method and on any enclosing class.
-
-<!--
-Previous version of this page (Dafny era). Preserved for reference — lists features
-that were unsupported even before the Strata transition.
-
-JVerify intends to support the full Java language, but is currently being developed and only supports a subset of Java constructs. The not yet supported Java features are listed below. If you encounter unsupported features that are not in this list, please create a GitHub issue.
-
-# Currently unsupported Java features
-
-#### Java 1-9
-- Enhanced for loop: `for(var x : xs) { ... }`
-- Verification of constructors
-- static fields
-- Multi-dimensional array instantiation: `new [,]`
-- Array instantiation with initializers: `new int[] { 1, 2, 3 }`
-- `throw`/`try`/`catch`/`finally` and checked exceptions
-- Operators on `float` and `double`
-- Wildcards: `C<? extends X>` is interpreted as `C<X>`, and similarly for `C<? super X>`. `C<?>` is translated to `C<Object>`.
-- Concurrency: for now, JVerify can only specify contracts that require none of the arguments, including `this`, are modified concurrently. Support for concurrent modification will be added. When calling verified code from unverified code, be careful not to pass in objects that are being modified concurrently.
-  - The keyword `synchronized` is ignored
-
-#### Java 14
-- Deconstructing a record using `instanceof`, for example `shape instanceof Circle(Point(var x, var y), var radius)`
-- Switch labeled statement groups: `case ...: ...`  (only switch rules `case ... -> ...` are supported)
-- `yield` in switch expressions
-
-#### Java 17
-- `permits` clauses are ignored in verification
-- Pattern matches in switch expressions and statements
-- Explicit constructors on records
-- Explicit accessors on records
-- Support `null` value and comparison for record types
-- Using `==` on records. Note that doing so is generally not what you want.
-- Overriding `equals(Object)` or `hashCode()` on records is not supported. Note that doing so is generally not what you want.
-
-#### Java 21
-- String template: `STR."My name is \{name}"`
-
-# Supported Java standard library packages
-
-- (Partially) `java.math.BigInteger`
--->

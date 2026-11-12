@@ -1,3 +1,5 @@
+> **Draft: not yet published; examples have not been checked against the current tool.**
+
 ## Reading and Modifying Objects
 
 A method can state which objects it reads with `reads` calls, and which objects it modifies with `modifies` calls.

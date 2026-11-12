@@ -1,3 +1,5 @@
+> **Draft: not yet published; examples have not been checked against the current tool.**
+
 # Pure types
 
 JVerify divides all types into two categories: pure and impure. Compared to pure types, impure ones have these properties:

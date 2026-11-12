@@ -1,3 +1,5 @@
+> **Draft: not yet published; examples have not been checked against the current tool.**
+
 # Common exceptions
 JVerify allows you to provide a specification for a program, and prove that the program satisfies that. However, if even you do not provide a specification, JVerify can still help by detecting uncaught exceptions.
 

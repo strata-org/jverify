@@ -1,3 +1,5 @@
+> **Draft: not yet published; examples have not been checked against the current tool.**
+
 # Interfaces & Abstract Classes
 
 In one of the earliest sections, [Pre- and post-conditions](pre_and_postconditions.md), you've seen that method calls to the JVerify library can be placed in the body of a method to define the contract for that method. However, this approach does not work for methods without a body, such as a those in interfaces and abstract methods. For those cases, JVerify requires that you to define a contract class, which is a class that inherits from the interface or abstract class, and provides contracts for methods where it is still missing. Example:

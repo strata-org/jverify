@@ -1,3 +1,5 @@
+> **Draft: not yet published; examples have not been checked against the current tool.**
+
 # Partial Verification
 
 Given a codebase, you can configure what methods to verify. You can toggle verification on or off at the various levels in your code's hierarchy: CLI, package, type, method.

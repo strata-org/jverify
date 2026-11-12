@@ -1,3 +1,5 @@
+> **Draft: not yet published; examples have not been checked against the current tool.**
+
 # Abstract contracts
 When working with abstract methods, you might not yet be sure what the contract of the method will be. For this situation,  you can define abstract contracts using the method `isAbstract`. Here's an example where an abstract contract is used:
 

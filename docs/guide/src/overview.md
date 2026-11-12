@@ -10,7 +10,7 @@ JVerify is accurate because when it is not sure that the program behaves accordi
 
 The specifications and hints used by JVerify are added to the program using regular Java calls to the JVerify library, enabling existing IDEs to be used.
 
-To see examples of bugs that JVerify can detect, have a look at [this section](./example_usecases.md).
+For a first example, have a look at [Running JVerify](./first_verification.md).
 
 # Frequently asked questions
 
@@ -27,17 +27,17 @@ Despite JVerify supporting all Java language features, there may be edge-cases w
 You can find the list of currently supported Java features here: [supported Java features](./supported_java_features.md), together with the known cases where JVerify can not verify a valid programs.
 
 #### Can I gradually adopt JVerify in an existing codebase?
-Yes, more about that is in [partially verifying a codebase](./partial_verification.md).
+Yes: code can be opted out of verification with `@Verify(false)`, see [supported Java features](./supported_java_features.md). The chapter on partially verifying a codebase is not yet published.
 
 #### Can I use JVerify when calling libraries that were developed without JVerify?
-Yes, more about that is in [adding contracts to third-party code](./external_contracts.md).
+Yes, by adding contracts to third-party code. The chapter on this is not yet published.
 For the Java standard library, JVerify provides contracts for the most commonly used part of it out of the box. It will support most types from `java.lang`, `java.math` and `java.util`. You can find which part of the standard library is currently supported in the section [supported Java features](./supported_java_features.md).
 
 #### Which IDEs can I use with JVerify?
 You can use any Java IDE when working with JVerify.
 
 #### Will adding calls to the JVerify library slow down the execution of my program?
-No, more about that is in [erasing verification code during compilation](./erase_verification.md).
+No, verification code can be erased during compilation. The chapter on this is not yet published.
 
 #### Can JVerify prove that code has a bug?
 No, currently JVerify can only prove the absence of bugs, but it can not prove their presence. If JVerify returns an error, this may be because of an actual bug or because it needs more proof hints.

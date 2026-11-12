@@ -1,3 +1,5 @@
+> **Draft: not yet published; examples have not been checked against the current tool.**
+
 # Removing code for verification during compilation
 
 JVerify supports removing any code related to verification from your Java programs, to ensure that there is no runtime impact.
