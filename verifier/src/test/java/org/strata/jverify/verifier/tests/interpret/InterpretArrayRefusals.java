@@ -16,7 +16,9 @@ import static org.strata.jverify.JVerify.*;
         blockedBy = {Blocker.FRONTEND_ARRAYS},
         exitCode = 2)
 class InterpretArrayRefusals {
-    static int[] shared;
+    static String[] names;
+    static int[][] grid;
+    static double[] weights;
 
     static void references() {
         String[] a = new String[1];
@@ -61,9 +63,24 @@ class InterpretArrayRefusals {
 //      ^^^^^^^^^^^^^^^^^^^^^^^^^^^ error: not supported by the direct Cortex translation: calls to library methods (java.util.Arrays.fill) when interpreting
     }
 
-    static void staticField() {
-        shared = new int[1];
-//      ^^^^^^ error: not supported by the direct Cortex translation: arrays in static fields
+    static void staticReferences() {
+        Object o = names;
+//                 ^^^^^ error: not supported by the direct Cortex translation: arrays of references
+    }
+
+    static void staticMultiDimensional() {
+        Object o = grid;
+//                 ^^^^ error: not supported by the direct Cortex translation: multi-dimensional arrays
+    }
+
+    static void staticDoubles() {
+        Object o = weights;
+//                 ^^^^^^^ error: not supported by the direct Cortex translation: floating point
+    }
+
+    static void libraryStaticField() {
+        Object o = java.io.ObjectStreamClass.NO_FIELDS;
+//                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ error: not supported by the direct Cortex translation: arrays in static fields of library classes
     }
 
     static void classLiteral() {

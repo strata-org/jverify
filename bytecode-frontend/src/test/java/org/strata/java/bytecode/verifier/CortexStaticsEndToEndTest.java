@@ -8,8 +8,11 @@ import org.strata.java.bytecode.verifier.laurel.StrataBackend;
 import org.strata.jverify.verifier.JVerifyResults;
 import org.strata.jverify.verifier.SourceFile;
 
+import javax.tools.ToolProvider;
 import java.io.PrintWriter;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -41,24 +44,32 @@ class CortexStaticsEndToEndTest {
         }
     }
 
-    private static VerifierOptions options(String entry) {
+    private static VerifierOptions options(String entry, Path... libraries) {
+        var classPath = new ArrayList<Path>();
+        classPath.add(VerifierDriver.specLibraryLocation());
+        classPath.addAll(List.of(libraries));
         return new VerifierOptions(
                 new PrintWriter(System.out, true),
                 Path.of(System.getProperty("user.dir")),
-                List.of(VerifierDriver.specLibraryLocation()),
+                classPath,
                 null, false, true, List.of(), false,
                 true, /*continueOnErrors=*/true, false, false, /*interpret=*/true, entry, null, false);
     }
 
-    private static JVerifyResults.Ran interpret(Path dir, String fileName, String entry, String source)
-            throws Exception {
-        var file = new SourceFile(dir.resolve(fileName), source);
-        var results = new VerifierDriver(options(entry)).verifyJavaFiles(List.of(file));
+    private static JVerifyResults.Ran interpret(Path dir, String fileName, String entry, String source,
+                                                Path... libraries) throws Exception {
+        var results = run(dir, fileName, entry, source, libraries);
         return assertInstanceOf(JVerifyResults.Ran.class, results, () -> "got: " + results);
     }
 
-    private static List<String> messages(JVerifyResults.Ran ran) {
-        return ran.diagnostics().stream().map(d -> d.getMessage(null)).toList();
+    private static JVerifyResults run(Path dir, String fileName, String entry, String source, Path... libraries)
+            throws Exception {
+        var file = new SourceFile(dir.resolve(fileName), source);
+        return new VerifierDriver(options(entry, libraries)).verifyJavaFiles(List.of(file));
+    }
+
+    private static List<String> messages(JVerifyResults results) {
+        return results.diagnostics().stream().map(d -> d.getMessage(null)).toList();
     }
 
     private static void assertPasses(JVerifyResults.Ran ran) {
@@ -292,5 +303,81 @@ class CortexStaticsEndToEndTest {
                 "the static initializer of 'A', which this method may run, could not be translated: "
                         + "the static initializer of 'B', which this method may run")),
                 () -> messages(ran).toString());
+    }
+
+    private static final String UNSET = """
+            import org.strata.jverify.InterpretEntry;
+            import static org.strata.jverify.JVerify.check;
+
+            class Unset {
+                static class Box { int v; }
+                static Box box;
+                static int[] cells;
+                @InterpretEntry
+                static void run() {
+                    %s;
+                    check(%s);
+                }
+            }
+            """;
+
+    /**
+     * The translation has no null, so a static field of a class or array type
+     * refers to no object until the program assigns it. Where the JVM throws
+     * NullPointerException the interpreter stops, and the run has no verdict:
+     * the check after the use is not reported as failed. A field of an array
+     * type behaves as one of a class type does, and copying either is not a
+     * use of the object.
+     */
+    @Test
+    void aStaticFieldOfAReferenceTypeUsedBeforeItIsAssignedStopsTheRun(@TempDir Path tmp) throws Exception {
+        for (String use : List.of("int n = box.v", "int n = cells.length", "int n = cells[0]", "cells[0] = 1")) {
+            var results = run(tmp, "Unset.java", "Unset#run", UNSET.formatted(use, "false"));
+            assertInstanceOf(JVerifyResults.DidNotRun.class, results, () -> use + ": " + results);
+            assertEquals(1, messages(results).size(), () -> use + ": " + messages(results));
+            assertTrue(messages(results).get(0).contains("'Unset$run': not a reference"),
+                    () -> use + ": " + messages(results));
+        }
+        assertPasses(interpret(tmp, "Unset.java", "Unset#run",
+                UNSET.formatted("int[] a = cells; Box b = box", "true")));
+    }
+
+    /**
+     * No initializer of a class outside the program is translated, so nothing
+     * assigns an array in one of its static fields: reading it is refused,
+     * where reading a static field of a primitive type is not.
+     */
+    @Test
+    void anArrayInAStaticFieldOfALibraryClassIsRefused(@TempDir Path tmp) throws Exception {
+        Path librarySource = Files.createDirectories(tmp.resolve("library-source")).resolve("Codes.java");
+        Files.writeString(librarySource, """
+                public class Codes {
+                    public static final int[] TABLE = {1, 2};
+                    public static int count = 2;
+                }
+                """);
+        Path library = Files.createDirectories(tmp.resolve("library"));
+        assertEquals(0, ToolProvider.getSystemJavaCompiler()
+                .run(null, null, null, "-d", library.toString(), librarySource.toString()));
+        var ran = interpret(Files.createDirectories(tmp.resolve("program")), "Uses.java", "Uses#ok", """
+                import org.strata.jverify.InterpretEntry;
+                import static org.strata.jverify.JVerify.check;
+
+                class Uses {
+                    static int first() {
+                        return Codes.TABLE[0];
+                    }
+                    static int count() {
+                        return Codes.count;
+                    }
+                    @InterpretEntry
+                    static void ok() {
+                        check(true);
+                    }
+                }
+                """, library);
+        assertEquals(0, ran.verificationResults().verificationFailedMethods(), () -> messages(ran).toString());
+        assertEquals(List.of("error: not supported by the direct Cortex translation: "
+                + "arrays in static fields of library classes"), messages(ran));
     }
 }

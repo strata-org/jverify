@@ -284,6 +284,12 @@ RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayInstanceOf passe
 RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayNegativeSize passes on the direct Cortex translation
 RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayReferences passes on the direct Cortex translation
 RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayRefusals passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayStaticElementTypes passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayStaticFieldCheckFails passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayStaticFields passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayStaticInitializers passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls14.s14_20.TryFinally_3 passes on the direct Cortex translation: arrays in static fields
+RUN   org.strata.jverify.langref.jls14.s14_20.TryFinally_4 passes on the direct Cortex translation: arrays in static fields
 RUN   org.strata.jverify.langref.jls15.s15_7.EvaluationOrder_AbruptCompletion passes on the direct Cortex translation: static fields
 RUN   org.strata.jverify.langref.jls8.s8_8.ImplicitSuperCall_1 passes on the direct Cortex translation: static fields
 RUN   org.strata.jverify.langref.jls8.s8_9.EnumBodyDeclarations_1 passes on the direct Cortex translation: static fields

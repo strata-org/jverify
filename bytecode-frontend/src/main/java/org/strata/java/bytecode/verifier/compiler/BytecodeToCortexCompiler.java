@@ -109,9 +109,9 @@ import java.util.Set;
  * as {@code @Transparent}), {@code @Nat} and {@code @Unbounded}, {@code null}
  * literals and null tests, floating point, fields of library classes, class
  * literals, {@code invokedynamic} and monitors; arrays of references,
- * multi-dimensional arrays, arrays in static fields and, when verifying, every
- * array; and, when interpreting, calls to library methods, {@code clone} on an
- * array included.
+ * multi-dimensional arrays, arrays in static fields of library classes and,
+ * when verifying, every array; and, when interpreting, calls to library
+ * methods, {@code clone} on an array included.
  *
  * <p>A static field is a global variable named {@code owner:field}, holding
  * the JVM default of its type when an entry procedure starts and an arbitrary
@@ -127,6 +127,13 @@ import java.util.Set;
  * every later use throws {@code NoClassDefFoundError}. An entry procedure
  * initializes its own class first. A static field of a library class is a
  * global with an arbitrary value.
+ *
+ * <p>A static field of a class type or, when interpreting, of an array type
+ * is a global without an initial value: the translation has no {@code null},
+ * and no {@code <clinit>} resets the field. Until the program assigns it, it
+ * refers to no object, and the interpreter stops, without a verdict, at the
+ * instruction that needs the object. Nothing assigns an array in a static
+ * field of a library class, so a read of one is refused when interpreting.
  */
 public final class BytecodeToCortexCompiler {
 
@@ -1337,9 +1344,6 @@ public final class BytecodeToCortexCompiler {
                 pop();   // values() is not translated, so nothing reads the array
                 return;
             }
-            if (interpret && type.isArray()) {
-                throw refuse("arrays in static fields", at);
-            }
             String declaring = ClassInitialization.declaringClassOfStatic(resolver, target, name);
             if (declaring == null) {
                 if (programClasses.containsKey(target)) {
@@ -1347,6 +1351,10 @@ public final class BytecodeToCortexCompiler {
                 }
                 if (!read) {
                     throw refuse("writes to static fields of library classes", at);
+                }
+                if (interpret && type.isArray()) {
+                    // No translated initializer assigns the field, so a run would stop at the first use of the array.
+                    throw refuse("arrays in static fields of library classes", at);
                 }
                 String global = declareLibraryGlobal(target, name, type, at);
                 staticNotes.recordStaticRead(src.uri, lineOf(at));
@@ -1358,14 +1366,13 @@ public final class BytecodeToCortexCompiler {
                     throw refuse("@Nat and @Unbounded", at);
                 }
             }
-            if (fieldTy(type) == null) {
-                throw refuse(type.isArray() ? "arrays" : "floating point", at);
-            }
+            tyOf(type, at);   // refuses a type the translation has none for, by name, before any guard is emitted
             if (read) {
                 initialize(declaring, at);
                 String global = declareGlobal(declaring, name, type, at);
                 staticNotes.recordStaticRead(src.uri, lineOf(at));
-                push(kindOf(type, at), new Expr.Var(global), type.isPrimitive() ? null : classFqn(type), at);
+                push(kindOf(type, at), new Expr.Var(global),
+                        type.isPrimitive() || type.isArray() ? null : classFqn(type), at);
             } else {
                 var value = pop();   // evaluated before the class is initialized, in a local the initializer cannot touch
                 initialize(declaring, at);
