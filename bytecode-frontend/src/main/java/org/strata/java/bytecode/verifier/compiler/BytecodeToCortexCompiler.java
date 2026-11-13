@@ -12,6 +12,7 @@ import org.strata.java.bytecode.frontend.Trap;
 import org.strata.java.bytecode.verifier.MethodVerificationStatus;
 import org.strata.java.bytecode.verifier.laurel.PositionResolver;
 import org.strata.jverify.verifier.IntervalTree;
+import org.strata.jverify.cortex.ArrayDecl;
 import org.strata.jverify.cortex.Block;
 import org.strata.jverify.cortex.Body;
 import org.strata.jverify.cortex.Cmd;
@@ -38,6 +39,8 @@ import java.lang.classfile.MethodModel;
 import java.lang.classfile.Opcode;
 import java.lang.classfile.TypeKind;
 import java.lang.classfile.attribute.CodeAttribute;
+import java.lang.classfile.instruction.ArrayLoadInstruction;
+import java.lang.classfile.instruction.ArrayStoreInstruction;
 import java.lang.classfile.instruction.BranchInstruction;
 import java.lang.classfile.instruction.ConstantInstruction;
 import java.lang.classfile.instruction.ConvertInstruction;
@@ -46,7 +49,10 @@ import java.lang.classfile.instruction.IncrementInstruction;
 import java.lang.classfile.instruction.InvokeInstruction;
 import java.lang.classfile.instruction.LoadInstruction;
 import java.lang.classfile.instruction.LookupSwitchInstruction;
+import java.lang.classfile.instruction.NewMultiArrayInstruction;
 import java.lang.classfile.instruction.NewObjectInstruction;
+import java.lang.classfile.instruction.NewPrimitiveArrayInstruction;
+import java.lang.classfile.instruction.NewReferenceArrayInstruction;
 import java.lang.classfile.instruction.NopInstruction;
 import java.lang.classfile.instruction.OperatorInstruction;
 import java.lang.classfile.instruction.ReturnInstruction;
@@ -56,6 +62,7 @@ import java.lang.classfile.instruction.TableSwitchInstruction;
 import java.lang.classfile.instruction.ThrowInstruction;
 import java.lang.classfile.instruction.TypeCheckInstruction;
 import java.lang.constant.ClassDesc;
+import java.lang.constant.ConstantDescs;
 import java.lang.constant.MethodTypeDesc;
 import java.lang.reflect.AccessFlag;
 import java.net.URI;
@@ -87,13 +94,24 @@ import java.util.Set;
  * Java prelude ({@code java$iadd} and so on); a failed cast throws a fresh
  * {@code ClassCastException}.
  *
+ * <p>When interpreting, a one-dimensional array of {@code boolean},
+ * {@code byte}, {@code char}, {@code short}, {@code int} or {@code long} is an
+ * object of a Cortex array type {@code $Array$<element>} that extends
+ * {@code java.lang.Object}, and the array instructions are Cortex's array
+ * commands. Cortex indexes an array with mathematical integers and leaves a
+ * negative length and an index out of range undefined, so a check that throws
+ * {@code NegativeArraySizeException} or
+ * {@code ArrayIndexOutOfBoundsException} precedes each of them.
+ *
  * <p>What the translation does not support it refuses, per method, with an
  * error: JVerify specifications (every {@code JVerify} call but {@code check},
  * {@code assume} and {@code implies}, and the specification annotations such
  * as {@code @Transparent}), {@code @Nat} and {@code @Unbounded}, {@code null}
- * literals and null tests, arrays, floating point, fields of library classes,
- * class literals, {@code invokedynamic} and monitors; and, when interpreting,
- * calls to library methods.
+ * literals and null tests, floating point, fields of library classes, class
+ * literals, {@code invokedynamic} and monitors; arrays of references,
+ * multi-dimensional arrays, arrays in static fields and, when verifying, every
+ * array; and, when interpreting, calls to library methods, {@code clone} on an
+ * array included.
  *
  * <p>A static field is a global variable named {@code owner:field}, holding
  * the JVM default of its type when an entry procedure starts and an arbitrary
@@ -142,6 +160,7 @@ public final class BytecodeToCortexCompiler {
     static final String JVERIFY = "org.strata.jverify.JVerify";
     static final String RESULT = "result";
     static final String PRELUDE = "java";
+    static final String ARRAY = "$Array$";
     static final String ARITHMETIC_EXCEPTION = "java.lang.ArithmeticException";
     static final String RUNTIME_EXCEPTION = "java.lang.RuntimeException";
     static final FileRange NO_LOCATION = new FileRange(new Uri(""), new SourceRange(new Raw(0), new Raw(0)));
@@ -170,6 +189,7 @@ public final class BytecodeToCortexCompiler {
     static final String NO_CLASS_DEF_FOUND_ERROR = "java.lang.NoClassDefFoundError";
     public static final String CLINIT = "<clinit>";
     static final MethodTypeDesc CLINIT_DESC = MethodTypeDesc.of(ClassDesc.ofDescriptor("V"));
+    private final Map<String, ArrayDecl> arrayTypes = new LinkedHashMap<>();
 
     public BytecodeToCortexCompiler(Reporter reporter, boolean verifyByDefault, List<Path> classPath,
                                     boolean interpret) {
@@ -209,7 +229,7 @@ public final class BytecodeToCortexCompiler {
         addInheritedForwarders();
         refuseUsersOfUntranslatedInitializers();
         var program = new Program(composites(), List.of(), List.copyOf(procedures.values()),
-                List.copyOf(globals.values()), List.of(PRELUDE));
+                List.copyOf(globals.values()), List.of(PRELUDE), List.copyOf(arrayTypes.values()));
         var knownUris = new java.util.HashSet<URI>(sourceUris);
         return new AnalysisResult(program, BytecodeToLaurelCompiler.positionResolver(Set.copyOf(knownUris)),
                 methodStatuses, staticNotes);
@@ -291,7 +311,7 @@ public final class BytecodeToCortexCompiler {
 
     private Ty tyOf(ClassDesc cd, @Nullable FileRange at) {
         if (cd.isArray()) {
-            throw new Refusal("not supported by the direct Cortex translation: arrays", at);
+            return new Ty.Named(arrayType(cd, at));
         }
         if (cd.isPrimitive()) {
             return switch (cd.descriptorString()) {
@@ -303,6 +323,27 @@ public final class BytecodeToCortexCompiler {
         String fqn = classFqn(cd);
         referenced.add(fqn);
         return new Ty.Named(fqn);
+    }
+
+    /**
+     * The Cortex array type of a Java array type, declared on first use. Its elements are stored as
+     * values of the JVM's computational type, as fields are.
+     */
+    private String arrayType(ClassDesc array, @Nullable FileRange at) {
+        if (!interpret) {
+            throw new Refusal("not supported by the direct Cortex translation: arrays", at);
+        }
+        ClassDesc elem = array.componentType();
+        Ty stored = switch (elem.descriptorString()) {
+            case "Z", "B", "S", "C", "I" -> new Ty.Bv(32);
+            case "J" -> new Ty.Bv(64);
+            default -> throw new Refusal("not supported by the direct Cortex translation: "
+                    + (elem.isArray() ? "multi-dimensional arrays"
+                    : elem.isPrimitive() ? "floating point" : "arrays of references"), at);
+        };
+        String name = ARRAY + elem.displayName();
+        arrayTypes.putIfAbsent(name, new ArrayDecl(name, stored, List.of(OBJECT)));
+        return name;
     }
 
     private static String classFqn(ClassDesc cd) {
@@ -1292,6 +1333,9 @@ public final class BytecodeToCortexCompiler {
                 pop();   // values() is not translated, so nothing reads the array
                 return;
             }
+            if (interpret && type.isArray()) {
+                throw refuse("arrays in static fields", at);
+            }
             String declaring = ClassInitialization.declaringClassOfStatic(resolver, target, name);
             if (declaring == null) {
                 if (programClasses.containsKey(target)) {
@@ -1386,6 +1430,12 @@ public final class BytecodeToCortexCompiler {
                     String v = localVar(ii.slot(), Kind.I);
                     cmds.add(new Cmd.Call(List.of(v), PRELUDE + "$iadd", List.of(new Expr.Var(v), lit(ii.constant())), at));
                 }
+                case OperatorInstruction oi when interpret && oi.opcode() == Opcode.ARRAYLENGTH -> {
+                    var array = pop();
+                    String length = temp(new Ty.Int());
+                    cmds.add(new Cmd.ArrayLength(length, array.expr, at));
+                    push(Kind.I, toBv(32, new Expr.Var(length)), null, at);
+                }
                 case OperatorInstruction oi -> operator(oi, at);
                 case ConvertInstruction cv -> convert(cv, at);
                 case StackInstruction sk -> stackOp(sk, at);
@@ -1394,6 +1444,26 @@ public final class BytecodeToCortexCompiler {
                     referenced.add(c);
                     initialize(c, at);
                     cmds.add(new Cmd.New(pushTarget(Kind.A, c), c, at));
+                }
+                case NewPrimitiveArrayInstruction na when interpret -> newArray(na, at);
+                case NewReferenceArrayInstruction nr when interpret ->
+                        throw refuse(nr.componentType().asSymbol().isArray()
+                                ? "multi-dimensional arrays" : "arrays of references", at);
+                case NewMultiArrayInstruction nm when interpret -> throw refuse("multi-dimensional arrays", at);
+                case ArrayLoadInstruction al when interpret -> {
+                    Ty stored = storedAs(al.typeKind(), at);
+                    var index = pop();
+                    var array = pop();
+                    Expr i = checkedIndex(array, index, at);
+                    cmds.add(new Cmd.ReadElem(pushTarget(kindOf(al.typeKind(), at), null), array.expr, i, stored, at));
+                }
+                case ArrayStoreInstruction as when interpret -> {
+                    Ty stored = storedAs(as.typeKind(), at);
+                    var value = pop();
+                    var index = pop();
+                    var array = pop();
+                    Expr i = checkedIndex(array, index, at);
+                    cmds.add(new Cmd.WriteElem(array.expr, i, narrowed(as.typeKind(), value.expr), stored, at));
                 }
                 case FieldInstruction fi -> field(fi, at);
                 case InvokeInstruction inv -> invoke(inv, at);
@@ -1417,6 +1487,55 @@ public final class BytecodeToCortexCompiler {
             }
         }
 
+        private void newArray(NewPrimitiveArrayInstruction na, FileRange at) {
+            ClassDesc elem = switch (na.typeKind()) {
+                case BOOLEAN -> ConstantDescs.CD_boolean;
+                case BYTE -> ConstantDescs.CD_byte;
+                case SHORT -> ConstantDescs.CD_short;
+                case CHAR -> ConstantDescs.CD_char;
+                case INT -> ConstantDescs.CD_int;
+                case LONG -> ConstantDescs.CD_long;
+                default -> throw refuse("floating point", at);
+            };
+            String type = arrayType(elem.arrayType(), at);
+            var count = pop();
+            throwIf(bv(Kind.I, "SLt", count.expr, lit(0)), "java.lang.NegativeArraySizeException", at);
+            cmds.add(new Cmd.NewArray(pushTarget(Kind.A, null), type, toInt(32, count.expr), at));
+        }
+
+        /** The type the elements of the array that an instruction of kind {@code tk} accesses are stored as. */
+        private Ty storedAs(TypeKind tk, FileRange at) {
+            return switch (tk) {
+                case BOOLEAN, BYTE, SHORT, CHAR, INT -> new Ty.Bv(32);
+                case LONG -> new Ty.Bv(64);
+                case REFERENCE -> throw refuse("arrays of references", at);
+                default -> throw refuse("floating point", at);
+            };
+        }
+
+        /** The index of {@code array[index]} as a mathematical integer, after the check that it is in range. */
+        private Expr checkedIndex(Value array, Value index, FileRange at) {
+            Expr i = toInt(32, index.expr);
+            String length = temp(new Ty.Int());
+            cmds.add(new Cmd.ArrayLength(length, array.expr, at));
+            throwIf(op("Bool.Or", op("Int.Lt", i, new Expr.Int(0)), op("Int.Ge", i, new Expr.Var(length))),
+                    "java.lang.ArrayIndexOutOfBoundsException", at);
+            return i;
+        }
+
+        /**
+         * The value a store of kind {@code tk} writes: {@code bastore}, {@code castore} and {@code sastore}
+         * keep the low bits of the {@code int} on the stack, sign- or zero-extended.
+         */
+        private Expr narrowed(TypeKind tk, Expr value) {
+            return switch (tk) {
+                case BYTE -> toBv(32, op("Bv8.ToInt", toBv(8, toInt(32, value))));
+                case SHORT -> toBv(32, op("Bv16.ToInt", toBv(16, toInt(32, value))));
+                case CHAR -> toBv(32, op("Bv16.ToUInt", toBv(16, toInt(32, value))));
+                default -> value;
+            };
+        }
+
         private void constant(ConstantInstruction ci, FileRange at) {
             Object v = ci.constantValue();
             switch (v) {
@@ -1428,6 +1547,7 @@ public final class BytecodeToCortexCompiler {
                     String t = pushTarget(Kind.A, "java.lang.String");
                     cmds.add(new Cmd.Set(t, Optional.empty(), at));
                 }
+                case ClassDesc c -> throw refuse("class literals", at);
                 default -> throw refuse(v instanceof Float || v instanceof Double
                         ? "floating point" : "the constant " + v, at);
             }
@@ -1580,12 +1700,10 @@ public final class BytecodeToCortexCompiler {
                     throw refuse("@Nat and @Unbounded", at);
                 }
             }
-            if (fieldTy(type) == null) {
-                throw refuse(type.isArray() ? "arrays" : "floating point", at);
-            }
+            tyOf(type, at);
             if (fi.opcode() == Opcode.GETFIELD) {
                 var obj = pop();
-                String v = pushTarget(kindOf(type, at), type.isPrimitive() ? null : classFqn(type));
+                String v = pushTarget(kindOf(type, at), type.isPrimitive() || type.isArray() ? null : classFqn(type));
                 cmds.add(new Cmd.ReadField(v, obj.expr, declaredIn, name, at));
             } else {
                 var value = pop();
@@ -1596,11 +1714,13 @@ public final class BytecodeToCortexCompiler {
 
         private void typeCheck(TypeCheckInstruction tc, FileRange at) {
             ClassDesc t = tc.type().asSymbol();
+            String c;
             if (t.isArray()) {
-                throw refuse("arrays", at);
+                c = arrayType(t, at);
+            } else {
+                c = classFqn(t);
+                referenced.add(c);
             }
-            String c = classFqn(t);
-            referenced.add(c);
             if (tc.opcode() == Opcode.INSTANCEOF) {
                 var v = pop();
                 String b = temp(new Ty.Bool());
@@ -1611,7 +1731,7 @@ public final class BytecodeToCortexCompiler {
                 String b = temp(new Ty.Bool());
                 cmds.add(new Cmd.InstanceOf(b, new Expr.Var("s" + d + Kind.A), c, at));
                 throwIf(not(new Expr.Var(b)), "java.lang.ClassCastException", at);
-                stackTypes.set(d, c);
+                stackTypes.set(d, t.isArray() ? null : c);
             }
         }
 
@@ -1676,6 +1796,9 @@ public final class BytecodeToCortexCompiler {
             if (target.equals(JVERIFY)) {
                 spec(name, desc, at);
                 return;
+            }
+            if (interpret && inv.owner().asSymbol().isArray()) {
+                throw refuse("the array method " + name, at);
             }
             boolean isStatic = o == Opcode.INVOKESTATIC;
             if (ClassInitialization.isEnumValuesMethod(resolver, inv)) {

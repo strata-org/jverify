@@ -1,6 +1,6 @@
 package org.strata.jverify.cortex;
 
-public sealed interface Cmd extends ToIon permits Cmd.Init, Cmd.Set, Cmd.Assert, Cmd.Assume, Cmd.New, Cmd.ReadField, Cmd.WriteField, Cmd.InstanceOf, Cmd.Call, Cmd.VirtualCall, Cmd.Throw {
+public sealed interface Cmd extends ToIon permits Cmd.Init, Cmd.Set, Cmd.Assert, Cmd.Assume, Cmd.New, Cmd.ReadField, Cmd.WriteField, Cmd.InstanceOf, Cmd.NewArray, Cmd.ReadElem, Cmd.WriteElem, Cmd.ArrayLength, Cmd.Call, Cmd.VirtualCall, Cmd.Throw {
     com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion);
 
     public record Init(java.lang.String name, Ty ty, java.util.Optional<Expr> value, FileRange source) implements Cmd {
@@ -101,6 +101,59 @@ public sealed interface Cmd extends ToIon permits Cmd.Init, Cmd.Set, Cmd.Assert,
         sexp.add(ion.newString(lhs()));
         sexp.add(obj().toIon(ion));
         sexp.add(ion.newString(ty()));
+        sexp.add(source().toIon(ion));
+        return sexp;
+        }
+    }
+
+    public record NewArray(java.lang.String lhs, java.lang.String ty, Expr len, FileRange source) implements Cmd {
+        @Override
+        public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
+        var sexp = ion.newEmptySexp();
+        sexp.add(ion.newSymbol("newArray"));
+        sexp.add(ion.newString(lhs()));
+        sexp.add(ion.newString(ty()));
+        sexp.add(len().toIon(ion));
+        sexp.add(source().toIon(ion));
+        return sexp;
+        }
+    }
+
+    public record ReadElem(java.lang.String lhs, Expr arr, Expr index, Ty elemTy, FileRange source) implements Cmd {
+        @Override
+        public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
+        var sexp = ion.newEmptySexp();
+        sexp.add(ion.newSymbol("readElem"));
+        sexp.add(ion.newString(lhs()));
+        sexp.add(arr().toIon(ion));
+        sexp.add(index().toIon(ion));
+        sexp.add(elemTy().toIon(ion));
+        sexp.add(source().toIon(ion));
+        return sexp;
+        }
+    }
+
+    public record WriteElem(Expr arr, Expr index, Expr rhs, Ty elemTy, FileRange source) implements Cmd {
+        @Override
+        public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
+        var sexp = ion.newEmptySexp();
+        sexp.add(ion.newSymbol("writeElem"));
+        sexp.add(arr().toIon(ion));
+        sexp.add(index().toIon(ion));
+        sexp.add(rhs().toIon(ion));
+        sexp.add(elemTy().toIon(ion));
+        sexp.add(source().toIon(ion));
+        return sexp;
+        }
+    }
+
+    public record ArrayLength(java.lang.String lhs, Expr arr, FileRange source) implements Cmd {
+        @Override
+        public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
+        var sexp = ion.newEmptySexp();
+        sexp.add(ion.newSymbol("arrayLength"));
+        sexp.add(ion.newString(lhs()));
+        sexp.add(arr().toIon(ion));
         sexp.add(source().toIon(ion));
         return sexp;
         }

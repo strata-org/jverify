@@ -5,9 +5,74 @@
 #   RUN   <fqcn> <reason>             run normally despite expectedToFail
 #   SKIP  <fqcn> <reason>             do not run
 
+RUN   org.strata.jverify.langref.jls10.s10_1.ArrayTypes_1 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_1.ArrayTypes_2 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_1.ArrayTypes_8 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_1.ArrayTypes_9 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_1.ArrayTypes_Byte passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_1.ArrayTypes_Char passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_1.ArrayTypes_Long passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_1.ArrayTypes_Short passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_2.ArrayVariables_1 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_2.ArrayVariables_2 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_2.ArrayVariables_3 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_2.ArrayVariables_4 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_2.ArrayVariables_5 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_2.ArrayVariables_6 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_2.ArrayVariables_8 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_2.ArrayVariables_9 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_2.ArrayVariables_FinalRefMutable passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_3.ArrayCreation_1 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_3.ArrayCreation_15 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_3.ArrayCreation_16 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_3.ArrayCreation_2 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_3.ArrayCreation_3 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_3.ArrayCreation_4 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_3.ArrayCreation_5 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_3.ArrayCreation_6 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_3.ArrayCreation_NegSize passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_4.ArrayAccess_1 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_4.ArrayAccess_2 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_4.ArrayAccess_3 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_4.ArrayAccess_4 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_4.ArrayAccess_5 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_4.ArrayAccess_8 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_4.ArrayAccess_IobNegative passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_4.ArrayAccess_IobPositive passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_6.ArrayInitializers_1 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_6.ArrayInitializers_10 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_6.ArrayInitializers_11 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_6.ArrayInitializers_12 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_6.ArrayInitializers_13 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_6.ArrayInitializers_14 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_6.ArrayInitializers_2 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_6.ArrayInitializers_24 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_6.ArrayInitializers_25 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_6.ArrayInitializers_26 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_6.ArrayInitializers_3 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_6.ArrayInitializers_4 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_6.ArrayInitializers_5 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_6.ArrayInitializers_6 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_6.ArrayInitializers_7 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_6.ArrayInitializers_8 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_6.ArrayInitializers_9 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_6.ArrayInitializers_WideningInt passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_7.ArrayMembers_1 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_7.ArrayMembers_2 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_7.ArrayMembers_3 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_9.CharArrayIsNotString_1 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_9.CharArrayIsNotString_2 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_9.CharArrayIsNotString_3 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_9.CharArrayIsNotString_4 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_9.CharArrayIsNotString_5 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls11.s11_1.ArrayIndexOutOfBoundsException_Negative passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls11.s11_1.ArrayIndexOutOfBoundsException_Positive passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls11.s11_1.CausesOfExceptions passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls11.s11_1.IllegalArgumentException_UserThrow passes on the bytecode-to-Cortex translation
 RUN   org.strata.jverify.langref.jls11.s11_1.KindsOfExceptions passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls11.s11_1.NegativeArraySizeException_1 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls11.s11_3.Finally_NormalExit passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls11.s11_3.Finally_OnException passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls11.s11_3.HandlerSelection passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls11.s11_3.HandlerSelection_SuperCatchesSub passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls11.s11_3.MultiCatch_1 passes on the direct Cortex translation
@@ -18,6 +83,9 @@ RUN   org.strata.jverify.langref.jls12.s12_7.StringInterning_1 passes on the dir
 RUN   org.strata.jverify.langref.jls12.s12_7.StringInterning_2 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls14.s14_11.SwitchColonFallthrough_1 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls14.s14_11.SwitchColonFallthrough_2 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls14.s14_14.EnhancedForStatement passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls14.s14_17.ReturnStatement_2 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls14.s14_17.ReturnStatement_3 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls14.s14_18.ThrowStatement_1 passes on the bytecode-to-Cortex translation
 RUN   org.strata.jverify.langref.jls14.s14_18.ThrowStatement_2 passes on the bytecode-to-Cortex translation
 RUN   org.strata.jverify.langref.jls14.s14_18.ThrowStatement_3 passes on the bytecode-to-Cortex translation
@@ -30,12 +98,33 @@ RUN   org.strata.jverify.langref.jls14.s14_20.TryCatch_4 passes on the direct Co
 RUN   org.strata.jverify.langref.jls14.s14_21.YieldStatement_1 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls14.s14_3.LocalClass_1 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls14.s14_3.LocalClass_Capture_1 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls14.s14_4.LocalVar_VarInForEach passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls14.s14_4.LocalVariableDeclarationStatements_5 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls14.s14_4.LocalVariableDeclarationStatements_6 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls14.s14_4.LocalVariableDeclarators_2 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls14.s14_4.LocalVariableDeclarators_3 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls14.s14_4.LocalVariableDeclarators_4 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls15.s15_10.ArrayAccessExpressions_1 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls15.s15_10.ArrayAccessExpressions_10 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls15.s15_10.ArrayAccessExpressions_2 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls15.s15_10.ArrayAccessExpressions_3 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls15.s15_10.ArrayAccessExpressions_4 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls15.s15_10.ArrayAccessExpressions_5 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls15.s15_10.ArrayAccessExpressions_6 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls15.s15_10.ArrayCreationExpressions_1 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls15.s15_10.ArrayCreationExpressions_13 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls15.s15_10.ArrayCreationExpressions_14 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls15.s15_10.ArrayCreationExpressions_2 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls15.s15_10.ArrayCreationExpressions_3 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls15.s15_10.ArrayCreationExpressions_4 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_11.SuperFieldAccess_1 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_11.SuperFieldAccess_2 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_11.SuperFieldAccess_3 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_12.DetermineTypeToSearch_1 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_12.DetermineTypeToSearch_2 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_12.DetermineTypeToSearch_3 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls15.s15_12.VarargsInvocation_Three passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls15.s15_12.VarargsInvocation_Zero passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_14.PostfixIncrement_Byte passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_14.PostfixIncrement_Char passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_14.PostfixIncrement_Short passes on the direct Cortex translation
@@ -65,6 +154,7 @@ RUN   org.strata.jverify.langref.jls15.s15_19.ShiftOperators_8 passes on the byt
 RUN   org.strata.jverify.langref.jls15.s15_19.ShiftOperators_9 passes on the bytecode-to-Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_20.InstanceofOperator_6 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_20.InstanceofOperator_7 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls15.s15_20.InstanceofOperator_ArrayType passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_22.BooleanLogicalOperators_1 passes on the bytecode-to-Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_22.BooleanLogicalOperators_10 passes on the bytecode-to-Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_22.BooleanLogicalOperators_2 passes on the bytecode-to-Cortex translation
@@ -96,11 +186,14 @@ RUN   org.strata.jverify.langref.jls15.s15_26.CompoundAssignment_6 passes on the
 RUN   org.strata.jverify.langref.jls15.s15_26.CompoundAssignment_7 passes on the bytecode-to-Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_26.CompoundAssignment_8 passes on the bytecode-to-Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_26.CompoundAssignment_9 passes on the bytecode-to-Cortex translation
+RUN   org.strata.jverify.langref.jls15.s15_26.CompoundAssignment_LHSOnce passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls15.s15_26.SimpleAssignment_6 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_28.SwitchExpression_2 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_29.ConstantExpression_16 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_29.ConstantExpression_3 passes on the bytecode-to-Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_29.ConstantExpression_7 passes on the bytecode-to-Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_29.ConstantExpression_8 passes on the bytecode-to-Cortex translation
+RUN   org.strata.jverify.langref.jls15.s15_7.EvaluationOrder_LHSOnceCompound passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls3.s3_10.StringLiterals_7 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls3.s3_12.Operators_21 passes on the bytecode-to-Cortex translation
 RUN   org.strata.jverify.langref.jls3.s3_12.Operators_22 passes on the bytecode-to-Cortex translation
@@ -122,9 +215,17 @@ RUN   org.strata.jverify.langref.jls3.s3_9.Keywords_11 passes on the direct Cort
 RUN   org.strata.jverify.langref.jls3.s3_9.Keywords_14 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls3.s3_9.Keywords_7 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls3.s3_9.Keywords_9 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls4.s4_10.ArraySubtyping_4 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls4.s4_10.PrimitiveSubtyping_1 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls4.s4_10.PrimitiveSubtyping_2 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls4.s4_10.PrimitiveSubtyping_4 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls4.s4_12.InitialValues_10 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls4.s4_12.InitialValues_11 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls4.s4_12.InitialValues_ArrayByte passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls4.s4_12.InitialValues_ArrayChar passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls4.s4_12.InitialValues_ArrayLong passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls4.s4_12.InitialValues_ArrayShort passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls4.s4_12.KindsOfVariables_3 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls4.s4_2.BooleanType_3 passes on the bytecode-to-Cortex translation
 RUN   org.strata.jverify.langref.jls4.s4_2.BooleanType_4 passes on the bytecode-to-Cortex translation
 RUN   org.strata.jverify.langref.jls4.s4_2.BooleanType_5 passes on the bytecode-to-Cortex translation
@@ -157,6 +258,11 @@ RUN   org.strata.jverify.langref.jls6.s6_4.Shadowing_3 passes on the direct Cort
 RUN   org.strata.jverify.langref.jls6.s6_6.AccessProtected_1 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls8.s8_3.FieldQualifiedAccess_1 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls8.s8_3.ProtectedField_1 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls8.s8_4.FormalParameters_1 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls8.s8_4.FormalParameters_2 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls8.s8_4.FormalParameters_3 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls8.s8_4.FormalParameters_4 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls8.s8_4.MethodResult_2 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls8.s8_4.Overloading_3 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls8.s8_4.Overriding_1 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls8.s8_4.Overriding_2 passes on the direct Cortex translation
@@ -165,8 +271,18 @@ RUN   org.strata.jverify.langref.jls8.s8_4.Throws_CheckedException passes on the
 RUN   org.strata.jverify.langref.jls8.s8_6.InstanceInitializer_1 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls8.s8_6.InstanceInitializer_2 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls8.s8_8.Constructor_Throws passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls8.s8_8.FormalParameters_1 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls8.s8_8.FormalParameters_2 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls9.s9_4.Default_CallsDefault passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls9.s9_4.Interface_Throws passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayElementCheckFails passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayElements passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayExceptionsCaught passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayIndexOutOfBounds passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayInstanceOf passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayNegativeSize passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayReferences passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayRefusals passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_7.EvaluationOrder_AbruptCompletion passes on the direct Cortex translation: static fields
 RUN   org.strata.jverify.langref.jls8.s8_8.ImplicitSuperCall_1 passes on the direct Cortex translation: static fields
 RUN   org.strata.jverify.langref.jls8.s8_9.EnumBodyDeclarations_1 passes on the direct Cortex translation: static fields
@@ -174,7 +290,6 @@ RUN   org.strata.jverify.langref.jls8.s8_9.EnumBodyDeclarations_2 passes on the 
 RUN   org.strata.jverify.langref.jls8.s8_9.EnumConstants_1 passes on the direct Cortex translation: static fields
 RUN   org.strata.jverify.langref.jls8.s8_9.EnumConstants_2 passes on the direct Cortex translation: static fields
 XFAIL org.strata.jverify.langref.jls14.s14_11.SwitchOnInteger_1 CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.valueOf)
-XFAIL org.strata.jverify.langref.jls14.s14_17.ReturnStatement_1 CORTEX_UNSUPPORTED arrays
 XFAIL org.strata.jverify.langref.jls15.s15_16.CastExpression_BoxingCast CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.valueOf)
 XFAIL org.strata.jverify.langref.jls15.s15_16.CastExpression_UnboxingCast CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.valueOf)
 XFAIL org.strata.jverify.langref.jls15.s15_25.NumericConditionalExpression_8 CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.valueOf)
@@ -194,11 +309,9 @@ XFAIL org.strata.jverify.langref.jls5.s5_2.AssignmentContexts_13 CORTEX_LIBRARY_
 XFAIL org.strata.jverify.langref.jls5.s5_5.CastingContexts_10 CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.valueOf)
 XFAIL org.strata.jverify.langref.jls5.s5_5.CastingContexts_11 CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.valueOf)
 XFAIL org.strata.jverify.langref.jls6.s6_7.FullyQualified_1 CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.valueOf)
-XFAIL org.strata.jverify.langref.jls8.s8_4.MethodResult_1 CORTEX_UNSUPPORTED arrays
 XFAIL org.strata.jverify.langref.jls9.s9_1.GenericInterfaces CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.intValue, Integer.valueOf)
 XFAIL org.strata.jverify.verifier.tests.interpret.InterpretCalleePreconditionFails CORTEX_UNSUPPORTED no verdict: the translation refused a construct
 XFAIL org.strata.jverify.verifier.tests.interpret.InterpretPostconditionFails CORTEX_UNSUPPORTED no verdict: the translation refused a construct
-XFAIL org.strata.jverify.langref.jls8.s8_4.MethodResult_3 CORTEX_UNSUPPORTED arrays
 XFAIL org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_1 CORTEX_LIBRARY_CALL calls to library methods when interpreting
 XFAIL org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_2 CORTEX_LIBRARY_CALL calls to library methods when interpreting
 XFAIL org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_3 CORTEX_LIBRARY_CALL calls to library methods when interpreting
