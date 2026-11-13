@@ -144,9 +144,6 @@ semantics:
 
 ## Current limitations
 
-- Exception constructors: `new E(args)` does not yet carry constructor
-  arguments into the model; give the exception fields and assign them after
-  construction, or wait for constructor support.
 - A throw as a switch *expression* rule body is not yet supported (statement
   switches are fine).
 - Interpret mode does not run exception tests (thrown values live on the

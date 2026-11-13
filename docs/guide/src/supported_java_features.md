@@ -1,6 +1,6 @@
 # Supported Java features
 
-JVerify intends to support the full Java language, but is actively under development. It is built on [Strata](https://github.com/strata-org/Strata) and currently supports a limited subset of Java. Support is being expanded incrementally — see issue [#384](https://github.com/strata-org/jverify/issues/384) for the roadmap.
+JVerify intends to support the full Java language, but is actively under development. It is built on [Strata](https://github.com/strata-org/Strata) and currently supports a limited subset of Java. Support is being expanded incrementally.
 
 ## What happens to code JVerify cannot handle
 
@@ -94,10 +94,11 @@ construct responsible.
   joins to the closest common ancestor), `throw`, `try`/`catch`/`finally`
   (multi-catch included), exceptions that carry data set by their constructor, and
   exceptional behavior cases via `throwsOn(...).postcondition(...).modifies(...)` — see
-  the Exceptions chapter. An unchecked exception that may leave a method must be
-  declared in its `throws` clause unless `@AllowUncheckedExceptions` applies. Not yet:
-  try-with-resources, and throwing an exception class of the Java standard library such
-  as `IllegalArgumentException`; declare your own exception class instead.
+  the [Exceptions](./exceptions.md) chapter. An unchecked exception that may leave a
+  method must be declared in its `throws` clause unless `@AllowUncheckedExceptions`
+  applies. Not yet: try-with-resources, and throwing an exception class of the Java
+  standard library such as `IllegalArgumentException`; declare your own exception class
+  instead.
 - **Classes and interfaces**, with dynamic dispatch on the receiver's runtime type.
   An override must refine what it overrides, and JVerify checks that obligation, so a
   caller may reason from the static type's contract.
@@ -173,7 +174,8 @@ message JVerify prints for each:
 - **A static field or an enum constant**: `static field access is not yet supported`.
 - **The enhanced `for` loop over an array**: `array access through a local variable with
   no recorded type (for example an enhanced for loop) is not yet supported`.
-- **A loop with no exit**, such as `while (true) { }`: `unsupported control flow`.
+- **A loop with no exit**, such as `while (true) { }`: a message starting with
+  `unsupported control flow`.
 
 In a static method each of these is an error and the run exits with code 2. In an
 instance method it is a warning and the method is skipped.
@@ -194,8 +196,10 @@ The constructs rejected this way are:
   comparisons such as `Integer == Integer`
 - Instance and static initializer blocks
 - `isAbstract()` anywhere but a precondition
-- A contract call (`precondition`, `postcondition`, …) placed after the body, in a
-  loop, or otherwise out of position
+- In a constructor, a contract call (`precondition`, `postcondition`, …) that comes
+  neither immediately after the call to `super` or `this` nor at the end of the body.
+  A misplaced contract call in any other method follows the rule of the last item in
+  this list.
 - A postcondition or `modifies` clause on a `@Transparent` method
 - A malformed `@Contract` class
 - Any construct that cannot be translated in a **static** method: a static method that

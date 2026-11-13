@@ -1,6 +1,6 @@
 # JVerify
 
-> **Current status:** JVerify is under active development and currently supports a limited subset of Java. It is built on [Strata](https://github.com/strata-org/Strata). Some examples in this guide use features that don't verify yet — treat them as illustrations of intended behavior. See [Supported Java features](./supported_java_features.md) and issue [#384](https://github.com/strata-org/jverify/issues/384) for details.
+> **Current status:** JVerify is under active development and currently supports a limited subset of Java. It is built on [Strata](https://github.com/strata-org/Strata). Some examples in this guide use features that don't verify yet — treat them as illustrations of intended behavior. See [Supported Java features](./supported_java_features.md) for details.
 
 JVerify is a tool that helps ensure the correctness of Java programs. There are many existing tools for this. However, such tools are often either incomplete, not revealing bugs that are present, or inaccurate, reporting a problem when there is no bug.
 
