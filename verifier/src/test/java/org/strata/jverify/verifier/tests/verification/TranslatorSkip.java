@@ -21,17 +21,17 @@ import static org.strata.jverify.JVerify.check;
 )
 class TranslatorSkip {
     static int unsupported(int n) {
-//             ^ Error: postcondition does not hold
+//             ^ Error: postcondition could not be proved
         var sum = 0;
         for (int i = 0, j = n; i < j; i++, j--) {
-//                                    ^^^ Error: assertion does not hold
-//                                         ^^^ Error: assertion does not hold
+//                                    ^^^ Error: assertion could not be proved
+//                                         ^^^ Error: assertion could not be proved
             sum = sum + i;
-//                ^^^^^^^ Error: assertion does not hold
-//                ^^^^^^^ Error: no int overflow on '+' does not hold
+//                ^^^^^^^ Error: assertion could not be proved
+//                ^^^^^^^ Error: no int overflow on '+' could not be proved
         }
         return sum;
-//             ^^^ Error: assertion does not hold
+//             ^^^ Error: assertion could not be proved
     }
 
     static void supported(int x) {

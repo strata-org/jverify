@@ -98,15 +98,15 @@ class ArrayRefusals {
     }
 
     static int loopConditionRead(int[] a) {
-//                                        ^ Error: postcondition does not hold
+//                                        ^ Error: postcondition could not be proved
         int i = 0;
         while (a[i] != 0) {
-//      ^ Error: precondition does not hold
+//      ^ Error: precondition could not be proved
             i++;
-//          ^^^^ Error: assertion does not hold
+//          ^^^^ Error: assertion could not be proved
         }
         return i;
-//             ^ Error: assertion does not hold
+//             ^ Error: assertion could not be proved
     }
 
     static int specWrite() {
