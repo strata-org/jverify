@@ -161,6 +161,8 @@ public final class BytecodeToCortexCompiler {
     static final String RESULT = "result";
     static final String PRELUDE = "java";
     static final String ARRAY = "$Array$";
+    /** The direct supertypes of an array of primitives (JLS 4.10.3). */
+    static final List<String> ARRAY_PARENTS = List.of(OBJECT, "java.lang.Cloneable", "java.io.Serializable");
     static final String ARITHMETIC_EXCEPTION = "java.lang.ArithmeticException";
     static final String RUNTIME_EXCEPTION = "java.lang.RuntimeException";
     static final FileRange NO_LOCATION = new FileRange(new Uri(""), new SourceRange(new Raw(0), new Raw(0)));
@@ -327,7 +329,8 @@ public final class BytecodeToCortexCompiler {
 
     /**
      * The Cortex array type of a Java array type, declared on first use. Its elements are stored as
-     * values of the JVM's computational type, as fields are.
+     * values of the JVM's computational type, as fields are. Its parents are {@link #ARRAY_PARENTS},
+     * which are referenced so that each is declared as a composite.
      */
     private String arrayType(ClassDesc array, @Nullable FileRange at) {
         if (!interpret) {
@@ -342,7 +345,8 @@ public final class BytecodeToCortexCompiler {
                     : elem.isPrimitive() ? "floating point" : "arrays of references"), at);
         };
         String name = ARRAY + elem.displayName();
-        arrayTypes.putIfAbsent(name, new ArrayDecl(name, stored, List.of(OBJECT)));
+        referenced.addAll(ARRAY_PARENTS);
+        arrayTypes.putIfAbsent(name, new ArrayDecl(name, stored, ARRAY_PARENTS));
         return name;
     }
 

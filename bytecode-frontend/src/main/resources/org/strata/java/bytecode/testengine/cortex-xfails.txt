@@ -275,6 +275,7 @@ RUN   org.strata.jverify.langref.jls8.s8_8.FormalParameters_1 passes on the dire
 RUN   org.strata.jverify.langref.jls8.s8_8.FormalParameters_2 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls9.s9_4.Default_CallsDefault passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls9.s9_4.Interface_Throws passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayCloneableSerializable passes on the direct Cortex translation
 RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayElementCheckFails passes on the direct Cortex translation
 RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayElements passes on the direct Cortex translation
 RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayExceptionsCaught passes on the direct Cortex translation
