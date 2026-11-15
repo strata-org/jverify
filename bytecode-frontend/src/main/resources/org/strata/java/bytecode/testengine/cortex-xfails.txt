@@ -136,6 +136,8 @@ RUN   org.strata.jverify.langref.jls15.s15_11.SuperFieldAccess_3 passes on the d
 RUN   org.strata.jverify.langref.jls15.s15_12.DetermineTypeToSearch_1 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_12.DetermineTypeToSearch_2 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_12.DetermineTypeToSearch_3 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls15.s15_12.DetermineTypeToSearch_InheritedDefault passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls15.s15_12.DetermineTypeToSearch_TwoInterfaces passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_12.VarargsInvocation_Three passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_12.VarargsInvocation_Zero passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_15.BitwiseComplementOperator_1 passes on the bytecode-to-Cortex translation
