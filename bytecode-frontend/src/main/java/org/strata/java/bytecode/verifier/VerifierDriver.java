@@ -254,6 +254,8 @@ public class VerifierDriver {
                         options.verifyByDefault(), List.copyOf(options.classPathEntries()),
                         options.interpret())
                         .withJavacTypes(javacTypes)
+                        .withContracts(LibraryContracts.of(LibraryContracts.boxContractSource(), List.of(),
+                                List.copyOf(options.classPathEntries())))
                         .analyze(sourceUris, classes));
         var diagnostics = new ArrayList<Diagnostic<?>>(reporter.diagnostics());
         if (reporter.hasErrors() && !options.continueOnErrors()) {

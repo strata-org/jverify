@@ -84,6 +84,7 @@ public final class LibraryContracts {
     static final String JARRAY_INTERNAL = "org/strata/jverify/builtin/JArray";
 
     private static final String OBJECT_CONTRACT_RESOURCE = "/object-contract.java";
+    private static final String BOX_CONTRACT_RESOURCE = "/cortex-box-contracts.java";
     private static final String SPEC_INTERFACE_PREFIX = "org/strata/jverify/JVerify$";
 
     /** Loaded contract libraries; javac-failed loads are never inserted. */
@@ -360,6 +361,24 @@ public final class LibraryContracts {
         return loadedBytes != null && loadedBytes.index().contractsByContractee().containsKey(fqn);
     }
 
+    /** The contract class whose contractee is {@code fqn}, or null. */
+    ContractClass contractFor(String fqn) {
+        if (disabled) {
+            return null;
+        }
+        ensureLoaded();
+        return loadedBytes == null ? null : loadedBytes.index().contractsByContractee().get(fqn);
+    }
+
+    /** Every loaded contract class, in source order. */
+    Collection<ContractClass> contractClasses() {
+        if (disabled) {
+            return List.of();
+        }
+        ensureLoaded();
+        return loadedBytes == null ? List.of() : loadedBytes.index().contractsByContractee().values();
+    }
+
     /** The indexed contract class with this internal name, or null (also when not loaded). */
     ContractClass contractClassOf(String internalName) {
         return loadedBytes == null ? null : loadedBytes.index().contractsByInternal().get(internalName);
@@ -372,6 +391,18 @@ public final class LibraryContracts {
         }
         byte[] bytes = loadedBytes.classBytes().get(internalName);
         return bytes == null ? null : ClassFile.of().parse(bytes);
+    }
+
+    /**
+     * {@code cortex-box-contracts.java}: the contracts of the JDK's wrapper
+     * classes whose bodies the direct Cortex translation runs when interpreting.
+     */
+    public static JavaFileObject boxContractSource() {
+        String content = Common.getResourceFile(LibraryContracts.class, BOX_CONTRACT_RESOURCE);
+        if (content == null) {
+            throw new IllegalStateException("cortex-box-contracts.java resource missing");
+        }
+        return new SourceFile(BOX_CONTRACT_RESOURCE, content);
     }
 
     private void requireBound() {

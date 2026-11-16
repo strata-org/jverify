@@ -333,6 +333,13 @@ RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayStaticElementTyp
 RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayStaticFieldCheckFails passes on the direct Cortex translation
 RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayStaticFields passes on the direct Cortex translation
 RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayStaticInitializers passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretBoxing passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretBoxingCheckFails passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretBoxingFields passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretBoxingJoinRefusals passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretBoxingReferenceComparison passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretBoxingRefusals passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretThrowLocal passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls14.s14_20.TryFinally_3 passes on the direct Cortex translation: arrays in static fields
 RUN   org.strata.jverify.langref.jls14.s14_20.TryFinally_4 passes on the direct Cortex translation: arrays in static fields
 RUN   org.strata.jverify.langref.jls9.s9_4.Interface_GenericMethod passes on the direct Cortex translation: string constants, String.length and String.equals
@@ -343,12 +350,6 @@ RUN   org.strata.jverify.langref.jls8.s8_9.EnumBodyDeclarations_2 passes on the 
 RUN   org.strata.jverify.langref.jls8.s8_9.EnumConstants_1 passes on the direct Cortex translation: static fields
 RUN   org.strata.jverify.langref.jls8.s8_9.EnumConstants_2 passes on the direct Cortex translation: static fields
 RUN   org.strata.jverify.langref.jls15.s15_16.CastExpression_BadCastCCE passes on the direct Cortex translation: string constants are String objects
-XFAIL org.strata.jverify.langref.jls15.s15_25.NumericConditional_ByteUnboxWiden CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Byte.valueOf)
-XFAIL org.strata.jverify.langref.jls5.s5_1.BoxingConversion_2 CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Boolean.valueOf)
-XFAIL org.strata.jverify.langref.jls5.s5_1.BoxingConversion_3 CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Character.valueOf)
-XFAIL org.strata.jverify.langref.jls5.s5_1.BoxingConversion_4 CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Long.valueOf)
-XFAIL org.strata.jverify.langref.jls5.s5_1.UnboxingConversion_2 CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Boolean.valueOf)
-XFAIL org.strata.jverify.langref.jls5.s5_1.UnboxingConversion_3 CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Long.valueOf)
 RUN   org.strata.jverify.langref.jls5.s5_5.CastingContexts_8 passes on the direct Cortex translation: string constants, String.length and String.equals
 XFAIL org.strata.jverify.verifier.tests.interpret.InterpretCalleePreconditionFails CORTEX_UNSUPPORTED no verdict: the translation refused a construct
 XFAIL org.strata.jverify.verifier.tests.interpret.InterpretPostconditionFails CORTEX_UNSUPPORTED no verdict: the translation refused a construct

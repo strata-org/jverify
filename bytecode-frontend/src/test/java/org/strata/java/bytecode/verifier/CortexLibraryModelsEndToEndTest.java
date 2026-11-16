@@ -19,13 +19,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The library classes, besides String, that the direct bytecode-to-Cortex
- * translation models inline (BytecodeToCortexCompiler.libraryMethod), run on
- * Strata's Cortex interpreter: Integer boxes, StringBuilder, a Throwable's
- * message and cause, an enum constant's name and ordinal, and records.
+ * translation models, run on Strata's Cortex interpreter: Integer boxes, whose
+ * contract's bodies run, and the classes modelled inline
+ * (BytecodeToCortexCompiler.libraryMethod), which are StringBuilder, a
+ * Throwable's message and cause, an enum constant's name and ordinal, and
+ * records.
  */
 class CortexLibraryModelsEndToEndTest {
 
     private static final String PREFIX = "error: not supported by the direct Cortex translation: ";
+
+    private static final String REFERENCE_COMPARISON = "a reference comparison when an operand may be an object"
+            + " that a contract body allocates: its identity may not be Java's";
 
     private String wasCortex;
 
@@ -82,7 +87,7 @@ class CortexLibraryModelsEndToEndTest {
                 messages(ran).stream().sorted().toList());
     }
 
-    /** A box is an Integer object holding its value; boxing and unboxing are inlined, also javac's implicit ones. */
+    /** A box is an Integer object holding its value; boxing and unboxing run the contract's bodies, also javac's implicit ones. */
     @Test
     void integerBoxesHoldTheirValue(@TempDir Path tmp) throws Exception {
         assertPasses(interpret(tmp, "Boxes.java", "Boxes#run", """
@@ -121,8 +126,9 @@ class CortexLibraryModelsEndToEndTest {
 
     /**
      * Reference equality that may compare boxes is refused in a program that
-     * boxes (Java's box cache decides it), whatever the static types that may
-     * hold a box; a program that never boxes compares references freely.
+     * boxes (Java's box cache decides it, and a contract body allocates each
+     * box), whatever the static types that may hold a box; a program that
+     * never boxes compares references freely.
      */
     @Test
     void referenceEqualityOnPossibleBoxesIsRefused(@TempDir Path tmp) throws Exception {
@@ -138,8 +144,7 @@ class CortexLibraryModelsEndToEndTest {
                     static void ok() { Integer i = 1; check(i == 1); }
                 }
                 """),
-                "'==' on references that may be boxed values (their identity depends on the box cache)",
-                "'!=' on references that may be boxed values (their identity depends on the box cache)");
+                REFERENCE_COMPARISON, REFERENCE_COMPARISON);
         assertPasses(interpret(tmp, "NoBoxes.java", "NoBoxes#run", """
                 import org.strata.jverify.InterpretEntry;
                 import static org.strata.jverify.JVerify.check;

@@ -135,11 +135,19 @@ import java.util.Set;
  * text is what the constant resolves to (JVMS 5.1). Every other {@code String}
  * method is a library call.
  *
- * <p>A few other library classes are modelled the same way, with explicit
- * fields on their composite and inline models of their methods
- * ({@link MethodTranslator#libraryMethod}): {@code Integer} boxes
- * ({@code valueOf}, {@code intValue}; reference equality between values
- * that may be boxes is refused, as Java's box cache decides it),
+ * <p>When interpreting, a call to a library method that has a body in a
+ * contract class ({@link #withContracts}) runs a procedure translated from
+ * that body, as a program method is. In it the contract class reads as the
+ * class it describes, whose composite takes the contract's instance fields; a
+ * void {@code JVerify} call, which states a specification, does nothing, and
+ * the lambda passed to one is not built. The object a contract body allocates
+ * is a new one, where Java may return one it has cached, so in a program that
+ * calls into a contract class with instance fields a reference comparison is
+ * refused unless an operand's static type rules an object of such a class out.
+ *
+ * <p>A few other library classes are still modelled like {@code String}, with
+ * explicit fields on their composite and inline models of their methods
+ * ({@link MethodTranslator#libraryMethod}):
  * {@code StringBuilder} ({@code append}, {@code toString},
  * {@code setLength(0)}), a {@code Throwable}'s message and cause
  * ({@code getMessage}, {@code getCause}, the constructors that set them;
@@ -147,15 +155,13 @@ import java.util.Set;
  * and {@code ordinal()}, and records, whose generated {@code toString},
  * {@code hashCode} and {@code equals} are refused when called. These inline
  * models are temporary. They put knowledge of the Java language and the JDK
- * (what boxing does, what an exception's constructor stores) into a
+ * (what an exception's constructor stores) into a
  * translation of bytecode, where a call to a library method is just a call.
- * The long-term solution, planned next, describes library methods outside
+ * The long-term solution describes library methods outside
  * this translation: a contract per method (preconditions, and either
  * postconditions or the library's own bytecode for the behaviour), so that
  * every library call is translated the same way and modular verification
- * has the specifications it needs. The models here exist only so that the
- * Cortex interpreter, which has no contract mechanism yet, can run programs
- * that reach these classes.
+ * has the specifications it needs.
  *
  * <p>What the translation does not support it refuses, per method, with an
  * error: JVerify specifications (every {@code JVerify} call but {@code check},
@@ -168,7 +174,8 @@ import java.util.Set;
  * multi-dimensional arrays, arrays in static fields of library classes, a
  * {@code baload} or {@code bastore} on an array whose static type is not
  * known and, when verifying, every array; and, when interpreting, calls to library
- * methods, {@code clone} on an array included.
+ * methods, {@code clone} on an array included, other than the {@code String}
+ * members, the contract bodies and the inline models above.
  *
  * <p>A static field is a global variable named {@code owner:field}, holding
  * the JVM default of its type when an entry procedure starts and an arbitrary
@@ -273,30 +280,18 @@ public final class BytecodeToCortexCompiler {
     public static final String STRING_INTERN = "$string$intern";
     /** Whether the program calls {@code String.intern}, so the pool is built. */
     private boolean internUsed;
-    /** Whether the program boxes an int ({@code Integer.valueOf}), known before any method is translated. */
-    private boolean boxes;
     static final String INIT_FLAG = "<initialized>";
     static final String INIT_FAILED_FLAG = "<initFailed>";
     static final String THROWABLE = "java.lang.Throwable";
     /** {@code Throwable}'s modelled state, written by its constructors: the detail message and the cause ({@link #libraryFields}). */
     static final String THROWABLE_MESSAGE = "$message";
     static final String THROWABLE_CAUSE = "$cause";
-    static final String INTEGER = "java.lang.Integer";
     static final String STRING_BUILDER = "java.lang.StringBuilder";
     static final String ENUM = "java.lang.Enum";
     static final String RECORD = "java.lang.Record";
     /** {@code Enum}'s modelled state, written by its constructor: the constant's name and ordinal. */
     static final String ENUM_NAME = "$name";
     static final String ENUM_ORDINAL = "$ordinal";
-    /**
-     * The reference types a value of which may be an {@link #INTEGER} box: Integer and its
-     * supertypes. Reference equality between such values is refused in a program that boxes
-     * ({@link MethodTranslator#refuseBoxIdentity}). Temporary, with the box model: a model of
-     * the Integer cache (JLS 5.1.7) or a contract for {@code Integer.valueOf} makes the
-     * comparison exact and this set unnecessary.
-     */
-    static final Set<String> MAY_HOLD_BOX = Set.of(INTEGER, "java.lang.Number", OBJECT, "java.lang.Comparable",
-            "java.io.Serializable", "java.lang.constant.Constable", "java.lang.constant.ConstantDesc");
     static final String ERROR = "java.lang.Error";
     static final String EXCEPTION_IN_INITIALIZER_ERROR = "java.lang.ExceptionInInitializerError";
     static final String NO_CLASS_DEF_FOUND_ERROR = "java.lang.NoClassDefFoundError";
@@ -308,6 +303,21 @@ public final class BytecodeToCortexCompiler {
     static final String ELEMENT_BINDER = "$v";
     /** The constrained types that are element types of the program's array types, by name, in first-use order. */
     private final Map<String, Constrained> elementTypes = new LinkedHashMap<>();
+    /** The contract classes whose bodies run in place of library methods, when interpreting; else null. */
+    private @Nullable LibraryContracts contracts;
+    /** The class model of the contract class of each library class asked for; empty for a class without one. */
+    private final Map<String, Optional<ClassModel>> contractModels = new HashMap<>();
+    /** The library classes whose composite takes its fields from the class's contract, in first-use order. */
+    private final Set<String> contractFieldClasses = new LinkedHashSet<>();
+    /** Why each contract body that was refused was, by procedure name. */
+    private final Map<String, String> contractRefusals = new HashMap<>();
+    /** The contract bodies whose translation is under way, by procedure name. */
+    private final Set<String> contractsInProgress = new java.util.HashSet<>();
+    /**
+     * Whether a program class calls into a contract class with instance fields
+     * ({@link #callsFieldContract}): reference comparisons are then checked.
+     */
+    private boolean programCreatesContractObjects;
 
     public BytecodeToCortexCompiler(Reporter reporter, boolean verifyByDefault, List<Path> classPath,
                                     boolean interpret) {
@@ -322,7 +332,18 @@ public final class BytecodeToCortexCompiler {
         return this;
     }
 
+    /** Contract classes whose bodies run in place of the library methods they describe, when interpreting. */
+    public BytecodeToCortexCompiler withContracts(LibraryContracts contracts) {
+        this.contracts = contracts;
+        return this;
+    }
+
     public AnalysisResult analyze(Collection<URI> sourceUris, List<ClassSource> classes) {
+        if (contracts != null && interpret) {
+            contracts.bind(resolver, Set.of(), reporter, sourceUris.isEmpty() ? null : sourceUris.iterator().next());
+        } else {
+            contracts = null;
+        }
         var units = new ArrayList<ClassSource>();
         for (var cls : classes) {
             if (!cls.internalName().equals("package-info") && !cls.internalName().endsWith("/package-info")) {
@@ -339,16 +360,15 @@ public final class BytecodeToCortexCompiler {
             }
         }
         for (var cm : programClasses.values()) {
+            programCreatesContractObjects |= callsFieldContract(cm);
+        }
+        for (var cm : programClasses.values()) {
             for (var m : cm.methods()) {
                 var code = m.code();
                 if (code.isPresent() && code.get().elementList().stream()
                         .anyMatch(el -> el instanceof InvokeInstruction inv && isStringIntern(inv))) {
                     // Known before any `ldc` is translated: a program that interns resolves its literals lazily.
                     declarePool(NO_LOCATION);
-                }
-                if (code.isPresent() && code.get().elementList().stream()
-                        .anyMatch(el -> el instanceof InvokeInstruction inv && isBoxing(inv))) {
-                    boxes = true;
                 }
             }
         }
@@ -439,7 +459,7 @@ public final class BytecodeToCortexCompiler {
 
     /**
      * The fields of a composite: the modelled state of a library class whose
-     * methods the translation inlines (String, Integer and StringBuilder hold
+     * methods the translation inlines (String and StringBuilder hold
      * their value; Throwable its message and cause; Enum the constant's name
      * and ordinal; see {@link MethodTranslator#libraryMethod}), or a program
      * class's instance fields. Any other library class has none. The modelled
@@ -450,7 +470,6 @@ public final class BytecodeToCortexCompiler {
     private List<Field> libraryFields(String c) {
         return switch (c) {
             case STRING, STRING_BUILDER -> List.of(new Field(STRING_VALUE, new Ty.String_()));
-            case INTEGER -> List.of(new Field(STRING_VALUE, new Ty.Bv(32)));
             case THROWABLE -> List.of(new Field(THROWABLE_MESSAGE, new Ty.Named(STRING)),
                     new Field(THROWABLE_CAUSE, new Ty.Named(THROWABLE)));
             case ENUM -> List.of(new Field(ENUM_NAME, new Ty.Named(STRING)), new Field(ENUM_ORDINAL, new Ty.Bv(32)));
@@ -460,6 +479,9 @@ public final class BytecodeToCortexCompiler {
 
     private List<Field> fieldsOf(String fqn) {
         var cm = programClasses.get(fqn);
+        if (cm == null && contractFieldClasses.contains(fqn)) {
+            cm = contractModel(fqn);
+        }
         if (cm == null) {
             return List.of();
         }
@@ -474,6 +496,183 @@ public final class BytecodeToCortexCompiler {
             }
         }
         return fields;
+    }
+
+    // --- Contract bodies ---
+
+    private static final String CONTRACT_EXCEPTION = "org/strata/jverify/ContractException";
+
+    /** A contract member that has a body, with the contract class that declares it. */
+    private record ContractBody(ClassModel cm, MethodModel method) {
+    }
+
+    /** The contract class that describes library class {@code fqn}, or null. */
+    private @Nullable ClassModel contractModel(String fqn) {
+        if (contracts == null || programClasses.containsKey(fqn)) {
+            return null;
+        }
+        return contractModels.computeIfAbsent(fqn, c -> {
+            var cc = contracts.contractFor(c);
+            return Optional.ofNullable(cc == null ? null : contracts.classBytes(cc.contractInternal()));
+        }).orElse(null);
+    }
+
+    /** Whether the contract of {@code fqn} declares instance fields, so that its bodies allocate the class's objects. */
+    private boolean contractHasFields(String fqn) {
+        var cm = contractModel(fqn);
+        return cm != null && cm.fields().stream().anyMatch(f -> !f.flags().has(AccessFlag.STATIC));
+    }
+
+    private boolean isFinalClass(String fqn) {
+        var cm = resolver.loadClassModel(fqn);
+        if (cm != null) {
+            return cm.flags().has(AccessFlag.FINAL);
+        }
+        Class<?> c = resolver.loadClassReflectively(fqn);
+        return c != null && java.lang.reflect.Modifier.isFinal(c.getModifiers());
+    }
+
+    /** {@code desc} with each contract class replaced by the class it describes. */
+    private MethodTypeDesc contracteeDesc(MethodTypeDesc desc) {
+        if (contracts == null) {
+            return desc;
+        }
+        return MethodTypeDesc.of(contracts.mapDesc(desc.returnType()),
+                desc.parameterList().stream().map(contracts::mapDesc).toList());
+    }
+
+    /**
+     * Whether the contract member {@code m} has a body to run. A member that
+     * only specifies has none: it throws {@code ContractException}, or returns
+     * nothing and does nothing but state specifications.
+     */
+    private static boolean hasBody(MethodModel m) {
+        var code = m.findAttribute(Attributes.code()).orElse(null);
+        if (code == null) {
+            return false;
+        }
+        boolean work = !m.methodTypeSymbol().returnType().descriptorString().equals("V");
+        for (var el : code.elementList()) {
+            if (el instanceof NewObjectInstruction n && n.className().asInternalName().equals(CONTRACT_EXCEPTION)) {
+                return false;
+            }
+            if (!(el instanceof Instruction in) || in instanceof LoadInstruction || in instanceof ConstantInstruction
+                    || in instanceof ReturnInstruction || in instanceof NopInstruction || in instanceof StackInstruction
+                    || in instanceof InvokeDynamicInstruction
+                    || in instanceof InvokeInstruction inv && JavaNames.dottedFqn(inv.owner().asInternalName()).equals(JVERIFY)) {
+                continue;
+            }
+            work = true;
+        }
+        return work;
+    }
+
+    /** The body that the contract of library class {@code cls} gives this method or constructor, or null. */
+    private @Nullable ContractBody contractBody(String cls, String name, MethodTypeDesc desc, boolean isStatic) {
+        var cm = contractModel(cls);
+        if (cm == null) {
+            return null;
+        }
+        for (var m : cm.methods()) {
+            if (m.methodName().stringValue().equals(name) && m.flags().has(AccessFlag.STATIC) == isStatic
+                    && !isSynthetic(m)
+                    && contracteeDesc(m.methodTypeSymbol()).parameterList().equals(desc.parameterList())
+                    && hasBody(m)) {
+                return new ContractBody(cm, m);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The procedure of a contract body, which is translated at its first call
+     * by the translation of program methods. A body that is refused refuses
+     * each call to it, with the reason.
+     */
+    private String contractProc(String owner, String name, MethodTypeDesc desc, boolean isStatic, ContractBody body,
+                                FileRange at) {
+        String proc = procName(owner, name, desc);
+        if (contractsInProgress.contains(proc)) {
+            throw new Refusal("not supported by the direct Cortex translation: a contract body that calls itself ("
+                    + owner + "." + name + ")", at);
+        }
+        if (!procedures.containsKey(proc) && !contractRefusals.containsKey(proc)) {
+            contractsInProgress.add(proc);
+            try {
+                var code = (CodeAttribute) body.method().findAttribute(Attributes.code()).orElseThrow();
+                var translated = new MethodTranslator(body.cm(), owner, body.method(), code, NO_LOCATION, false, true)
+                        .translate();
+                procedures.put(proc, new Procedure(proc, paramsOf(owner, isStatic, desc, NO_LOCATION),
+                        outputsOf(desc, NO_LOCATION), throwsOf(body.cm(), body.method()), List.of(),
+                        Optional.of(translated), false, NO_LOCATION));
+            } catch (Refusal r) {
+                contractRefusals.put(proc, r.getMessage());
+            } finally {
+                contractsInProgress.remove(proc);
+            }
+        }
+        String why = contractRefusals.get(proc);
+        if (why != null) {
+            throw new Refusal("the contract body of '" + owner + "." + name + "' could not be translated: " + why, at);
+        }
+        return proc;
+    }
+
+    /** The library class that {@code name} is a field of through the class's contract, on {@code owner}'s superclass chain, or null. */
+    private @Nullable String contractFieldOwner(String owner, String name) {
+        for (String c = owner; c != null; c = resolver.superclassOf(c)) {
+            var cm = contractModel(c);
+            if (cm != null && cm.fields().stream().anyMatch(
+                    f -> f.fieldName().stringValue().equals(name) && !f.flags().has(AccessFlag.STATIC))) {
+                contractFieldClasses.add(c);
+                referenced.add(c);
+                return c;
+            }
+        }
+        return null;
+    }
+
+    /** Whether a method of {@code cm} calls a body of a contract class with instance fields. */
+    private boolean callsFieldContract(ClassModel cm) {
+        if (contracts == null) {
+            return false;
+        }
+        for (var m : cm.methods()) {
+            var code = m.code().orElse(null);
+            if (code == null) {
+                continue;
+            }
+            for (var el : code) {
+                if (el instanceof InvokeInstruction inv && !inv.owner().asSymbol().isArray()) {
+                    String target = JavaNames.dottedFqn(inv.owner().asInternalName());
+                    if (contractHasFields(target) && contractBody(target, inv.name().stringValue(), inv.typeSymbol(),
+                            inv.opcode() == Opcode.INVOKESTATIC) != null) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether a value whose type is within {@code type} ({@link #staticType}) may be an object of a
+     * contract class with instance fields: the type is unknown, such a class or a supertype of one.
+     * An array is no such object.
+     */
+    private boolean mayBeContractObject(@Nullable String type) {
+        if (type == null) {
+            return true;
+        }
+        if (isArrayType(type)) {
+            return false;
+        }
+        for (var cc : contracts.contractClasses()) {
+            if (contractHasFields(cc.contracteeFqn()) && resolver.isSubtypeOf(cc.contracteeFqn(), type)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private @Nullable Ty fieldTy(ClassDesc cd) {
@@ -560,16 +759,27 @@ public final class BytecodeToCortexCompiler {
                 new Expr.Op("Bv32.SLe", List.of(v, new Expr.Bv(32, max)))));
     }
 
-    private static String classFqn(ClassDesc cd) {
+    private String classFqn(ClassDesc cd) {
         String d = cd.descriptorString();
-        return JavaNames.dottedFqn(d.substring(1, d.length() - 1));
+        return className(d.substring(1, d.length() - 1));
+    }
+
+    /** The name of the class with this internal name; a contract class has the name of the class it describes. */
+    private String className(String internal) {
+        if (contracts != null && contracts.loaded()) {
+            var cc = contracts.contractClassOf(internal);
+            if (cc != null) {
+                return cc.contracteeFqn();
+            }
+        }
+        return JavaNames.dottedFqn(internal);
     }
 
     /**
      * The static type that a stack value or local of the Java type {@code t} is tracked with: a
      * class by name, an array type by descriptor, a primitive type not at all.
      */
-    private static @Nullable String staticType(ClassDesc t) {
+    private @Nullable String staticType(ClassDesc t) {
         return t.isPrimitive() ? null : t.isArray() ? t.descriptorString() : classFqn(t);
     }
 
@@ -694,7 +904,7 @@ public final class BytecodeToCortexCompiler {
         var types = new ArrayList<String>();
         m.findAttribute(java.lang.classfile.Attributes.exceptions()).ifPresent(ex -> {
             for (var c : ex.exceptions()) {
-                types.add(JavaNames.dottedFqn(c.asInternalName()));
+                types.add(className(c.asInternalName()));
             }
         });
         types.add(RUNTIME_EXCEPTION);
@@ -927,13 +1137,6 @@ public final class BytecodeToCortexCompiler {
         cmds.add(new Cmd.Set(STRING_POOL_TAIL, Optional.of(new Expr.Var(n)), NO_LOCATION));
     }
 
-    /** {@code Integer.valueOf(int)}: javac's boxing conversion, and the explicit call. */
-    private static boolean isBoxing(InvokeInstruction inv) {
-        return JavaNames.dottedFqn(inv.owner().asInternalName()).equals(INTEGER)
-                && inv.name().stringValue().equals("valueOf")
-                && inv.typeSymbol().descriptorString().equals("(I)Ljava/lang/Integer;");
-    }
-
     private static boolean isStringIntern(InvokeInstruction inv) {
         return JavaNames.dottedFqn(inv.owner().asInternalName()).equals(STRING)
                 && inv.name().stringValue().equals("intern")
@@ -1085,7 +1288,7 @@ public final class BytecodeToCortexCompiler {
                             range);
                 }
                 if (code != null && verify) {
-                    body = Optional.of(new MethodTranslator(cm, fqn, m, (CodeAttribute) code, range, entry)
+                    body = Optional.of(new MethodTranslator(cm, fqn, m, (CodeAttribute) code, range, entry, false)
                             .translate());
                     translated = true;
                 }
@@ -1251,7 +1454,8 @@ public final class BytecodeToCortexCompiler {
          * The static type ({@link #staticType}) of each reference local whose type is known, by
          * slot: a class, or an array type, which is tracked exactly because {@code baload} and
          * {@code bastore} take the element type from it. A class type bounds the value's class
-         * from above ({@link #refuseBoxIdentity}).
+         * from above on every path, which decides whether a reference comparison may be between
+         * objects that contract bodies allocate ({@link #mayBeContractObject}).
          */
         private Map<Integer, String> localTypes = new HashMap<>();
         /** Where each stack value comes from, as far as nullness goes; see {@link Provenance}. */
@@ -1280,11 +1484,14 @@ public final class BytecodeToCortexCompiler {
         private int blockId;
         /** An entry procedure: it starts by initializing its own class. */
         private final boolean entry;
+        /** Whether the method is a contract body, which has no source in the program and may state specifications. */
+        private final boolean contract;
         /** The types whose initialization has started when this method runs: no guard for them. */
         private final Set<String> initializationStarted;
 
         MethodTranslator(ClassModel cm, String owner, MethodModel method, CodeAttribute code, FileRange methodRange,
-                         boolean entry) {
+                         boolean entry, boolean contract) {
+            this.contract = contract;
             this.cm = cm;
             this.owner = owner;
             this.method = method;
@@ -1677,6 +1884,9 @@ public final class BytecodeToCortexCompiler {
         // --- Ranges ---
 
         private FileRange rangeAt(int seqIdx) {
+            if (contract) {
+                return methodRange;
+            }
             Span s = MethodBodyFactory.spanOf(crt, seqToBci, seqIdx);
             if (!s.isNone()) {
                 return cortexRange(src.rangeOf(s.beginLine(), s.beginCol(), s.endLine(), s.endCol()));
@@ -1877,9 +2087,12 @@ public final class BytecodeToCortexCompiler {
         /** The read or write of a static field. */
         private void staticField(FieldInstruction fi, FileRange at) {
             String name = fi.name().stringValue();
-            String target = JavaNames.dottedFqn(fi.owner().asInternalName());
+            String target = className(fi.owner().asInternalName());
             ClassDesc type = fi.typeSymbol();
             boolean read = fi.opcode() == Opcode.GETSTATIC;
+            if (contract) {
+                throw refuse("static fields in a contract body (" + target + "." + name + ")", at);
+            }
             if (ClassInitialization.isAssertionsDisabled(resolver, fi)) {
                 // Assertions are translated as always enabled: a read is false,
                 // and the assignment in <clinit> is dropped.
@@ -1908,6 +2121,11 @@ public final class BytecodeToCortexCompiler {
                 if (interpret && type.isArray()) {
                     // No translated initializer assigns the field, so a run would stop at the first use of the array.
                     throw refuse("arrays in static fields of library classes", at);
+                }
+                if (interpret && !type.isPrimitive() && contractHasFields(classFqn(type))) {
+                    // Only a contract body makes such an object, and no translated initializer assigns the field.
+                    throw refuse("static fields of library classes that hold an object of a class with a contract ("
+                            + target + "." + name + ")", at);
                 }
                 String global = declareLibraryGlobal(target, name, type, at);
                 staticNotes.recordStaticRead(src.uri, lineOf(at));
@@ -1981,10 +2199,10 @@ public final class BytecodeToCortexCompiler {
         /**
          * Sets the reference types of the locals and of the stack values on entry to {@code b}. A
          * stack-map frame at the block's offset states them. A block without a frame is no branch
-         * target: the first block starts with the parameters (the receiver's type is not tracked),
-         * and a later block that is no handler and has one predecessor starts with the types that
-         * predecessor ends with. Any other block starts with no local type known and no array type
-         * on the stack.
+         * target: the first block starts with the receiver and the parameters, and a later block
+         * that is no handler and has one predecessor starts with the types that predecessor ends
+         * with. Any other block, and the stack under a frame of another depth, starts with no
+         * type known: the types a block was first reached with are those of one path only.
          */
         private void enterLocalTypes(BasicBlock b) {
             localTypes = new HashMap<>();
@@ -2002,12 +2220,15 @@ public final class BytecodeToCortexCompiler {
                 boolean aligned = frame.stack().size() == stackTypes.size();
                 for (int i = 0; i < stackTypes.size(); i++) {
                     String type = aligned ? referenceType(frame.stack().get(i)) : null;
-                    if (type != null || isArrayType(stackTypes.get(i))) {
+                    if (type != null || !aligned || isArrayType(stackTypes.get(i))) {
                         stackTypes.set(i, type);
                     }
                 }
             } else if (b.id == 0 && b.preds.isEmpty()) {
-                int slot = method.flags().has(AccessFlag.STATIC) ? 0 : 1;
+                int slot = 0;
+                if (!method.flags().has(AccessFlag.STATIC)) {
+                    localTypes.put(slot++, owner);
+                }
                 for (var p : method.methodTypeSymbol().parameterList()) {
                     if (!p.isPrimitive()) {
                         localTypes.put(slot, staticType(p));
@@ -2018,12 +2239,12 @@ public final class BytecodeToCortexCompiler {
                     && exitTypes.containsKey(b.preds.getFirst())) {
                 localTypes.putAll(exitTypes.get(b.preds.getFirst()));
             } else {
-                stackTypes.replaceAll(t -> isArrayType(t) ? null : t);
+                stackTypes.replaceAll(t -> null);
             }
         }
 
         /** The static type a verification type states: a class or an array type; null for the others (null, uninitialized, primitives). */
-        private static @Nullable String referenceType(StackMapFrameInfo.VerificationTypeInfo t) {
+        private @Nullable String referenceType(StackMapFrameInfo.VerificationTypeInfo t) {
             return t instanceof StackMapFrameInfo.ObjectVerificationTypeInfo o ? staticType(o.classSymbol()) : null;
         }
 
@@ -2078,7 +2299,7 @@ public final class BytecodeToCortexCompiler {
                 case ConvertInstruction cv -> convert(cv, at);
                 case StackInstruction sk -> stackOp(sk, at);
                 case NewObjectInstruction nw -> {
-                    String c = JavaNames.dottedFqn(nw.className().asInternalName());
+                    String c = className(nw.className().asInternalName());
                     referenced.add(c);
                     initialize(c, at);
                     cmds.add(new Cmd.New(pushTarget(Kind.A, c), c, at));
@@ -2352,12 +2573,17 @@ public final class BytecodeToCortexCompiler {
                 return;
             }
             String name = fi.name().stringValue();
-            String declaredIn = fieldOwner(JavaNames.dottedFqn(fi.owner().asInternalName()), name);
+            String fieldTarget = className(fi.owner().asInternalName());
+            String declaredIn = fieldOwner(fieldTarget, name);
+            if (declaredIn == null && contract) {
+                declaredIn = contractFieldOwner(fieldTarget, name);
+            }
             if (declaredIn == null) {
                 throw refuse("fields of library classes", at);
             }
             ClassDesc type = fi.typeSymbol();
-            for (var f : programClasses.get(declaredIn).fields()) {
+            var declaring = programClasses.containsKey(declaredIn) ? programClasses.get(declaredIn) : contractModel(declaredIn);
+            for (var f : declaring.fields()) {
                 if (f.fieldName().stringValue().equals(name) && hasRangeAnnotation(f)) {
                     throw refuse("@Nat and @Unbounded", at);
                 }
@@ -2403,8 +2629,11 @@ public final class BytecodeToCortexCompiler {
                 seal(new Transfer.Goto("b" + b.gotoTarget, at));
                 return;
             }
-            if (o == Opcode.IF_ACMPEQ || o == Opcode.IF_ACMPNE) {
-                refuseBoxIdentity(o == Opcode.IF_ACMPEQ ? "==" : "!=", at);
+            if ((o == Opcode.IF_ACMPEQ || o == Opcode.IF_ACMPNE) && programCreatesContractObjects
+                    && mayBeContractObject(stackTypes.get(stack.size() - 1))
+                    && mayBeContractObject(stackTypes.get(stack.size() - 2))) {
+                throw refuse("a reference comparison when an operand may be an object that a contract body"
+                        + " allocates: its identity may not be Java's", at);
             }
             Expr cond = switch (o) {
                 case IFEQ -> isZero(pop().expr);
@@ -2454,9 +2683,9 @@ public final class BytecodeToCortexCompiler {
         }
 
         private void invoke(InvokeInstruction inv, FileRange at) {
-            String target = JavaNames.dottedFqn(inv.owner().asInternalName());
+            String target = className(inv.owner().asInternalName());
             String name = inv.name().stringValue();
-            MethodTypeDesc desc = inv.typeSymbol();
+            MethodTypeDesc desc = contracteeDesc(inv.typeSymbol());
             Opcode o = inv.opcode();
             if (target.equals(JVERIFY)) {
                 spec(name, desc, at);
@@ -2505,7 +2734,20 @@ public final class BytecodeToCortexCompiler {
                 lhs.add(pushTarget(kindOf(rt, at), staticType(rt)));
             }
             if (declaringIn == null && interpret) {
-                throw refuse("calls to library methods (" + target + "." + name + ") when interpreting", at);
+                boolean virtual = o == Opcode.INVOKEVIRTUAL || o == Opcode.INVOKEINTERFACE;
+                // The contract of a class gives the bodies of that class only: with a subclass, another method may run.
+                var body = virtual && !isFinalClass(target) ? null : contractBody(target, name, desc, isStatic);
+                if (body == null) {
+                    throw refuse("calls to library methods (" + target + "." + name + ") when interpreting", at);
+                }
+                String proc = contractProc(target, name, desc, isStatic, body, at);
+                if (!isStatic && !name.equals("<init>")) {
+                    // Java throws when the receiver is null. This translation has no null: the test
+                    // of the class of a value that is no object stops the run, whatever the body reads.
+                    cmds.add(new Cmd.InstanceOf(temp(new Ty.Bool()), args.getFirst(), new Ty.Named(target), at));
+                }
+                cmds.add(new Cmd.Call(lhs, proc, args, at));
+                return;
             }
             MethodModel callee = declaringIn == null ? null : declared(programClasses.get(declaringIn), name, desc, isStatic);
             if (callee != null && isGeneratedRecordMember(programClasses.get(declaringIn), callee)) {
@@ -2540,6 +2782,14 @@ public final class BytecodeToCortexCompiler {
          */
         private void invokeDynamic(InvokeDynamicInstruction indy, FileRange at) {
             String name = indy.name().stringValue();
+            if (contract) {
+                // A lambda, which a contract body passes only to a specification: any reference does.
+                for (int i = 0; i < indy.typeSymbol().parameterCount(); i++) {
+                    pop();
+                }
+                pushTarget(Kind.A, null);
+                return;
+            }
             var bsm = indy.invokedynamic().bootstrap();
             if (!bsm.bootstrapMethod().reference().owner().asInternalName().equals("java/lang/invoke/StringConcatFactory")
                     || !(name.equals("makeConcatWithConstants") || name.equals("makeConcat"))) {
@@ -2709,14 +2959,12 @@ public final class BytecodeToCortexCompiler {
          * call.
          *
          * <p>TEMPORARY. Recognizing JDK methods by name here and hand-writing
-         * their effect is a stopgap for the interpret-only Cortex path, which
-         * has no contract mechanism. The planned long-term solution replaces
+         * their effect is a stopgap. The long-term solution replaces
          * every case below by a contract for the method (and, where wanted,
-         * the library's own bytecode), translated like any other call; this
-         * method and {@link #libraryFields} then go away. Modelled for now:
+         * the library's own bytecode), translated like any other call
+         * ({@link #contractBody}); this method and {@link #libraryFields}
+         * then go away. Modelled for now:
          * <ul>
-         *   <li>{@code Integer.valueOf(int)} and {@code intValue()}: boxing
-         *       and unboxing ({@link #box}, {@link #unbox}).</li>
          *   <li>{@code StringBuilder}: {@code new StringBuilder()},
          *       {@code append} of a String or boolean, {@code toString()} and
          *       {@code setLength(0)} ({@link #stringBuilderMethod}).</li>
@@ -2730,16 +2978,6 @@ public final class BytecodeToCortexCompiler {
          */
         private boolean libraryMethod(String target, String name, MethodTypeDesc desc, boolean isStatic, FileRange at) {
             String key = name + desc.descriptorString();
-            if (target.equals(INTEGER)) {
-                switch (key) {
-                    case "valueOf(I)Ljava/lang/Integer;" -> box(at);
-                    case "intValue()I" -> unbox(at);
-                    default -> {
-                        return false;
-                    }
-                }
-                return true;
-            }
             if (target.equals(STRING_BUILDER)) {
                 return stringBuilderMethod(key, desc, at);
             }
@@ -2794,49 +3032,6 @@ public final class BytecodeToCortexCompiler {
                 }
             }
             return false;
-        }
-
-        /**
-         * {@code Integer.valueOf(i)}, which is also javac's boxing conversion
-         * (JLS 5.1.7): a new Integer object holding {@code i}. Java reuses the
-         * boxes of -128..127, so two boxes of one value may be one object
-         * there and never are here; see {@link #refuseBoxIdentity}.
-         */
-        private void box(FileRange at) {
-            var v = pop();
-            referenced.add(INTEGER);
-            String r = pushTarget(Kind.A, INTEGER);
-            cmds.add(new Cmd.New(r, INTEGER, at));
-            cmds.add(new Cmd.WriteField(new Expr.Var(r), INTEGER, STRING_VALUE, v.expr, at));
-            markNonNull();
-        }
-
-        /** {@code b.intValue()}, the unboxing conversion (JLS 5.1.8): the box's value. */
-        private void unbox(FileRange at) {
-            var b = pop();
-            String v = temp(new Ty.Bv(32));
-            cmds.add(new Cmd.ReadField(v, b.expr, INTEGER, STRING_VALUE, at));
-            push(Kind.I, new Expr.Var(v), null, at);
-        }
-
-        /**
-         * Reference {@code ==} or {@code !=} whose operands may be Integer
-         * boxes ({@link #MAY_HOLD_BOX}), in a program that boxes: Java reuses
-         * the boxes of -128..127 (JLS 5.1.7), so whether two boxes are one
-         * object depends on their values, while {@link #box} allocates each
-         * one. A program that never boxes compares no boxes, whatever the
-         * static types.
-         */
-        private void refuseBoxIdentity(String op, FileRange at) {
-            if (!boxes) {
-                return;
-            }
-            for (int i = stack.size() - 2; i < stack.size(); i++) {
-                String t = stackTypes.get(i);
-                if (t == null || MAY_HOLD_BOX.contains(t)) {
-                    throw refuse("'" + op + "' on references that may be boxed values (their identity depends on the box cache)", at);
-                }
-            }
         }
 
         /**
@@ -2992,7 +3187,15 @@ public final class BytecodeToCortexCompiler {
                     var l = pop();
                     push(Kind.I, boolToInt(op("Bool.Or", isZero(l.expr), not(isZero(r.expr)))), null, at);
                 }
-                default -> throw refuse("JVerify." + name + " (contracts and specifications)", at);
+                default -> {
+                    if (!contract || !d.endsWith(")V")) {
+                        throw refuse("JVerify." + name + " (contracts and specifications)", at);
+                    }
+                    // A specification of a contract body, which is run, not verified.
+                    for (int i = 0; i < desc.parameterCount(); i++) {
+                        pop();
+                    }
+                }
             }
         }
     }
