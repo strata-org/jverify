@@ -335,7 +335,7 @@ class CortexStaticsEndToEndTest {
             var results = run(tmp, "Unset.java", "Unset#run", UNSET.formatted(use, "false"));
             assertInstanceOf(JVerifyResults.DidNotRun.class, results, () -> use + ": " + results);
             assertEquals(1, messages(results).size(), () -> use + ": " + messages(results));
-            assertTrue(messages(results).get(0).contains("'Unset$run': not a reference"),
+            assertTrue(messages(results).get(0).contains("the interpreter fails here: not a reference"),
                     () -> use + ": " + messages(results));
         }
         assertPasses(interpret(tmp, "Unset.java", "Unset#run",
