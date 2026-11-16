@@ -68,6 +68,7 @@ RUN   org.strata.jverify.langref.jls10.s10_9.CharArrayIsNotString_5 passes on th
 RUN   org.strata.jverify.langref.jls11.s11_1.ArrayIndexOutOfBoundsException_Negative passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls11.s11_1.ArrayIndexOutOfBoundsException_Positive passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls11.s11_1.CausesOfExceptions passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls11.s11_1.ClassCastException_1 passes on the direct Cortex translation: string constants are String objects
 RUN   org.strata.jverify.langref.jls11.s11_1.IllegalArgumentException_UserThrow passes on the bytecode-to-Cortex translation
 RUN   org.strata.jverify.langref.jls11.s11_1.KindsOfExceptions passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls11.s11_1.NegativeArraySizeException_1 passes on the direct Cortex translation
@@ -299,6 +300,7 @@ RUN   org.strata.jverify.langref.jls8.s8_9.EnumConstants_2 passes on the direct 
 XFAIL org.strata.jverify.langref.jls14.s14_11.SwitchOnInteger_1 CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.valueOf)
 XFAIL org.strata.jverify.langref.jls15.s15_16.CastExpression_BoxingCast CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.valueOf)
 XFAIL org.strata.jverify.langref.jls15.s15_16.CastExpression_UnboxingCast CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.valueOf)
+RUN   org.strata.jverify.langref.jls15.s15_16.CastExpression_BadCastCCE passes on the direct Cortex translation: string constants are String objects
 XFAIL org.strata.jverify.langref.jls15.s15_25.NumericConditionalExpression_8 CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.valueOf)
 XFAIL org.strata.jverify.langref.jls4.s4_4.TypeVariables_2 CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.valueOf)
 XFAIL org.strata.jverify.langref.jls4.s4_8.RawTypes_1 CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.valueOf)

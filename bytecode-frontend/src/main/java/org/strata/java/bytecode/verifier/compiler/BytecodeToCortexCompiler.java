@@ -103,6 +103,14 @@ import java.util.Set;
  * {@code NegativeArraySizeException} or
  * {@code ArrayIndexOutOfBoundsException} precedes each of them.
  *
+ * <p>A string constant is an object of the composite {@code java.lang.String},
+ * which has one field, {@code $value}, holding the text. The object of each
+ * constant lives in a global, {@code $string$lit<n>}, that the procedure
+ * {@code $string$init} allocates once, under a guard in the prologue of every
+ * method that uses a string constant; so equal constants are one object in
+ * every method, as in the JVM's string pool (JLS 3.10.5), and {@code ==} on
+ * them is reference equality.
+ *
  * <p>What the translation does not support it refuses, per method, with an
  * error: JVerify specifications (every {@code JVerify} call but {@code check},
  * {@code assume} and {@code implies}, and the specification annotations such
@@ -190,6 +198,15 @@ public final class BytecodeToCortexCompiler {
     private final Map<String, MethodVerificationStatus> statusOf = new HashMap<>();
     /** The refusal of each {@code <clinit>} that was not translated, by procedure name. */
     private final Map<String, String> initializerRefusals = new HashMap<>();
+    static final String STRING = "java.lang.String";
+    /** The field of the synthesized {@code java.lang.String} composite that holds the text. */
+    static final String STRING_VALUE = "$value";
+    /** The global that records that {@link #STRING_INIT} ran; a {@code $} prefix occurs in no static field's global. */
+    static final String STRING_READY = "$string$ready";
+    /** The procedure that allocates the object of every string constant of the program. */
+    static final String STRING_INIT = "$string$init";
+    /** The global holding the object of each string constant, by its text, in first-use order. */
+    private final Map<String, String> stringLiterals = new LinkedHashMap<>();
     static final String INIT_FLAG = "<initialized>";
     static final String INIT_FAILED_FLAG = "<initFailed>";
     static final String THROWABLE = "java.lang.Throwable";
@@ -237,6 +254,9 @@ public final class BytecodeToCortexCompiler {
         }
         addInheritedForwarders();
         refuseUsersOfUntranslatedInitializers();
+        if (!stringLiterals.isEmpty()) {
+            procedures.put(STRING_INIT, stringInitProcedure());
+        }
         var program = new Program(composites(), List.of(), List.copyOf(procedures.values()),
                 List.copyOf(globals.values()), List.of(PRELUDE), List.copyOf(arrayTypes.values()));
         var knownUris = new java.util.HashSet<URI>(sourceUris);
@@ -279,7 +299,8 @@ public final class BytecodeToCortexCompiler {
                     parents.add(OBJECT);
                 }
             }
-            out.put(c, new Composite(c, parents, fieldsOf(c)));
+            var fields = c.equals(STRING) ? List.of(new Field(STRING_VALUE, new Ty.String_())) : fieldsOf(c);
+            out.put(c, new Composite(c, parents, fields));
             work.addAll(parents);
             for (String r : referenced) {
                 if (!out.containsKey(r)) {
@@ -631,6 +652,44 @@ public final class BytecodeToCortexCompiler {
             globals.put(global, new Global(global, tyOf(type, at), Optional.empty(), at));
         }
         return global;
+    }
+
+    /**
+     * The global that holds the object of string constant {@code text},
+     * declared on first use. Every {@code ldc} of the same text reads the
+     * same global, so equal constants are one object in every method, as the
+     * JVM's string pool makes them (JLS 3.10.5). The global has no
+     * initializer: {@link #STRING_INIT} allocates the object, because an
+     * initializer is an expression and cannot allocate.
+     */
+    private String stringLiteral(String text, FileRange at) {
+        return stringLiterals.computeIfAbsent(text, t -> {
+            referenced.add(STRING);
+            String global = "$string$lit" + stringLiterals.size();
+            globals.put(global, new Global(global, new Ty.Named(STRING), Optional.empty(), at));
+            return global;
+        });
+    }
+
+    /**
+     * The procedure that allocates one {@code java.lang.String} object per
+     * string constant of the program and writes its text to {@link #STRING_VALUE}.
+     * It runs once, under the {@link #STRING_READY} guard of the first method
+     * that uses a string constant.
+     */
+    private Procedure stringInitProcedure() {
+        var cmds = new ArrayList<Cmd>();
+        int i = 0;
+        for (var e : stringLiterals.entrySet()) {
+            String t = "t" + (i++);
+            cmds.add(new Cmd.Init(t, new Ty.Named(STRING), Optional.empty(), NO_LOCATION));
+            cmds.add(new Cmd.New(t, STRING, NO_LOCATION));
+            cmds.add(new Cmd.WriteField(new Expr.Var(t), STRING, STRING_VALUE, new Expr.Str(e.getKey()), NO_LOCATION));
+            cmds.add(new Cmd.Set(e.getValue(), Optional.of(new Expr.Var(t)), NO_LOCATION));
+        }
+        var body = new Body("entry", List.of(new Block("entry", cmds, new Transfer.Finish(NO_LOCATION))), List.of());
+        return new Procedure(STRING_INIT, List.of(), List.of(), Optional.empty(), List.of(), Optional.of(body),
+                false, NO_LOCATION);
     }
 
     private String declareInitFlag(String fqn, FileRange at) {
@@ -1180,6 +1239,9 @@ public final class BytecodeToCortexCompiler {
          * assigns the default to each field of a primitive type.
          */
         private void prologue() {
+            if (cfg.seq.stream().anyMatch(el -> el instanceof ConstantInstruction ci && ci.constantValue() instanceof String)) {
+                stringGuard(methodRange);
+            }
             if (entry) {
                 guard(owner, Set.of(), methodRange);
             }
@@ -1200,6 +1262,28 @@ public final class BytecodeToCortexCompiler {
                     cmds.add(new Cmd.Set(global, defaultValue, methodRange));
                 }
             }
+        }
+
+        /**
+         * The guard that runs {@link #STRING_INIT} once, in the prologue of a
+         * method that uses a string constant:
+         * <pre>
+         * if (!ready) { ready := true; $string$init(); }
+         * </pre>
+         * The flag is a global, so the objects allocated by one method are the
+         * ones every method reads. The procedure allocates and writes fields
+         * only, so it cannot throw and the flag's position does not matter.
+         */
+        private void stringGuard(FileRange at) {
+            String flag = declareFlag(STRING_READY, at);
+            String init = freshLabel();
+            String cont = freshLabel();
+            seal(new Transfer.CondGoto(new Expr.Var(flag), cont, init, at));
+            startBlock(init);
+            cmds.add(new Cmd.Set(flag, Optional.of(new Expr.Bool(true)), at));
+            cmds.add(new Cmd.Call(List.of(), STRING_INIT, List.of(), at));
+            seal(new Transfer.Goto(cont, at));
+            startBlock(cont);
         }
 
         /** Emit the guard for a use of class {@code fqn} here, if the use may run an initializer. */
@@ -1554,9 +1638,9 @@ public final class BytecodeToCortexCompiler {
                 case Integer i -> push(Kind.I, lit(i), null, at);
                 case Long l -> push(Kind.J, lit(Kind.J, l), null, at);
                 case String s -> {
-                    referenced.add("java.lang.String");
-                    String t = pushTarget(Kind.A, "java.lang.String");
-                    cmds.add(new Cmd.Set(t, Optional.empty(), at));
+                    String global = stringLiteral(s, at);
+                    String t = pushTarget(Kind.A, STRING);
+                    cmds.add(new Cmd.Set(t, Optional.of(new Expr.Var(global)), at));
                 }
                 case ClassDesc c -> throw refuse("class literals", at);
                 default -> throw refuse(v instanceof Float || v instanceof Double
