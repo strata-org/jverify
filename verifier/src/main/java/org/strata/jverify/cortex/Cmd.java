@@ -1,6 +1,6 @@
 package org.strata.jverify.cortex;
 
-public sealed interface Cmd extends ToIon permits Cmd.Init, Cmd.Set, Cmd.Assert, Cmd.Assume, Cmd.New, Cmd.ReadField, Cmd.WriteField, Cmd.InstanceOf, Cmd.NewArray, Cmd.ReadElem, Cmd.WriteElem, Cmd.ArrayLength, Cmd.Call, Cmd.VirtualCall, Cmd.Throw {
+public sealed interface Cmd extends ToIon permits Cmd.Init, Cmd.Set, Cmd.Assert, Cmd.Assume, Cmd.New, Cmd.ReadField, Cmd.WriteField, Cmd.InstanceOf, Cmd.NewArray, Cmd.ReadElem, Cmd.WriteElem, Cmd.ArrayLength, Cmd.InstanceOfComponent, Cmd.Call, Cmd.VirtualCall, Cmd.Throw {
     com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion);
 
     public record Init(java.lang.String name, Ty ty, java.util.Optional<Expr> value, FileRange source) implements Cmd {
@@ -93,26 +93,26 @@ public sealed interface Cmd extends ToIon permits Cmd.Init, Cmd.Set, Cmd.Assert,
         }
     }
 
-    public record InstanceOf(java.lang.String lhs, Expr obj, java.lang.String ty, FileRange source) implements Cmd {
+    public record InstanceOf(java.lang.String lhs, Expr obj, Ty ty, FileRange source) implements Cmd {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
         sexp.add(ion.newSymbol("instanceOf"));
         sexp.add(ion.newString(lhs()));
         sexp.add(obj().toIon(ion));
-        sexp.add(ion.newString(ty()));
+        sexp.add(ty().toIon(ion));
         sexp.add(source().toIon(ion));
         return sexp;
         }
     }
 
-    public record NewArray(java.lang.String lhs, java.lang.String ty, Expr len, FileRange source) implements Cmd {
+    public record NewArray(java.lang.String lhs, Ty elemTy, Expr len, FileRange source) implements Cmd {
         @Override
         public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var sexp = ion.newEmptySexp();
         sexp.add(ion.newSymbol("newArray"));
         sexp.add(ion.newString(lhs()));
-        sexp.add(ion.newString(ty()));
+        sexp.add(elemTy().toIon(ion));
         sexp.add(len().toIon(ion));
         sexp.add(source().toIon(ion));
         return sexp;
@@ -153,6 +153,19 @@ public sealed interface Cmd extends ToIon permits Cmd.Init, Cmd.Set, Cmd.Assert,
         var sexp = ion.newEmptySexp();
         sexp.add(ion.newSymbol("arrayLength"));
         sexp.add(ion.newString(lhs()));
+        sexp.add(arr().toIon(ion));
+        sexp.add(source().toIon(ion));
+        return sexp;
+        }
+    }
+
+    public record InstanceOfComponent(java.lang.String lhs, Expr obj, Expr arr, FileRange source) implements Cmd {
+        @Override
+        public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
+        var sexp = ion.newEmptySexp();
+        sexp.add(ion.newSymbol("instanceOfComponent"));
+        sexp.add(ion.newString(lhs()));
+        sexp.add(obj().toIon(ion));
         sexp.add(arr().toIon(ion));
         sexp.add(source().toIon(ion));
         return sexp;

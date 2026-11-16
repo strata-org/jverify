@@ -1,6 +1,6 @@
 package org.strata.jverify.cortex;
 
-public sealed interface Ty extends ToIon permits Ty.Int, Ty.Bool, Ty.String_, Ty.Real, Ty.Bv, Ty.Named {
+public sealed interface Ty extends ToIon permits Ty.Int, Ty.Bool, Ty.String_, Ty.Real, Ty.Bv, Ty.Named, Ty.Array {
     com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion);
 
     public record Int() implements Ty {
@@ -59,6 +59,16 @@ public sealed interface Ty extends ToIon permits Ty.Int, Ty.Bool, Ty.String_, Ty
         var sexp = ion.newEmptySexp();
         sexp.add(ion.newSymbol("named"));
         sexp.add(ion.newString(name()));
+        return sexp;
+        }
+    }
+
+    public record Array(Ty elem) implements Ty {
+        @Override
+        public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
+        var sexp = ion.newEmptySexp();
+        sexp.add(ion.newSymbol("array"));
+        sexp.add(elem().toIon(ion));
         return sexp;
         }
     }

@@ -1,6 +1,6 @@
 package org.strata.jverify.cortex;
 
-public record Program(java.util.List<Composite> composites, java.util.List<Constrained> constrained, java.util.List<Procedure> procedures, java.util.List<Global> globals, java.util.List<java.lang.String> preludes, java.util.List<ArrayDecl> arrays) implements ToIon {
+public record Program(java.util.List<Composite> composites, java.util.List<Constrained> constrained, java.util.List<Procedure> procedures, java.util.List<Global> globals, java.util.List<java.lang.String> preludes, boolean covariantArrays, java.util.List<java.lang.String> arrayParents) implements ToIon {
     public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
         var s = ion.newEmptyStruct();
         var _l_composites = ion.newEmptyList();
@@ -18,9 +18,10 @@ public record Program(java.util.List<Composite> composites, java.util.List<Const
         var _l_preludes = ion.newEmptyList();
         for (var e : preludes()) _l_preludes.add(ion.newString(e));
         s.put("preludes", _l_preludes);
-        var _l_arrays = ion.newEmptyList();
-        for (var e : arrays()) _l_arrays.add(e.toIon(ion));
-        s.put("arrays", _l_arrays);
+        s.put("covariantArrays", ion.newBool(covariantArrays()));
+        var _l_arrayParents = ion.newEmptyList();
+        for (var e : arrayParents()) _l_arrayParents.add(ion.newString(e));
+        s.put("arrayParents", _l_arrayParents);
         return s;
     }
 }
