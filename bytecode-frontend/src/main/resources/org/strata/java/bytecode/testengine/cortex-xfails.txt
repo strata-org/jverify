@@ -82,6 +82,8 @@ RUN   org.strata.jverify.langref.jls11.s11_3.ThrowAndCatch passes on the direct 
 RUN   org.strata.jverify.langref.jls12.s12_5.InstanceInitOrder_1 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls12.s12_7.StringInterning_1 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls12.s12_7.StringInterning_2 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls12.s12_7.StringInterning_3 passes on the direct Cortex translation: new String(String) and String.intern
+RUN   org.strata.jverify.langref.jls12.s12_7.StringInterning_4 passes on the direct Cortex translation: new String(String) and String.intern
 RUN   org.strata.jverify.langref.jls14.s14_11.SwitchColonFallthrough_1 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls14.s14_11.SwitchColonFallthrough_2 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls14.s14_14.EnhancedForStatement passes on the direct Cortex translation
@@ -247,6 +249,8 @@ RUN   org.strata.jverify.langref.jls4.s4_3.TheClassString_1 passes on the direct
 RUN   org.strata.jverify.langref.jls4.s4_3.TheClassString_2 passes on the direct Cortex translation: string constants, String.length and String.equals
 RUN   org.strata.jverify.langref.jls4.s4_3.TheClassString_3 passes on the direct Cortex translation: string constants, String.length and String.equals
 RUN   org.strata.jverify.langref.jls4.s4_3.TheClassString_4 passes on the direct Cortex translation: string constants, String.length and String.equals
+RUN   org.strata.jverify.langref.jls4.s4_3.TheClassString_InternExplicit passes on the direct Cortex translation: new String(String) and String.intern
+RUN   org.strata.jverify.langref.jls4.s4_3.TheClassString_NewNotInterned passes on the direct Cortex translation: new String(String) and String.intern
 RUN   org.strata.jverify.langref.jls5.s5_1.IdentityConversion_3 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls5.s5_2.AssignmentContexts_10 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls5.s5_5.CastingContexts_7 passes on the direct Cortex translation

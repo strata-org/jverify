@@ -120,9 +120,13 @@ import java.util.Set;
  * {@code $string$init} allocates once, under a guard in the prologue of every
  * method that uses a string constant; so equal constants are one object in
  * every method, as in the JVM's string pool (JLS 3.10.5), and {@code ==} on
- * them is reference equality. {@code String.length()} and
- * {@code String.equals(Object)} are modelled inline on that field; every
- * other {@code String} method is a library call.
+ * them is reference equality. {@code String.length()},
+ * {@code String.equals(Object)} and the constructors {@code String()} and
+ * {@code String(String)} are modelled inline on that field.
+ * {@code String.intern()} is the procedure {@code $string$intern} over a pool,
+ * a linked list of {@code $string$pool} nodes that {@code $string$init} fills
+ * with the constants and {@code intern} extends. Every other {@code String}
+ * method is a library call.
  *
  * <p>What the translation does not support it refuses, per method, with an
  * error: JVerify specifications (every {@code JVerify} call but {@code check},
@@ -211,15 +215,31 @@ public final class BytecodeToCortexCompiler {
     private final Map<String, MethodVerificationStatus> statusOf = new HashMap<>();
     /** The refusal of each {@code <clinit>} that was not translated, by procedure name. */
     private final Map<String, String> initializerRefusals = new HashMap<>();
-    static final String STRING = "java.lang.String";
+    public static final String STRING = "java.lang.String";
     /** The field of the synthesized {@code java.lang.String} composite that holds the text. */
-    static final String STRING_VALUE = "$value";
+    public static final String STRING_VALUE = "$value";
     /** The global that records that {@link #STRING_INIT} ran; a {@code $} prefix occurs in no static field's global. */
     static final String STRING_READY = "$string$ready";
     /** The procedure that allocates the object of every string constant of the program. */
-    static final String STRING_INIT = "$string$init";
+    public static final String STRING_INIT = "$string$init";
     /** The global holding the object of each string constant, by its text, in first-use order. */
     private final Map<String, String> stringLiterals = new LinkedHashMap<>();
+    /**
+     * The composite of a node of the string pool (JLS 3.10.5), a singly linked
+     * list: the String it holds, the next node, and whether there is one, since
+     * this translation has no null. The list starts with a sentinel node.
+     */
+    public static final String STRING_POOL = "$string$pool";
+    static final String POOL_STR = "str";
+    static final String POOL_NEXT = "next";
+    static final String POOL_HAS_NEXT = "hasNext";
+    /** The globals holding the pool's sentinel head and its last node. */
+    public static final String STRING_POOL_HEAD = "$string$poolHead";
+    public static final String STRING_POOL_TAIL = "$string$poolTail";
+    /** The procedure that implements {@code String.intern} on the pool. */
+    public static final String STRING_INTERN = "$string$intern";
+    /** Whether the program calls {@code String.intern}, so the pool is built. */
+    private boolean internUsed;
     static final String INIT_FLAG = "<initialized>";
     static final String INIT_FAILED_FLAG = "<initFailed>";
     static final String THROWABLE = "java.lang.Throwable";
@@ -272,8 +292,11 @@ public final class BytecodeToCortexCompiler {
         }
         addInheritedForwarders();
         refuseUsersOfUntranslatedInitializers();
-        if (!stringLiterals.isEmpty()) {
+        if (!stringLiterals.isEmpty() || internUsed) {
             procedures.put(STRING_INIT, stringInitProcedure());
+        }
+        if (internUsed) {
+            procedures.put(STRING_INTERN, stringInternProcedure());
         }
         var composites = composites();
         // Java arrays are covariant (JLS 4.10.3). The array parents are composites of the program
@@ -305,6 +328,15 @@ public final class BytecodeToCortexCompiler {
         while (!work.isEmpty()) {
             String c = work.poll();
             if (out.containsKey(c)) {
+                continue;
+            }
+            if (c.equals(STRING_POOL)) {
+                // Frontend-private, not a Java object: no parent.
+                out.put(c, new Composite(c, List.of(), List.of(
+                        new Field(POOL_STR, new Ty.Named(STRING)),
+                        new Field(POOL_NEXT, new Ty.Named(STRING_POOL)),
+                        new Field(POOL_HAS_NEXT, new Ty.Bool()))));
+                work.add(STRING);
                 continue;
             }
             var parents = new ArrayList<String>();
@@ -743,21 +775,101 @@ public final class BytecodeToCortexCompiler {
      * The procedure that allocates one {@code java.lang.String} object per
      * string constant of the program and writes its text to {@link #STRING_VALUE}.
      * It runs once, under the {@link #STRING_READY} guard of the first method
-     * that uses a string constant.
+     * that uses a string constant or {@code intern}. When the program calls
+     * {@code intern}, it also builds the pool: a sentinel head node followed
+     * by one node per constant, since every literal is interned (JLS 3.10.5).
      */
     private Procedure stringInitProcedure() {
         var cmds = new ArrayList<Cmd>();
+        if (internUsed) {
+            cmds.add(new Cmd.Init("head", new Ty.Named(STRING_POOL), Optional.empty(), NO_LOCATION));
+            cmds.add(new Cmd.New("head", STRING_POOL, NO_LOCATION));
+            cmds.add(new Cmd.WriteField(new Expr.Var("head"), STRING_POOL, POOL_HAS_NEXT, new Expr.Bool(false), NO_LOCATION));
+            cmds.add(new Cmd.Set(STRING_POOL_HEAD, Optional.of(new Expr.Var("head")), NO_LOCATION));
+            cmds.add(new Cmd.Set(STRING_POOL_TAIL, Optional.of(new Expr.Var("head")), NO_LOCATION));
+        }
         int i = 0;
         for (var e : stringLiterals.entrySet()) {
-            String t = "t" + (i++);
+            String t = "t" + i;
             cmds.add(new Cmd.Init(t, new Ty.Named(STRING), Optional.empty(), NO_LOCATION));
             cmds.add(new Cmd.New(t, STRING, NO_LOCATION));
             cmds.add(new Cmd.WriteField(new Expr.Var(t), STRING, STRING_VALUE, new Expr.Str(e.getKey()), NO_LOCATION));
             cmds.add(new Cmd.Set(e.getValue(), Optional.of(new Expr.Var(t)), NO_LOCATION));
+            if (internUsed) {
+                String n = "n" + i;
+                cmds.add(new Cmd.Init(n, new Ty.Named(STRING_POOL), Optional.empty(), NO_LOCATION));
+                appendToPool(cmds, n, new Expr.Var(t));
+            }
+            i++;
         }
         var body = new Body("entry", List.of(new Block("entry", cmds, new Transfer.Finish(NO_LOCATION))), List.of());
         return new Procedure(STRING_INIT, List.of(), List.of(), Optional.empty(), List.of(), Optional.of(body),
                 false, NO_LOCATION);
+    }
+
+    /** The commands that append a node {@code n} (a declared local) holding {@code s} after the pool's last node. */
+    private static void appendToPool(List<Cmd> cmds, String n, Expr s) {
+        var tail = new Expr.Var(STRING_POOL_TAIL);
+        cmds.add(new Cmd.New(n, STRING_POOL, NO_LOCATION));
+        cmds.add(new Cmd.WriteField(new Expr.Var(n), STRING_POOL, POOL_STR, s, NO_LOCATION));
+        cmds.add(new Cmd.WriteField(new Expr.Var(n), STRING_POOL, POOL_HAS_NEXT, new Expr.Bool(false), NO_LOCATION));
+        cmds.add(new Cmd.WriteField(tail, STRING_POOL, POOL_NEXT, new Expr.Var(n), NO_LOCATION));
+        cmds.add(new Cmd.WriteField(tail, STRING_POOL, POOL_HAS_NEXT, new Expr.Bool(true), NO_LOCATION));
+        cmds.add(new Cmd.Set(STRING_POOL_TAIL, Optional.of(new Expr.Var(n)), NO_LOCATION));
+    }
+
+    /** Declares the pool's globals and composite, on the first {@code intern}. */
+    private void declarePool(FileRange at) {
+        internUsed = true;
+        referenced.add(STRING_POOL);
+        referenced.add(STRING);
+        for (String g : List.of(STRING_POOL_HEAD, STRING_POOL_TAIL)) {
+            globals.computeIfAbsent(g, n -> new Global(n, new Ty.Named(STRING_POOL), Optional.empty(), at));
+        }
+    }
+
+    /**
+     * {@code $string$intern(arg0) returns result}, {@code String.intern} as
+     * specified: walk the pool; the first String with {@code arg0}'s text is the
+     * result; when there is none, {@code arg0} is appended and is the result.
+     * The pool holds every literal from the start and grows only here, so a
+     * text has one canonical object, as in the JVM, where literals are
+     * interned at resolution and {@code intern} adds the rest. The JVM resolves
+     * a literal lazily and this translation eagerly, which no program can
+     * observe: both return the one canonical object for a text from every
+     * {@code ldc} and {@code intern}.
+     */
+    private Procedure stringInternProcedure() {
+        var string = new Ty.Named(STRING);
+        var node = new Ty.Named(STRING_POOL);
+        var arg = new Expr.Var("arg0");
+        var entry = new ArrayList<Cmd>();
+        entry.add(new Cmd.Init("v", new Ty.String_(), Optional.empty(), NO_LOCATION));
+        entry.add(new Cmd.Init("cv", new Ty.String_(), Optional.empty(), NO_LOCATION));
+        entry.add(new Cmd.Init("cur", node, Optional.empty(), NO_LOCATION));
+        entry.add(new Cmd.Init("n", node, Optional.empty(), NO_LOCATION));
+        entry.add(new Cmd.Init("c", string, Optional.empty(), NO_LOCATION));
+        entry.add(new Cmd.Init("more", new Ty.Bool(), Optional.empty(), NO_LOCATION));
+        entry.add(new Cmd.ReadField("v", arg, STRING, STRING_VALUE, NO_LOCATION));
+        entry.add(new Cmd.Set("cur", Optional.of(new Expr.Var(STRING_POOL_HEAD)), NO_LOCATION));
+        var loop = List.<Cmd>of(new Cmd.ReadField("more", new Expr.Var("cur"), STRING_POOL, POOL_HAS_NEXT, NO_LOCATION));
+        var step = List.<Cmd>of(
+                new Cmd.ReadField("cur", new Expr.Var("cur"), STRING_POOL, POOL_NEXT, NO_LOCATION),
+                new Cmd.ReadField("c", new Expr.Var("cur"), STRING_POOL, POOL_STR, NO_LOCATION),
+                new Cmd.ReadField("cv", new Expr.Var("c"), STRING, STRING_VALUE, NO_LOCATION));
+        var found = List.<Cmd>of(new Cmd.Set(RESULT, Optional.of(new Expr.Var("c")), NO_LOCATION));
+        var append = new ArrayList<Cmd>();
+        appendToPool(append, "n", arg);
+        append.add(new Cmd.Set(RESULT, Optional.of(arg), NO_LOCATION));
+        var body = new Body("entry", List.of(
+                new Block("entry", entry, new Transfer.Goto("loop", NO_LOCATION)),
+                new Block("loop", loop, new Transfer.CondGoto(new Expr.Var("more"), "step", "append", NO_LOCATION)),
+                new Block("step", step, new Transfer.CondGoto(new Expr.Eq(new Expr.Var("cv"), new Expr.Var("v")),
+                        "found", "loop", NO_LOCATION)),
+                new Block("found", found, new Transfer.Finish(NO_LOCATION)),
+                new Block("append", append, new Transfer.Finish(NO_LOCATION))), List.of());
+        return new Procedure(STRING_INTERN, List.of(new Param("arg0", string)), List.of(new Param(RESULT, string)),
+                Optional.empty(), List.of(), Optional.of(body), false, NO_LOCATION);
     }
 
     private String declareInitFlag(String fqn, FileRange at) {
@@ -1326,7 +1438,8 @@ public final class BytecodeToCortexCompiler {
          * assigns the default to each field of a primitive type.
          */
         private void prologue() {
-            if (cfg.seq.stream().anyMatch(el -> el instanceof ConstantInstruction ci && ci.constantValue() instanceof String)) {
+            if (cfg.seq.stream().anyMatch(el -> el instanceof ConstantInstruction ci && ci.constantValue() instanceof String
+                    || el instanceof InvokeInstruction inv && isStringIntern(inv))) {
                 stringGuard(methodRange);
             }
             if (entry) {
@@ -2120,6 +2233,9 @@ public final class BytecodeToCortexCompiler {
             switch (name + desc.descriptorString()) {
                 case "length()I" -> stringLength(at);
                 case "equals(Ljava/lang/Object;)Z" -> stringEquals(at);
+                case "<init>()V" -> stringConstructor(Optional.empty(), at);
+                case "<init>(Ljava/lang/String;)V" -> stringConstructor(Optional.of(pop()), at);
+                case "intern()Ljava/lang/String;" -> stringIntern(at);
                 default -> {
                     return false;
                 }
@@ -2166,6 +2282,33 @@ public final class BytecodeToCortexCompiler {
             seal(new Transfer.Goto(cont, at));
             startBlock(cont);
             push(Kind.I, boolToInt(new Expr.Var(result)), null, at);
+        }
+
+        /**
+         * {@code new String()} or {@code new String(s)}: the object, already
+         * allocated by {@code new}, gets the empty text or {@code s}'s. It is
+         * a new object, {@code !=} to every other String (JLS 12.5) and
+         * {@code equals} to {@code s}; {@code ==} to a literal of the same text
+         * does not hold, since literals are pooled and this is not.
+         */
+        private void stringConstructor(Optional<Value> src, FileRange at) {
+            var self = pop();
+            Expr text = src.isPresent() ? stringValue(src.get().expr, at) : new Expr.Str("");
+            cmds.add(new Cmd.WriteField(self.expr, STRING, STRING_VALUE, text, at));
+        }
+
+        /** {@code s.intern()}: a call to {@link #STRING_INTERN}, which runs under this method's {@link #stringGuard}. */
+        private void stringIntern(FileRange at) {
+            var s = pop();
+            declarePool(at);
+            String r = pushTarget(Kind.A, STRING);
+            cmds.add(new Cmd.Call(List.of(r), STRING_INTERN, List.of(s.expr), at));
+        }
+
+        private static boolean isStringIntern(InvokeInstruction inv) {
+            return JavaNames.dottedFqn(inv.owner().asInternalName()).equals(STRING)
+                    && inv.name().stringValue().equals("intern")
+                    && inv.typeSymbol().descriptorString().equals("()Ljava/lang/String;");
         }
 
         private void spec(String name, MethodTypeDesc desc, FileRange at) {
