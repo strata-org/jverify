@@ -180,5 +180,10 @@ public enum Blocker {
     /** Cortex: a construct the translation to Cortex refuses (null, arrays, static fields, ...). */
     CORTEX_UNSUPPORTED,
     /** Cortex: a call to a library method, which the translation to Cortex refuses in interpret mode. */
-    CORTEX_LIBRARY_CALL
+    CORTEX_LIBRARY_CALL,
+    /**
+     * Cortex: the fixture pins a diagnostic of the Laurel route (an inline {@code // ^ error:}
+     * annotation) that the translation to Cortex does not produce, because it supports the construct.
+     */
+    CORTEX_LAUREL_DIAGNOSTIC
 }

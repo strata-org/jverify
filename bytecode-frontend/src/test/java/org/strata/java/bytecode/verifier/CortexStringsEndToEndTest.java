@@ -120,6 +120,36 @@ class CortexStringsEndToEndTest {
                 """));
     }
 
+    private static final String METHODS = """
+            import org.strata.jverify.InterpretEntry;
+            import static org.strata.jverify.JVerify.check;
+
+            class Methods {
+                @InterpretEntry
+                static void run() {
+                    String a = "hello";
+                    String b = "hel";
+                    check(a.length() == 5);
+                    check("".length() == 0);
+                    check(a.equals("hello"));          // same text, same pooled object
+                    check(!a.equals(b));               // different text
+                    check(!a.equals(new Object()));    // not a String
+                    check(%s);
+                }
+            }
+            """;
+
+    /**
+     * length() is the text's length; equals(Object) is true exactly for a String
+     * with the same text. The receiver's static type must be String: a call on an
+     * Object-typed receiver is a library call to Object.equals.
+     */
+    @Test
+    void lengthAndEqualsFollowTheText(@TempDir Path tmp) throws Exception {
+        assertPasses(interpret(tmp, "Methods.java", "Methods#run", METHODS.formatted("b.length() == 3")));
+        assertFails(interpret(tmp, "Methods.java", "Methods#run", METHODS.formatted("b.equals(a)")));
+    }
+
     /** A constant used inside a loop body and in a static initializer reads the one pooled object. */
     @Test
     void theOneObjectIsReadInLoopsAndInitializers(@TempDir Path tmp) throws Exception {

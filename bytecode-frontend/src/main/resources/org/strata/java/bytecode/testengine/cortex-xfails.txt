@@ -190,12 +190,22 @@ RUN   org.strata.jverify.langref.jls15.s15_26.CompoundAssignment_9 passes on the
 RUN   org.strata.jverify.langref.jls15.s15_26.CompoundAssignment_LHSOnce passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_26.SimpleAssignment_6 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_28.SwitchExpression_2 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls15.s15_28.SwitchExpression_3 passes on the direct Cortex translation: string constants, String.length and String.equals
 RUN   org.strata.jverify.langref.jls15.s15_29.ConstantExpression_16 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_29.ConstantExpression_3 passes on the bytecode-to-Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_29.ConstantExpression_7 passes on the bytecode-to-Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_29.ConstantExpression_8 passes on the bytecode-to-Cortex translation
 RUN   org.strata.jverify.langref.jls15.s15_7.EvaluationOrder_LHSOnceCompound passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls15.s15_29.ConstantExpression_11 passes on the direct Cortex translation: string constants, String.length and String.equals
+RUN   org.strata.jverify.langref.jls15.s15_29.ConstantExpression_12 passes on the direct Cortex translation: string constants, String.length and String.equals
 RUN   org.strata.jverify.langref.jls3.s3_10.StringLiterals_7 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls3.s3_10.StringLiterals_1 passes on the direct Cortex translation: string constants, String.length and String.equals
+RUN   org.strata.jverify.langref.jls3.s3_10.StringLiterals_5 passes on the direct Cortex translation: string constants, String.length and String.equals
+RUN   org.strata.jverify.langref.jls3.s3_10.StringLiterals_6 passes on the direct Cortex translation: string constants, String.length and String.equals
+RUN   org.strata.jverify.langref.jls3.s3_10.StringLiterals_8 passes on the direct Cortex translation: string constants, String.length and String.equals
+RUN   org.strata.jverify.langref.jls3.s3_10.TextBlocks_1 passes on the direct Cortex translation: string constants, String.length and String.equals
+RUN   org.strata.jverify.langref.jls3.s3_10.TextBlocks_2 passes on the direct Cortex translation: string constants, String.length and String.equals
+RUN   org.strata.jverify.langref.jls3.s3_10.TextBlocks_3 passes on the direct Cortex translation: string constants, String.length and String.equals
 RUN   org.strata.jverify.langref.jls3.s3_12.Operators_21 passes on the bytecode-to-Cortex translation
 RUN   org.strata.jverify.langref.jls3.s3_12.Operators_22 passes on the bytecode-to-Cortex translation
 RUN   org.strata.jverify.langref.jls3.s3_12.Operators_23 passes on the bytecode-to-Cortex translation
@@ -245,6 +255,9 @@ RUN   org.strata.jverify.langref.jls4.s4_2.IntegerOperations_ShiftMaskLong passe
 RUN   org.strata.jverify.langref.jls4.s4_2.IntegralTypesAndValues_10 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls4.s4_2.IntegralTypesAndValues_11 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls4.s4_3.TheClassString_1 passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls4.s4_3.TheClassString_2 passes on the direct Cortex translation: string constants, String.length and String.equals
+RUN   org.strata.jverify.langref.jls4.s4_3.TheClassString_3 passes on the direct Cortex translation: string constants, String.length and String.equals
+RUN   org.strata.jverify.langref.jls4.s4_3.TheClassString_4 passes on the direct Cortex translation: string constants, String.length and String.equals
 RUN   org.strata.jverify.langref.jls5.s5_1.IdentityConversion_3 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls5.s5_1.WideningAndNarrowingPrimitiveConversion_1 passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls5.s5_1.WideningPrimitiveConversion_1 passes on the direct Cortex translation
@@ -291,6 +304,7 @@ RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayStaticFields pas
 RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayStaticInitializers passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls14.s14_20.TryFinally_3 passes on the direct Cortex translation: arrays in static fields
 RUN   org.strata.jverify.langref.jls14.s14_20.TryFinally_4 passes on the direct Cortex translation: arrays in static fields
+RUN   org.strata.jverify.langref.jls9.s9_4.Interface_GenericMethod passes on the direct Cortex translation: string constants, String.length and String.equals
 RUN   org.strata.jverify.langref.jls15.s15_7.EvaluationOrder_AbruptCompletion passes on the direct Cortex translation: static fields
 RUN   org.strata.jverify.langref.jls8.s8_8.ImplicitSuperCall_1 passes on the direct Cortex translation: static fields
 RUN   org.strata.jverify.langref.jls8.s8_9.EnumBodyDeclarations_1 passes on the direct Cortex translation: static fields
@@ -317,11 +331,19 @@ XFAIL org.strata.jverify.langref.jls5.s5_2.AssignmentContexts_12 CORTEX_LIBRARY_
 XFAIL org.strata.jverify.langref.jls5.s5_2.AssignmentContexts_13 CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.valueOf)
 XFAIL org.strata.jverify.langref.jls5.s5_5.CastingContexts_10 CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.valueOf)
 XFAIL org.strata.jverify.langref.jls5.s5_5.CastingContexts_11 CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.valueOf)
+RUN   org.strata.jverify.langref.jls5.s5_5.CastingContexts_8 passes on the direct Cortex translation: string constants, String.length and String.equals
 XFAIL org.strata.jverify.langref.jls6.s6_7.FullyQualified_1 CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.valueOf)
 XFAIL org.strata.jverify.langref.jls9.s9_1.GenericInterfaces CORTEX_LIBRARY_CALL the translation refuses calls to library methods in interpret mode (Integer.intValue, Integer.valueOf)
 XFAIL org.strata.jverify.verifier.tests.interpret.InterpretCalleePreconditionFails CORTEX_UNSUPPORTED no verdict: the translation refused a construct
 XFAIL org.strata.jverify.verifier.tests.interpret.InterpretPostconditionFails CORTEX_UNSUPPORTED no verdict: the translation refused a construct
-XFAIL org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_1 CORTEX_LIBRARY_CALL calls to library methods when interpreting
-XFAIL org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_2 CORTEX_LIBRARY_CALL calls to library methods when interpreting
-XFAIL org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_3 CORTEX_LIBRARY_CALL calls to library methods when interpreting
-XFAIL org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_4 CORTEX_LIBRARY_CALL calls to library methods when interpreting
+RUN   org.strata.jverify.langref.jls14.s14_30.PatternMatching_1 passes on the direct Cortex translation: string constants, String.length and String.equals
+RUN   org.strata.jverify.langref.jls15.s15_18.StringConcatenationOperator_4 passes on the direct Cortex translation: string constants, String.length and String.equals
+RUN   org.strata.jverify.langref.jls15.s15_18.StringConcatenationOperator_6 passes on the direct Cortex translation: string constants, String.length and String.equals
+RUN   org.strata.jverify.langref.jls15.s15_18.StringConcatenationOperator_7 passes on the direct Cortex translation: string constants, String.length and String.equals
+RUN   org.strata.jverify.langref.jls15.s15_18.StringConcatenationOperator_8 passes on the direct Cortex translation: string constants, String.length and String.equals
+RUN   org.strata.jverify.langref.jls4.s4_9.IntersectionTypes passes on the direct Cortex translation: string constants, String.length and String.equals
+XFAIL org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_1 CORTEX_LAUREL_DIAGNOSTIC the fixture expects Laurel's 'Unsupported call: length'; Cortex models String.length
+XFAIL org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_2 CORTEX_LAUREL_DIAGNOSTIC the fixture expects Laurel's 'Unsupported call: length'; Cortex models String.length
+XFAIL org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_3 CORTEX_LAUREL_DIAGNOSTIC the fixture expects Laurel's 'Unsupported call: length'; Cortex models String.length
+XFAIL org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_4 CORTEX_LAUREL_DIAGNOSTIC the fixture expects Laurel's 'Unsupported call: length'; Cortex models String.length
+RUN   org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_5 passes on the direct Cortex translation: string constants, String.length and String.equals

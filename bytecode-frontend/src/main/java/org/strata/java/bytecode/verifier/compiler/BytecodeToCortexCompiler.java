@@ -109,7 +109,9 @@ import java.util.Set;
  * {@code $string$init} allocates once, under a guard in the prologue of every
  * method that uses a string constant; so equal constants are one object in
  * every method, as in the JVM's string pool (JLS 3.10.5), and {@code ==} on
- * them is reference equality.
+ * them is reference equality. {@code String.length()} and
+ * {@code String.equals(Object)} are modelled inline on that field; every
+ * other {@code String} method is a library call.
  *
  * <p>What the translation does not support it refuses, per method, with an
  * error: JVerify specifications (every {@code JVerify} call but {@code check},
@@ -1896,6 +1898,9 @@ public final class BytecodeToCortexCompiler {
                 throw refuse("the array method " + name, at);
             }
             boolean isStatic = o == Opcode.INVOKESTATIC;
+            if (target.equals(STRING) && !isStatic && stringMethod(name, desc, at)) {
+                return;
+            }
             if (ClassInitialization.isEnumValuesMethod(resolver, inv)) {
                 // Only in an enum's <clinit>, as the value assigned to $VALUES, an
                 // assignment that is dropped: any reference does.
@@ -1945,6 +1950,63 @@ public final class BytecodeToCortexCompiler {
             String proc = declaringIn != null ? procName(declaringIn, name, desc)
                     : libraryProc(target, name, desc, isStatic, at);
             cmds.add(new Cmd.Call(lhs, proc, args, at));
+        }
+
+        /**
+         * The {@code java.lang.String} methods the translation models inline,
+         * on the receiver's {@code $value}; the operands are popped and the
+         * result pushed. Returns false for a method it does not model.
+         */
+        private boolean stringMethod(String name, MethodTypeDesc desc, FileRange at) {
+            switch (name + desc.descriptorString()) {
+                case "length()I" -> stringLength(at);
+                case "equals(Ljava/lang/Object;)Z" -> stringEquals(at);
+                default -> {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /** The text of the String object {@code s}, read into a fresh {@code string} temporary. */
+        private Expr stringValue(Expr s, FileRange at) {
+            String v = temp(new Ty.String_());
+            cmds.add(new Cmd.ReadField(v, s, STRING, STRING_VALUE, at));
+            return new Expr.Var(v);
+        }
+
+        /**
+         * {@code s.length()}: {@code Str.Length} of the text, narrowed to
+         * {@code bv32}. {@code Str.Length} counts code points where Java
+         * counts UTF-16 units, so the two differ on text outside the Basic
+         * Multilingual Plane.
+         */
+        private void stringLength(FileRange at) {
+            var s = pop();
+            push(Kind.I, toBv(32, op("Str.Length", stringValue(s.expr, at))), null, at);
+        }
+
+        /**
+         * {@code s.equals(o)}: true when {@code o} is a String whose text is
+         * {@code s}'s (JLS 4.3.3). The texts are compared in a block of their
+         * own, entered only when {@code o} is a String, since reading
+         * {@code $value} of another object is an error.
+         */
+        private void stringEquals(FileRange at) {
+            var o = pop();
+            var s = pop();
+            String isString = temp(new Ty.Bool());
+            cmds.add(new Cmd.InstanceOf(isString, o.expr, STRING, at));
+            String result = temp(new Ty.Bool());
+            cmds.add(new Cmd.Set(result, Optional.of(new Expr.Bool(false)), at));
+            String compare = freshLabel();
+            String cont = freshLabel();
+            seal(new Transfer.CondGoto(new Expr.Var(isString), compare, cont, at));
+            startBlock(compare);
+            cmds.add(new Cmd.Set(result, Optional.of(new Expr.Eq(stringValue(s.expr, at), stringValue(o.expr, at))), at));
+            seal(new Transfer.Goto(cont, at));
+            startBlock(cont);
+            push(Kind.I, boolToInt(new Expr.Var(result)), null, at);
         }
 
         private void spec(String name, MethodTypeDesc desc, FileRange at) {
