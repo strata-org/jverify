@@ -210,6 +210,10 @@ public class VerifierDriver {
             }
             return analyzeOnCortex(classes, sourceUris, reporter, javacTypes);
         }
+        if (Boolean.getBoolean(StrataBackend.LAUREL_CORTEX) && !options.interpret()) {
+            options.outWriter().println(StrataBackend.LAUREL_CORTEX_INTERPRET_ONLY);
+            return new JVerifyResults.DidNotRun(new ArrayList<>(reporter.diagnostics()), -1, -1);
+        }
         org.strata.java.bytecode.verifier.compiler.BytecodeToLaurelCompiler.AnalysisResult analysis;
         try {
             analysis = options.time("Compiling bytecode to Laurel",

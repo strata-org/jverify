@@ -230,6 +230,8 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
         var options = getVerifierOptions(annotation, JVerifyTestEngine.contractSources(markedSourceFile, annotation));
         if (className != null && Boolean.getBoolean(CortexXfailManifest.PROPERTY)) {
             verifyFileOnCortex(CortexXfails.INSTANCE, markedSourceFile, annotation, ranges, options, className);
+        } else if (className != null && Boolean.getBoolean(CortexXfailManifest.LAUREL_CORTEX_PROPERTY)) {
+            verifyFileOnCortex(LaurelCortexXfails.INSTANCE, markedSourceFile, annotation, ranges, options, className);
         } else {
             verifyFile(markedSourceFile, annotation, ranges, options);
         }
@@ -237,6 +239,11 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
 
     private static final class CortexXfails {
         static final CortexXfailManifest INSTANCE = CortexXfailManifest.load();
+    }
+
+    private static final class LaurelCortexXfails {
+        static final CortexXfailManifest INSTANCE =
+                CortexXfailManifest.load(CortexXfailManifest.LAUREL_CORTEX_RESOURCE);
     }
 
     private static void verifyFileOnCortex(CortexXfailManifest manifest, SourceFile sourceFile,
@@ -393,6 +400,7 @@ public class BytecodeTestEngine extends HierarchicalTestEngine<EngineExecutionCo
     public static final List<String> STRATA_PROGRAM_REJECTIONS = List.of(
             "Laurel resolution failed",
             "Laurel to Core translation failed",
+            "Laurel to Cortex translation failed",
             "Core type checking failed");
 
     public static Optional<StrataRejection> strataRejection(JVerifyResults results, JVerifyTest annotation) {

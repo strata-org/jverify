@@ -51,6 +51,18 @@ public class StrataBackend {
      */
     public static final String CORTEX = "jverify.cortex";
 
+    /**
+     * The system property that keeps the bytecode-to-Laurel translation but runs
+     * the Laurel program through Strata's Laurel-to-Cortex translation on the
+     * Cortex interpreter. It supports interpret mode only.
+     */
+    public static final String LAUREL_CORTEX = "jverify.laurelCortex";
+
+    /** Why {@link #LAUREL_CORTEX} refuses a verification run. */
+    public static final String LAUREL_CORTEX_INTERPRET_ONLY = "jverify.laurelCortex supports interpret mode only: "
+            + "Strata runs the Cortex translation of a Laurel program on the Cortex interpreter and has no "
+            + "Cortex verifier. Pass --interpret, or drop -Djverify.laurelCortex=true to verify.";
+
     /** Why {@link #CORTEX} refuses a verification run. */
     public static final String CORTEX_INTERPRET_ONLY = "jverify.cortex supports interpret mode only: "
             + "Strata runs Cortex programs on the Cortex interpreter and has no Cortex verifier. "
@@ -184,7 +196,19 @@ public class StrataBackend {
         static Invocation of(VerifierOptions options) {
             var arguments = new ArrayList<String>();
             boolean cortex = Boolean.getBoolean(CORTEX);
-            if (options.interpret()) {
+            boolean laurelCortex = !cortex && Boolean.getBoolean(LAUREL_CORTEX);
+            if (laurelCortex) {
+                if (!options.interpret()) {
+                    throw new IllegalArgumentException(LAUREL_CORTEX_INTERPRET_ONLY);
+                }
+                arguments.add("cortexInterpretBinary");
+                if (options.entry() != null) {
+                    arguments.add("--entry");
+                    arguments.add(entryProcedure(options.entry()));
+                }
+                arguments.add("--fuel");
+                arguments.add(options.fuel() != null ? Integer.toString(options.fuel()) : "100000");
+            } else if (options.interpret()) {
                 // Interpret mode shares the `==== DIAGNOSTICS ====` output format
                 // with laurelAnalyzeBinary, so parseStrataOutput is reused as is.
                 // A Cortex program runs on the Cortex interpreter, so the
@@ -218,12 +242,12 @@ public class StrataBackend {
                 arguments.add("--solver");
                 arguments.add("z3");
             }
-            if (!cortex && !"laurel".equals(options.interpreter())) {
+            if (!cortex && !laurelCortex && !"laurel".equals(options.interpreter())) {
                 arguments.add("--skip-phases");
                 arguments.add(String.join(",", UNUSED_LAUREL_PHASES));
             }
             var projectDir = options.strataProjectDir();
-            if (cortex && projectDir != null) {
+            if ((cortex || laurelCortex) && projectDir != null) {
                 throw new IllegalArgumentException("jverify.cortex cannot be combined with a Strata project "
                         + "directory: the Cortex commands are in strataLaurel, not in StrataCLI's strata. "
                         + "Use -Djverify.strataLaurel=<path> to select a local build.");

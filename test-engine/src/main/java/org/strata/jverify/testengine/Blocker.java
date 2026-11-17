@@ -185,5 +185,9 @@ public enum Blocker {
      * Cortex: the fixture pins a diagnostic of the Laurel route (an inline {@code // ^ error:}
      * annotation) that the translation to Cortex does not produce, because it supports the construct.
      */
-    CORTEX_LAUREL_DIAGNOSTIC
+    CORTEX_LAUREL_DIAGNOSTIC,
+    /** Laurel to Cortex: a construct of the Laurel program that Strata's translation to Cortex refuses. */
+    LAUREL_CORTEX_UNSUPPORTED,
+    /** Laurel to Cortex: the program runs on the Cortex interpreter but the outcome differs from the expected one. */
+    LAUREL_CORTEX_OUTCOME
 }

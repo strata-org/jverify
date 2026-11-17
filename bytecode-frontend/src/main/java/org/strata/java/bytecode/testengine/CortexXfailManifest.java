@@ -17,6 +17,8 @@ final class CortexXfailManifest {
 
     static final String PROPERTY = "jverify.cortex";
     static final String RESOURCE = "/org/strata/java/bytecode/testengine/cortex-xfails.txt";
+    static final String LAUREL_CORTEX_PROPERTY = "jverify.laurelCortex";
+    static final String LAUREL_CORTEX_RESOURCE = "/org/strata/java/bytecode/testengine/laurel-cortex-xfails.txt";
 
     record Xfail(Blocker blocker, String reason) {
     }

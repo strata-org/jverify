@@ -114,4 +114,30 @@ class StrataInvocationTest {
             System.clearProperty(StrataBackend.CORTEX);
         }
     }
+
+    @Test
+    void laurelCortexVerificationIsRejected() {
+        System.setProperty(StrataBackend.LAUREL_CORTEX, "true");
+        try {
+            var rejection = assertThrows(IllegalArgumentException.class, () ->
+                    StrataBackend.Invocation.of(options(false, null, null, null, null)));
+            assertTrue(rejection.getMessage().startsWith("jverify.laurelCortex supports interpret mode only"),
+                    rejection.getMessage());
+        } finally {
+            System.clearProperty(StrataBackend.LAUREL_CORTEX);
+        }
+    }
+
+    @Test
+    void laurelCortexInterpretationSendsLaurelToTheCortexInterpreter() {
+        System.setProperty(StrataBackend.LAUREL_CORTEX, "true");
+        try {
+            assertEquals(List.of("strataLaurel", "cortexInterpretBinary", "--entry", "p.C::m", "--fuel", "7"),
+                    StrataBackend.Invocation.of(options(true, "p.C#m", 7, "laurel", null)).command());
+            assertEquals(List.of("strataLaurel", "cortexInterpretBinary", "--fuel", "100000"),
+                    StrataBackend.Invocation.of(options(true, null, null, "laurel", null)).command());
+        } finally {
+            System.clearProperty(StrataBackend.LAUREL_CORTEX);
+        }
+    }
 }
