@@ -126,10 +126,12 @@ import java.util.Set;
  * {@code String.equals(Object)} and the constructors {@code String()} and
  * {@code String(String)} are modelled inline on that field.
  * String concatenation ({@code invokedynamic} on {@code StringConcatFactory})
- * joins the operands' texts with {@code Str.Concat} into a new String object.
- * {@code String.intern()} is the procedure {@code $string$intern} over a pool,
- * a linked list of {@code $string$pool} nodes that {@code $string$init} fills
- * with the constants and {@code intern} extends. Every other {@code String}
+ * joins the operands' texts with {@code Str.Concat} into a new String object;
+ * a String operand that may be null is refused. {@code String.intern()} is
+ * the procedure {@code $string$intern} over a pool, a linked list of
+ * {@code $string$pool} nodes; when a program interns, each constant joins the
+ * pool at its first {@code ldc}, so a string interned earlier with the same
+ * text is what the constant resolves to (JVMS 5.1). Every other {@code String}
  * method is a library call.
  *
  * <p>What the translation does not support it refuses, per method, with an
@@ -242,6 +244,8 @@ public final class BytecodeToCortexCompiler {
     /** The globals holding the pool's sentinel head and its last node. */
     public static final String STRING_POOL_HEAD = "$string$poolHead";
     public static final String STRING_POOL_TAIL = "$string$poolTail";
+    public static final String MAYBE_NULL_OPERAND =
+            "a string concatenation whose String operand may be null (a field, a call result or a parameter)";
     /** The procedure that implements {@code String.intern} on the pool. */
     public static final String STRING_INTERN = "$string$intern";
     /** Whether the program calls {@code String.intern}, so the pool is built. */
@@ -288,6 +292,16 @@ public final class BytecodeToCortexCompiler {
                 resolver.programClassModels.put(fqn, cm);
                 resolver.knownClasses.put(fqn, fqn);
                 cm.superclass().ifPresent(sup -> resolver.programSuper.put(fqn, JavaNames.dottedFqn(sup.asInternalName())));
+            }
+        }
+        for (var cm : programClasses.values()) {
+            for (var m : cm.methods()) {
+                var code = m.code();
+                if (code.isPresent() && code.get().elementList().stream()
+                        .anyMatch(el -> el instanceof InvokeInstruction inv && isStringIntern(inv))) {
+                    // Known before any `ldc` is translated: a program that interns resolves its literals lazily.
+                    declarePool(NO_LOCATION);
+                }
             }
         }
         for (var cls : units) {
@@ -782,8 +796,9 @@ public final class BytecodeToCortexCompiler {
      * string constant of the program and writes its text to {@link #STRING_VALUE}.
      * It runs once, under the {@link #STRING_READY} guard of the first method
      * that uses a string constant or {@code intern}. When the program calls
-     * {@code intern}, it also builds the pool: a sentinel head node followed
-     * by one node per constant, since every literal is interned (JLS 3.10.5).
+     * {@code intern}, it also creates the pool, empty but for its sentinel
+     * head: a constant joins the pool when its first {@code ldc} runs
+     * ({@link MethodTranslator#constant}), as in the JVM (JVMS 5.1).
      */
     private Procedure stringInitProcedure() {
         var cmds = new ArrayList<Cmd>();
@@ -801,11 +816,6 @@ public final class BytecodeToCortexCompiler {
             cmds.add(new Cmd.New(t, STRING, NO_LOCATION));
             cmds.add(new Cmd.WriteField(new Expr.Var(t), STRING, STRING_VALUE, new Expr.Str(e.getKey()), NO_LOCATION));
             cmds.add(new Cmd.Set(e.getValue(), Optional.of(new Expr.Var(t)), NO_LOCATION));
-            if (internUsed) {
-                String n = "n" + i;
-                cmds.add(new Cmd.Init(n, new Ty.Named(STRING_POOL), Optional.empty(), NO_LOCATION));
-                appendToPool(cmds, n, new Expr.Var(t));
-            }
             i++;
         }
         var body = new Body("entry", List.of(new Block("entry", cmds, new Transfer.Finish(NO_LOCATION))), List.of());
@@ -824,6 +834,12 @@ public final class BytecodeToCortexCompiler {
         cmds.add(new Cmd.Set(STRING_POOL_TAIL, Optional.of(new Expr.Var(n)), NO_LOCATION));
     }
 
+    private static boolean isStringIntern(InvokeInstruction inv) {
+        return JavaNames.dottedFqn(inv.owner().asInternalName()).equals(STRING)
+                && inv.name().stringValue().equals("intern")
+                && inv.typeSymbol().descriptorString().equals("()Ljava/lang/String;");
+    }
+
     /** Declares the pool's globals and composite, on the first {@code intern}. */
     private void declarePool(FileRange at) {
         internUsed = true;
@@ -838,12 +854,11 @@ public final class BytecodeToCortexCompiler {
      * {@code $string$intern(arg0) returns result}, {@code String.intern} as
      * specified: walk the pool; the first String with {@code arg0}'s text is the
      * result; when there is none, {@code arg0} is appended and is the result.
-     * The pool holds every literal from the start and grows only here, so a
-     * text has one canonical object, as in the JVM, where literals are
-     * interned at resolution and {@code intern} adds the rest. The JVM resolves
-     * a literal lazily and this translation eagerly, which no program can
-     * observe: both return the one canonical object for a text from every
-     * {@code ldc} and {@code intern}.
+     * The pool grows only here, and a constant enters it when its first
+     * {@code ldc} runs, through this procedure too. So a text has one
+     * canonical object, and which object it is follows the order of events as
+     * in the JVM (JVMS 5.1): a string interned before the first {@code ldc}
+     * of a constant with its text is what that constant resolves to.
      */
     private Procedure stringInternProcedure() {
         var string = new Ty.Named(STRING);
@@ -1137,6 +1152,15 @@ public final class BytecodeToCortexCompiler {
          * tracked exactly, because {@code baload} and {@code bastore} take the element type from it.
          */
         private Map<Integer, String> localArrays = new HashMap<>();
+        /** Where each stack value comes from, as far as nullness goes; see {@link Provenance}. */
+        private List<Provenance> stackProvenance = new ArrayList<>();
+        /**
+         * The sources of every store to each local slot, {@link Provenance#UNKNOWN} for a
+         * reference parameter: a slot is never null when all of them are (greatest fixpoint).
+         */
+        private final Map<Integer, List<Provenance>> slotStores = new HashMap<>();
+        /** Concatenation operands loaded from a local, judged once every store to the slot is known. */
+        private final List<Map.Entry<Integer, FileRange>> operandSlots = new ArrayList<>();
         private String label;
         private List<Cmd> cmds;
         private int blockId;
@@ -1241,14 +1265,24 @@ public final class BytecodeToCortexCompiler {
             int arg = 0;
             if (!isStatic) {
                 copies.add(new Cmd.Set(localVar(0, Kind.A), Optional.of(new Expr.Var("arg0")), methodRange));
+                slotStores.computeIfAbsent(0, x -> new ArrayList<>()).add(Provenance.NON_NULL); // this
                 slot = 1;
                 arg = 1;
             }
             for (var p : method.methodTypeSymbol().parameterList()) {
                 Kind k = kindOf(p, methodRange);
                 copies.add(new Cmd.Set(localVar(slot, k), Optional.of(new Expr.Var("arg" + arg)), methodRange));
+                if (k == Kind.A) {
+                    slotStores.computeIfAbsent(slot, x -> new ArrayList<>()).add(Provenance.UNKNOWN);
+                }
                 slot += k == Kind.J ? 2 : 1;
                 arg++;
+            }
+            var neverNull = neverNullSlots();
+            for (var operand : operandSlots) {
+                if (!neverNull.contains(operand.getKey())) {
+                    throw refuse(MAYBE_NULL_OPERAND, operand.getValue());
+                }
             }
             var entryCmds = new ArrayList<Cmd>();
             for (var d : declared.entrySet()) {
@@ -1328,6 +1362,7 @@ public final class BytecodeToCortexCompiler {
             cmds.add(new Cmd.Set(v, Optional.of(value), at));
             stack.add(k);
             stackTypes.add(type);
+            stackProvenance.add(Provenance.UNKNOWN);
             return new Expr.Var(v);
         }
 
@@ -1335,28 +1370,89 @@ public final class BytecodeToCortexCompiler {
             String v = stackVar(stack.size(), k);
             stack.add(k);
             stackTypes.add(type);
+            stackProvenance.add(Provenance.UNKNOWN);
             return v;
         }
 
-        private record Value(Kind kind, Expr expr, @Nullable String type) {
+        /**
+         * Whether a reference value is known not to be null: an object this
+         * method allocated or a resolved string constant ({@link #NON_NULL}),
+         * a local's value, judged by the stores to its slot ({@link Slot}), or
+         * anything else, such as a field, a call result or a merge of paths
+         * ({@link #UNKNOWN}). The translation has no null, so an operation that
+         * reads a field of a value that may be null is refused rather than
+         * left to stop the run.
+         */
+        private sealed interface Provenance {
+            Provenance NON_NULL = new NonNull();
+            Provenance UNKNOWN = new Unknown();
+
+            record NonNull() implements Provenance {
+            }
+
+            record Unknown() implements Provenance {
+            }
+
+            record Slot(int slot) implements Provenance {
+            }
+        }
+
+        private record Value(Kind kind, Expr expr, @Nullable String type, Provenance provenance) {
+            Value(Kind kind, Expr expr, @Nullable String type) {
+                this(kind, expr, type, Provenance.UNKNOWN);
+            }
+        }
+
+        /** Marks the value just pushed as never null. */
+        private void markNonNull() {
+            stackProvenance.set(stackProvenance.size() - 1, Provenance.NON_NULL);
+        }
+
+        private void markProvenance(Provenance p) {
+            stackProvenance.set(stackProvenance.size() - 1, p);
+        }
+
+        /** The slots whose every store is never null, given the stores seen in the whole method. */
+        private Set<Integer> neverNullSlots() {
+            var never = new java.util.HashSet<>(slotStores.keySet());
+            boolean changed = true;
+            while (changed) {
+                changed = false;
+                for (var e : slotStores.entrySet()) {
+                    if (!never.contains(e.getKey())) {
+                        continue;
+                    }
+                    for (var p : e.getValue()) {
+                        boolean ok = p instanceof Provenance.NonNull || p instanceof Provenance.Slot sl && never.contains(sl.slot());
+                        if (!ok) {
+                            never.remove(e.getKey());
+                            changed = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            return never;
         }
 
         private Value pop() {
             int d = stack.size() - 1;
             Kind k = stack.remove(d);
             String t = stackTypes.remove(d);
-            return new Value(k, new Expr.Var("s" + d + k), t);
+            Provenance p = stackProvenance.remove(d);
+            return new Value(k, new Expr.Var("s" + d + k), t, p);
         }
 
         private Value snapshot(Value v, FileRange at) {
             String t = temp(v.kind.stackTy());
             cmds.add(new Cmd.Set(t, Optional.of(v.expr), at));
-            return new Value(v.kind, new Expr.Var(t), v.type);
+            return new Value(v.kind, new Expr.Var(t), v.type, v.provenance);
         }
 
         private void pushValues(List<Value> values, FileRange at) {
             for (var v : values) {
                 push(v.kind, v.expr, v.type, at);
+                markProvenance(v.provenance);
             }
         }
 
@@ -1696,6 +1792,7 @@ public final class BytecodeToCortexCompiler {
             stack = new ArrayList<>(entryShape.get(b.id));
             stackTypes = new ArrayList<>(entryTypes.get(b.id));
             enterArrayTypes(b);
+            stackProvenance = new ArrayList<>(java.util.Collections.nCopies(stack.size(), Provenance.UNKNOWN));
             startBlock("b" + b.id);
             for (int idx : b.instrs) {
                 CodeElement el = cfg.seq.get(idx);
@@ -1770,6 +1867,9 @@ public final class BytecodeToCortexCompiler {
                 case LoadInstruction li -> {
                     Kind k = kindOf(li.typeKind(), at);
                     push(k, new Expr.Var(localVar(li.slot(), k)), k == Kind.A ? localArrays.get(li.slot()) : null, at);
+                    if (k == Kind.A) {
+                        markProvenance(new Provenance.Slot(li.slot()));
+                    }
                 }
                 case StoreInstruction si -> {
                     Kind k = kindOf(si.typeKind(), at);
@@ -1781,6 +1881,9 @@ public final class BytecodeToCortexCompiler {
                     }
                     if (isArrayType(v.type)) {
                         localArrays.put(si.slot(), v.type);
+                    }
+                    if (k == Kind.A) {
+                        slotStores.computeIfAbsent(si.slot(), x -> new ArrayList<>()).add(v.provenance);
                     }
                 }
                 case IncrementInstruction ii -> {
@@ -1801,6 +1904,7 @@ public final class BytecodeToCortexCompiler {
                     referenced.add(c);
                     initialize(c, at);
                     cmds.add(new Cmd.New(pushTarget(Kind.A, c), c, at));
+                    markNonNull();
                 }
                 case NewPrimitiveArrayInstruction na when interpret -> newArray(na, at);
                 case NewReferenceArrayInstruction nr when interpret ->
@@ -1920,8 +2024,12 @@ public final class BytecodeToCortexCompiler {
                 case Long l -> push(Kind.J, lit(Kind.J, l), null, at);
                 case String s -> {
                     String global = stringLiteral(s, at);
+                    if (internUsed) {
+                        resolveLiteral(global, at);
+                    }
                     String t = pushTarget(Kind.A, STRING);
                     cmds.add(new Cmd.Set(t, Optional.of(new Expr.Var(global)), at));
+                    markNonNull();
                 }
                 case ClassDesc c -> throw refuse("class literals", at);
                 default -> throw refuse(v instanceof Float || v instanceof Double
@@ -2295,12 +2403,27 @@ public final class BytecodeToCortexCompiler {
             String result = pushTarget(Kind.A, STRING);
             cmds.add(new Cmd.New(result, STRING, at));
             cmds.add(new Cmd.WriteField(new Expr.Var(result), STRING, STRING_VALUE, new Expr.Var(joined), at));
+            markNonNull();
         }
 
-        /** The text of a concatenation operand of static type {@code type} (JLS 5.1.11). */
+        /**
+         * The text of a concatenation operand of static type {@code type}
+         * (JLS 5.1.11). A String operand that may be null would read a field
+         * of nothing, so it is refused: accepted are objects this method
+         * allocated, resolved constants, and locals whose every store is one
+         * of those ({@link Provenance}); a null String would concatenate as
+         * {@code "null"}, which needs a null in the translation first.
+         */
         private Expr textOf(Value v, ClassDesc type, FileRange at) {
             return switch (type.descriptorString()) {
-                case "Ljava/lang/String;" -> stringValue(v.expr, at);
+                case "Ljava/lang/String;" -> {
+                    switch (v.provenance) {
+                        case Provenance.NonNull n -> { }
+                        case Provenance.Slot sl -> operandSlots.add(Map.entry(sl.slot(), at));
+                        case Provenance.Unknown u -> throw refuse(MAYBE_NULL_OPERAND, at);
+                    }
+                    yield stringValue(v.expr, at);
+                }
                 case "Z" -> new Expr.Ite(isZero(v.expr), new Expr.Str("false"), new Expr.Str("true"));
                 default -> throw refuse("string conversion of " + type.displayName() + " in a concatenation", at);
             };
@@ -2385,12 +2508,30 @@ public final class BytecodeToCortexCompiler {
             declarePool(at);
             String r = pushTarget(Kind.A, STRING);
             cmds.add(new Cmd.Call(List.of(r), STRING_INTERN, List.of(s.expr), at));
+            markNonNull();
         }
 
-        private static boolean isStringIntern(InvokeInstruction inv) {
-            return JavaNames.dottedFqn(inv.owner().asInternalName()).equals(STRING)
-                    && inv.name().stringValue().equals("intern")
-                    && inv.typeSymbol().descriptorString().equals("()Ljava/lang/String;");
+        /**
+         * Resolution of a string constant (JVMS 5.1), when the program interns:
+         * the first {@code ldc} of its text interns the constant's object, so
+         * if a string with that text was interned before, the constant becomes
+         * that string. Later {@code ldc}s read the resolved global.
+         * <pre>
+         * if (!resolved) { resolved := true; lit := $string$intern(lit); }
+         * </pre>
+         */
+        private void resolveLiteral(String global, FileRange at) {
+            String flag = declareFlag(global + "$resolved", at);
+            String resolve = freshLabel();
+            String cont = freshLabel();
+            seal(new Transfer.CondGoto(new Expr.Var(flag), cont, resolve, at));
+            startBlock(resolve);
+            cmds.add(new Cmd.Set(flag, Optional.of(new Expr.Bool(true)), at));
+            String r = temp(new Ty.Named(STRING));
+            cmds.add(new Cmd.Call(List.of(r), STRING_INTERN, List.of(new Expr.Var(global)), at));
+            cmds.add(new Cmd.Set(global, Optional.of(new Expr.Var(r)), at));
+            seal(new Transfer.Goto(cont, at));
+            startBlock(cont);
         }
 
         private void spec(String name, MethodTypeDesc desc, FileRange at) {

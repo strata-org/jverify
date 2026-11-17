@@ -215,20 +215,51 @@ class CortexStringsEndToEndTest {
         assertFails(interpret(tmp, "Interning.java", "Interning#run", INTERNING.formatted("a.intern() == a")));
     }
 
-    /** A method that interns but has no string constant still runs the pool's initialization first. */
+    /**
+     * A program that interns but has no string constant at all still gets the
+     * pool: the guard runs {@code $string$init}, which then holds only the
+     * pool's sentinel, in the prologue of the method that interns.
+     */
     @Test
-    void internWithoutAConstantInTheMethodFindsThePool(@TempDir Path tmp) throws Exception {
-        assertPasses(interpret(tmp, "Split.java", "Split#run", """
+    void internWithoutAnyConstantFindsThePool(@TempDir Path tmp) throws Exception {
+        assertPasses(interpret(tmp, "NoConstant.java", "NoConstant#run", """
                 import org.strata.jverify.InterpretEntry;
                 import static org.strata.jverify.JVerify.check;
 
-                class Split {
-                    static String canon(String s) { return s.intern(); }
+                class NoConstant {
                     @InterpretEntry
                     static void run() {
-                        String k = new String("k");
-                        check(canon(k) == "k");
-                        check(canon(k) != k);
+                        String e = new String();
+                        check(e.intern() == e);
+                        check(new String().intern() == e);
+                    }
+                }
+                """));
+    }
+
+    /**
+     * Constants resolve lazily (JVMS 5.1): a string interned before the first
+     * {@code ldc} of a constant with its text is the object that constant
+     * becomes, in every method; a constant resolved first keeps its object.
+     */
+    @Test
+    void aConstantResolvesToAStringInternedBeforeItsFirstUse(@TempDir Path tmp) throws Exception {
+        assertPasses(interpret(tmp, "Lazy.java", "Lazy#run", """
+                import org.strata.jverify.InterpretEntry;
+                import static org.strata.jverify.JVerify.check;
+
+                class Lazy {
+                    static String lit() { return "qzxw1"; }
+                    @InterpretEntry
+                    static void run() {
+                        String a = "qz";
+                        String b = "xw1";
+                        String p = a + b;
+                        check(p.intern() == p);          // nothing with this text is in the pool: p joins it
+                        check(lit() == p);               // the constant, first resolved now, is p
+                        check(lit() == p);               // and stays p
+                        String q = new String("qz");
+                        check(q.intern() == a);          // "qz" was resolved before: it is the pooled one
                     }
                 }
                 """));
@@ -261,7 +292,7 @@ class CortexStringsEndToEndTest {
                     static String f = "lit";
                     String g;
                     Writers(String s) { g = new String(s); }
-                    String h(String s) { return (s + "!").intern(); }
+                    String h(String s) { String t = new String(s); return (t + "!").intern(); }
                     @InterpretEntry
                     static void run() {
                         Writers w = new Writers("a");
@@ -279,34 +310,7 @@ class CortexStringsEndToEndTest {
             if (proc.body().isEmpty() || poolProcs.contains(proc.name())) {
                 continue;
             }
-            for (var block : proc.body().get().blocks()) {
-                var fresh = new HashSet<String>();
-                for (var cmd : block.cmds()) {
-                    switch (cmd) {
-                        case Cmd.New n when n.ty().equals(BytecodeToCortexCompiler.STRING) -> fresh.add(n.lhs());
-                        case Cmd.New n -> fresh.remove(n.lhs());
-                        case Cmd.Set st -> {
-                            if (poolGlobals.contains(st.name())) {
-                                violations.add(proc.name() + ": writes " + st.name());
-                            }
-                            if (st.value().isPresent() && st.value().get() instanceof Expr.Var v && fresh.contains(v.name())) {
-                                fresh.add(st.name());
-                            } else {
-                                fresh.remove(st.name());
-                            }
-                        }
-                        case Cmd.WriteField w when w.owner().equals(BytecodeToCortexCompiler.STRING_POOL) ->
-                                violations.add(proc.name() + ": writes a pool node");
-                        case Cmd.WriteField w when w.owner().equals(BytecodeToCortexCompiler.STRING)
-                                && !(w.obj() instanceof Expr.Var v && fresh.contains(v.name())) ->
-                                violations.add(proc.name() + ": writes $value of an object it did not allocate");
-                        case Cmd.Call c -> fresh.removeAll(c.lhs());
-                        case Cmd.VirtualCall c -> fresh.removeAll(c.lhs());
-                        default -> {
-                        }
-                    }
-                }
-            }
+            violations.addAll(poolWritesOutsideConstructors(proc, poolGlobals));
         }
         if (!violations.isEmpty()) {
             fail(String.join("\n", violations));
@@ -335,6 +339,8 @@ class CortexStringsEndToEndTest {
                     String c = a;
                     c += b;
                     check(c.equals("abcd"));
+                    String n = new String("q");
+                    check((n + c + n).equals("qabcdq"));  // allocated here, assigned from a concatenation
                     check(%s);
                 }
             }
@@ -378,15 +384,109 @@ class CortexStringsEndToEndTest {
                 import static org.strata.jverify.JVerify.check;
 
                 class Refused {
+                    static String field;
                     static String number(int i) { return "" + i; }
                     static Runnable lambda() { return () -> {}; }
+                    static String fromField() { return "x" + field; }
+                    static String fromParameter(String s) { String t = s; return t + "!"; }
+                    static String mk() { return new String("m"); }
+                    static String fromCall() { String s = mk(); return s + "!"; }
+                    static String fromBranch(boolean b) { String s = b ? "y" : field; return s + "!"; }
                     @InterpretEntry
                     static void ok() { check(true); }
                 }
                 """);
         assertEquals(0, ran.verificationResults().verificationFailedMethods(), () -> messages(ran).toString());
+        String prefix = "error: not supported by the direct Cortex translation: ";
+        String mayBeNull = prefix + BytecodeToCortexCompiler.MAYBE_NULL_OPERAND;
         assertEquals(List.of(
-                "error: not supported by the direct Cortex translation: string conversion of int in a concatenation",
-                "error: not supported by the direct Cortex translation: invokedynamic run"), messages(ran));
+                prefix + "string conversion of int in a concatenation",
+                prefix + "invokedynamic run",
+                mayBeNull, mayBeNull, mayBeNull, mayBeNull), messages(ran));
+    }
+
+    /**
+     * The writes to the pool, or to {@code $value} of an object the procedure
+     * did not allocate, in {@code proc}. "Allocated" is a forward must-analysis
+     * over the blocks: a variable is fresh after {@code new String} and copies
+     * of it, until it is reassigned; at a join only what every path has.
+     */
+    private static List<String> poolWritesOutsideConstructors(Procedure proc, Set<String> poolGlobals) {
+        var body = proc.body().get();
+        var byLabel = new java.util.HashMap<String, org.strata.jverify.cortex.Block>();
+        var succs = new java.util.HashMap<String, List<String>>();
+        for (var b : body.blocks()) {
+            byLabel.put(b.label(), b);
+            succs.put(b.label(), switch (b.transfer()) {
+                case org.strata.jverify.cortex.Transfer.Goto g -> List.of(g.target());
+                case org.strata.jverify.cortex.Transfer.CondGoto c -> List.of(c.thenTarget(), c.elseTarget());
+                case org.strata.jverify.cortex.Transfer.Finish f -> List.of();
+            });
+        }
+        var in = new java.util.HashMap<String, Set<String>>();
+        in.put(body.entry(), new HashSet<>());
+        for (var h : body.handlers()) {
+            in.put(h.target(), new HashSet<>());
+        }
+        var work = new java.util.ArrayDeque<>(in.keySet());
+        while (!work.isEmpty()) {
+            String l = work.poll();
+            var out = simulate(byLabel.get(l), in.get(l), poolGlobals, null);
+            for (String s : succs.get(l)) {
+                var before = in.get(s);
+                if (before == null) {
+                    in.put(s, new HashSet<>(out));
+                    work.add(s);
+                } else if (before.retainAll(out)) {
+                    work.add(s);
+                }
+            }
+        }
+        var violations = new ArrayList<String>();
+        for (var b : body.blocks()) {
+            if (in.containsKey(b.label())) {
+                simulate(b, in.get(b.label()), poolGlobals, v -> violations.add(proc.name() + ": " + v));
+            }
+        }
+        return violations;
+    }
+
+    private static Set<String> simulate(org.strata.jverify.cortex.Block block, Set<String> freshIn,
+                                        Set<String> poolGlobals, java.util.function.Consumer<String> report) {
+        var fresh = new HashSet<>(freshIn);
+        for (var cmd : block.cmds()) {
+            switch (cmd) {
+                case Cmd.New n when n.ty().equals(BytecodeToCortexCompiler.STRING) -> fresh.add(n.lhs());
+                case Cmd.New n -> fresh.remove(n.lhs());
+                case Cmd.Set st -> {
+                    if (poolGlobals.contains(st.name()) && report != null) {
+                        report.accept("writes " + st.name());
+                    }
+                    if (st.value().isPresent() && st.value().get() instanceof Expr.Var v && fresh.contains(v.name())) {
+                        fresh.add(st.name());
+                    } else {
+                        fresh.remove(st.name());
+                    }
+                }
+                case Cmd.WriteField w when w.owner().equals(BytecodeToCortexCompiler.STRING_POOL) -> {
+                    if (report != null) {
+                        report.accept("writes a pool node");
+                    }
+                }
+                case Cmd.WriteField w when w.owner().equals(BytecodeToCortexCompiler.STRING)
+                        && !(w.obj() instanceof Expr.Var v && fresh.contains(v.name())) -> {
+                    if (report != null) {
+                        report.accept("writes $value of an object it did not allocate");
+                    }
+                }
+                case Cmd.Call c -> fresh.removeAll(c.lhs());
+                case Cmd.VirtualCall c -> fresh.removeAll(c.lhs());
+                case Cmd.ReadField r -> fresh.remove(r.lhs());
+                case Cmd.Init i -> fresh.remove(i.name());
+                default -> {
+                }
+            }
+        }
+        return fresh;
     }
 }
