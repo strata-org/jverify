@@ -1248,11 +1248,19 @@ final class InvokeTranslator {
                 if (iname.equals("makeConcatWithConstants") && !bsm.arguments().isEmpty()
                         && bsm.arguments().get(0)
                                 instanceof java.lang.classfile.constantpool.StringEntry recipe) {
-                    b.stringConcatResults.add(b.push(stringConcat(recipe.stringValue(), captures).val()));
+                    var constants = new ArrayList<String>();
+                    for (var c : bsm.arguments().subList(1, bsm.arguments().size())) {
+                        if (c instanceof java.lang.classfile.constantpool.StringEntry se) {
+                            constants.add(se.stringValue());
+                        }
+                    }
+                    b.stringConcatResults.add(b.push(stringConcat(
+                            ConcatRecipe.parts(recipe.stringValue(), captures.size(), constants), captures).val()));
                     return;
                 }
                 if (iname.equals("makeConcat")) {
-                    b.stringConcatResults.add(b.push(stringConcat(null, captures).val()));
+                    b.stringConcatResults.add(b.push(stringConcat(
+                            ConcatRecipe.parts(null, captures.size(), List.of()), captures).val()));
                     return;
                 }
             }
@@ -1267,30 +1275,13 @@ final class InvokeTranslator {
     }
 
     /** The recipe's `+` chain, lowered to {@code $add}. */
-    private AstNode<StmtExpr> stringConcat(String recipe, List<AstNode<StmtExpr>> args) {
+    private AstNode<StmtExpr> stringConcat(List<ConcatRecipe.Part> recipe, List<AstNode<StmtExpr>> args) {
         var parts = new ArrayList<AstNode<StmtExpr>>();
-        if (recipe == null) {
-            parts.addAll(args);
-        } else {
-            int argAt = 0;
-            var sb = new StringBuilder();
-            for (int i = 0; i < recipe.length(); i++) {
-                char c = recipe.charAt(i);
-                if (c == '\u0001') {
-                    if (sb.length() > 0) {
-                        parts.add(b.e(new StmtExpr.LiteralString(sb.toString())));
-                        sb.setLength(0);
-                    }
-                    if (argAt < args.size()) {
-                        parts.add(args.get(argAt++));
-                    }
-                } else {
-                    sb.append(c);
-                }
-            }
-            if (sb.length() > 0) {
-                parts.add(b.e(new StmtExpr.LiteralString(sb.toString())));
-            }
+        for (var part : recipe) {
+            parts.add(switch (part) {
+                case ConcatRecipe.Part.Text t -> b.e(new StmtExpr.LiteralString(t.text()));
+                case ConcatRecipe.Part.Arg a -> args.get(a.index());
+            });
         }
         if (parts.isEmpty()) {
             return b.e(new StmtExpr.LiteralString(""));

@@ -261,12 +261,12 @@ class CortexStringsEndToEndTest {
                     static String f = "lit";
                     String g;
                     Writers(String s) { g = new String(s); }
-                    String h(String s) { return s.intern(); }
+                    String h(String s) { return (s + "!").intern(); }
                     @InterpretEntry
                     static void run() {
                         Writers w = new Writers("a");
                         String t = new String("b").intern();
-                        check(w.g.equals("a") && t == "b" && w.h("x") == "x");
+                        check(w.g.equals("a") && t == "b" && w.h("x") == "x!");
                     }
                 }
                 """);
@@ -311,5 +311,82 @@ class CortexStringsEndToEndTest {
         if (!violations.isEmpty()) {
             fail(String.join("\n", violations));
         }
+    }
+
+    private static final String CONCAT = """
+            import org.strata.jverify.InterpretEntry;
+            import static org.strata.jverify.JVerify.check;
+
+            class Concat {
+                @InterpretEntry
+                static void run() {
+                    String a = "ab";
+                    String b = "cd";
+                    String s = a + b;
+                    check(s.length() == 4);
+                    check(s.equals("abcd"));
+                    check(s != "abcd");                       // a new object, not the pooled literal
+                    check(("x" + null).equals("xnull"));      // javac folds null into the recipe
+                    boolean t = true;
+                    boolean f = false;
+                    check(("" + t).equals("true"));
+                    check((f + "!").equals("false!"));
+                    check(("<" + a + "|" + b + ">").equals("<ab|cd>"));
+                    String c = a;
+                    c += b;
+                    check(c.equals("abcd"));
+                    check(%s);
+                }
+            }
+            """;
+
+    /** `+` joins the operands' texts into a new String; String and boolean operands convert as the JLS says. */
+    @Test
+    void concatenationJoinsTextsIntoANewString(@TempDir Path tmp) throws Exception {
+        assertPasses(interpret(tmp, "Concat.java", "Concat#run", CONCAT.formatted("s.equals(a + b)")));
+        assertFails(interpret(tmp, "Concat.java", "Concat#run", CONCAT.formatted("s == a + b")));
+    }
+
+    /** A computed text, interned twice, yields the object the first call added to the pool. */
+    @Test
+    void internOfAComputedTextAddsItToThePoolOnce(@TempDir Path tmp) throws Exception {
+        assertPasses(interpret(tmp, "Computed.java", "Computed#run", """
+                import org.strata.jverify.InterpretEntry;
+                import static org.strata.jverify.JVerify.check;
+
+                class Computed {
+                    @InterpretEntry
+                    static void run() {
+                        String a = "ab";
+                        String b = "cd";
+                        String p = a + b;
+                        String q = a + b;
+                        check(p != q);
+                        check(p.intern() == p);     // no pooled object had this text: p is added
+                        check(q.intern() == p);     // and is what the second call finds
+                        check(q.intern() != q);
+                    }
+                }
+                """));
+    }
+
+    /** Operands with no text form in the Core yet, and other invokedynamic uses, are refused with a reason. */
+    @Test
+    void concatenationOfNumbersAndOtherIndyAreRefused(@TempDir Path tmp) throws Exception {
+        var ran = interpret(tmp, "Refused.java", "Refused#ok", """
+                import org.strata.jverify.InterpretEntry;
+                import static org.strata.jverify.JVerify.check;
+
+                class Refused {
+                    static String number(int i) { return "" + i; }
+                    static Runnable lambda() { return () -> {}; }
+                    @InterpretEntry
+                    static void ok() { check(true); }
+                }
+                """);
+        assertEquals(0, ran.verificationResults().verificationFailedMethods(), () -> messages(ran).toString());
+        assertEquals(List.of(
+                "error: not supported by the direct Cortex translation: string conversion of int in a concatenation",
+                "error: not supported by the direct Cortex translation: invokedynamic run"), messages(ran));
     }
 }

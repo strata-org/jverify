@@ -41,6 +41,7 @@ import java.lang.classfile.Opcode;
 import java.lang.classfile.TypeKind;
 import java.lang.classfile.attribute.CodeAttribute;
 import java.lang.classfile.attribute.StackMapFrameInfo;
+import java.lang.classfile.constantpool.StringEntry;
 import java.lang.classfile.instruction.ArrayLoadInstruction;
 import java.lang.classfile.instruction.ArrayStoreInstruction;
 import java.lang.classfile.instruction.BranchInstruction;
@@ -48,6 +49,7 @@ import java.lang.classfile.instruction.ConstantInstruction;
 import java.lang.classfile.instruction.ConvertInstruction;
 import java.lang.classfile.instruction.FieldInstruction;
 import java.lang.classfile.instruction.IncrementInstruction;
+import java.lang.classfile.instruction.InvokeDynamicInstruction;
 import java.lang.classfile.instruction.InvokeInstruction;
 import java.lang.classfile.instruction.LoadInstruction;
 import java.lang.classfile.instruction.LookupSwitchInstruction;
@@ -123,6 +125,8 @@ import java.util.Set;
  * them is reference equality. {@code String.length()},
  * {@code String.equals(Object)} and the constructors {@code String()} and
  * {@code String(String)} are modelled inline on that field.
+ * String concatenation ({@code invokedynamic} on {@code StringConcatFactory})
+ * joins the operands' texts with {@code Str.Concat} into a new String object.
  * {@code String.intern()} is the procedure {@code $string$intern} over a pool,
  * a linked list of {@code $string$pool} nodes that {@code $string$init} fills
  * with the constants and {@code intern} extends. Every other {@code String}
@@ -133,7 +137,9 @@ import java.util.Set;
  * {@code assume} and {@code implies}, and the specification annotations such
  * as {@code @Transparent}), {@code @Nat} and {@code @Unbounded}, {@code null}
  * literals and null tests, floating point, fields of library classes, class
- * literals, {@code invokedynamic} and monitors; arrays of references,
+ * literals, {@code invokedynamic} other than string concatenation (and, in a
+ * concatenation, operands that are neither String nor boolean) and monitors;
+ * arrays of references,
  * multi-dimensional arrays, arrays in static fields of library classes, a
  * {@code baload} or {@code bastore} on an array whose static type is not
  * known and, when verifying, every array; and, when interpreting, calls to library
@@ -1818,6 +1824,7 @@ public final class BytecodeToCortexCompiler {
                 }
                 case FieldInstruction fi -> field(fi, at);
                 case InvokeInstruction inv -> invoke(inv, at);
+                case InvokeDynamicInstruction indy -> invokeDynamic(indy, at);
                 case TypeCheckInstruction tc -> typeCheck(tc, at);
                 case BranchInstruction br -> branch(br, b, at);
                 case TableSwitchInstruction sw -> switchOn(b, at);
@@ -2222,6 +2229,81 @@ public final class BytecodeToCortexCompiler {
             String proc = declaringIn != null ? procName(declaringIn, name, desc)
                     : libraryProc(target, name, desc, isStatic, at);
             cmds.add(new Cmd.Call(lhs, proc, args, at));
+        }
+
+        /**
+         * {@code invokedynamic}: only javac's lowering of string concatenation
+         * (JLS 15.18.1), a {@code StringConcatFactory} bootstrap, whose recipe
+         * ({@link ConcatRecipe}) interleaves literal text and the arguments.
+         * Each argument is converted to text (JLS 5.1.11) and the texts are
+         * joined with {@code Str.Concat} into the {@code $value} of a new
+         * String object: a concatenation is never a pooled literal, as javac
+         * folds constant operands before emitting the call. Converted: String
+         * arguments (their text) and {@code boolean}; any other type is refused
+         * until the Core offers a text form of numbers and characters.
+         */
+        private void invokeDynamic(InvokeDynamicInstruction indy, FileRange at) {
+            String name = indy.name().stringValue();
+            var bsm = indy.invokedynamic().bootstrap();
+            if (!bsm.bootstrapMethod().reference().owner().asInternalName().equals("java/lang/invoke/StringConcatFactory")
+                    || !(name.equals("makeConcatWithConstants") || name.equals("makeConcat"))) {
+                throw refuse("invokedynamic " + name, at);
+            }
+            MethodTypeDesc desc = indy.typeSymbol();
+            String recipe = null;
+            var constants = new ArrayList<String>();
+            if (name.equals("makeConcatWithConstants")) {
+                if (bsm.arguments().isEmpty() || !(bsm.arguments().get(0) instanceof StringEntry r)) {
+                    throw refuse("a string concatenation without a recipe", at);
+                }
+                recipe = r.stringValue();
+                for (var c : bsm.arguments().subList(1, bsm.arguments().size())) {
+                    if (!(c instanceof StringEntry se)) {
+                        throw refuse("a non-String constant in a string concatenation", at);
+                    }
+                    constants.add(se.stringValue());
+                }
+            }
+            List<ConcatRecipe.Part> parts;
+            try {
+                parts = ConcatRecipe.parts(recipe, desc.parameterCount(), constants);
+            } catch (IllegalArgumentException e) {
+                throw refuse("a string concatenation whose " + e.getMessage(), at);
+            }
+            var args = new ArrayList<Value>();
+            for (int i = 0; i < desc.parameterCount(); i++) {
+                args.addFirst(pop());
+            }
+            var texts = new ArrayList<Expr>();
+            for (int i = 0; i < args.size(); i++) {
+                texts.add(textOf(args.get(i), desc.parameterType(i), at));
+            }
+            Expr text = new Expr.Str("");
+            boolean first = true;
+            for (var part : parts) {
+                Expr e = switch (part) {
+                    case ConcatRecipe.Part.Text t -> new Expr.Str(t.text());
+                    case ConcatRecipe.Part.Arg a -> texts.get(a.index());
+                };
+                text = first ? e : op("Str.Concat", text, e);
+                first = false;
+            }
+            String joined = temp(new Ty.String_());
+            cmds.add(new Cmd.Set(joined, Optional.of(text), at));
+            referenced.add(STRING);
+            initialize(STRING, at);
+            String result = pushTarget(Kind.A, STRING);
+            cmds.add(new Cmd.New(result, STRING, at));
+            cmds.add(new Cmd.WriteField(new Expr.Var(result), STRING, STRING_VALUE, new Expr.Var(joined), at));
+        }
+
+        /** The text of a concatenation operand of static type {@code type} (JLS 5.1.11). */
+        private Expr textOf(Value v, ClassDesc type, FileRange at) {
+            return switch (type.descriptorString()) {
+                case "Ljava/lang/String;" -> stringValue(v.expr, at);
+                case "Z" -> new Expr.Ite(isZero(v.expr), new Expr.Str("false"), new Expr.Str("true"));
+                default -> throw refuse("string conversion of " + type.displayName() + " in a concatenation", at);
+            };
         }
 
         /**
