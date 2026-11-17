@@ -127,7 +127,8 @@ import java.util.Set;
  * {@code String(String)} are modelled inline on that field.
  * String concatenation ({@code invokedynamic} on {@code StringConcatFactory})
  * joins the operands' texts with {@code Str.Concat} into a new String object;
- * a String operand that may be null is refused. {@code String.intern()} is
+ * a String operand, constructor argument or {@code intern} receiver that may
+ * be null is refused. {@code String.intern()} is
  * the procedure {@code $string$intern} over a pool, a linked list of
  * {@code $string$pool} nodes; when a program interns, each constant joins the
  * pool at its first {@code ldc}, so a string interned earlier with the same
@@ -244,8 +245,8 @@ public final class BytecodeToCortexCompiler {
     /** The globals holding the pool's sentinel head and its last node. */
     public static final String STRING_POOL_HEAD = "$string$poolHead";
     public static final String STRING_POOL_TAIL = "$string$poolTail";
-    public static final String MAYBE_NULL_OPERAND =
-            "a string concatenation whose String operand may be null (a field, a call result or a parameter)";
+    public static final String MAYBE_NULL_STRING = "a String that may be null (a field, a call result or a parameter)"
+            + " as a concatenation operand, String constructor argument or intern() receiver";
     /** The procedure that implements {@code String.intern} on the pool. */
     public static final String STRING_INTERN = "$string$intern";
     /** Whether the program calls {@code String.intern}, so the pool is built. */
@@ -1155,11 +1156,23 @@ public final class BytecodeToCortexCompiler {
         /** Where each stack value comes from, as far as nullness goes; see {@link Provenance}. */
         private List<Provenance> stackProvenance = new ArrayList<>();
         /**
+         * The local slots proven never null on every path to the current point: stored a
+         * {@link Provenance#NON_NULL} value last, on each path. Cleared at a block whose
+         * predecessors are not all translated yet (a loop header or an exception handler), where
+         * a load falls back to the whole-method judgement of {@link #neverNullSlots}.
+         */
+        private Set<Integer> provenNonNull = new java.util.HashSet<>();
+        /** The entry state of each block, the meet over its translated predecessors. */
+        private final Map<Integer, Set<Integer>> entryProvenNonNull = new HashMap<>();
+        private final Map<Integer, List<Provenance>> entryStackProvenance = new HashMap<>();
+        /** The blocks translated so far, for the fallback above. */
+        private final Set<Integer> translated = new java.util.HashSet<>();
+        /**
          * The sources of every store to each local slot, {@link Provenance#UNKNOWN} for a
          * reference parameter: a slot is never null when all of them are (greatest fixpoint).
          */
         private final Map<Integer, List<Provenance>> slotStores = new HashMap<>();
-        /** Concatenation operands loaded from a local, judged once every store to the slot is known. */
+        /** String uses loaded from a local on a path not yet proven, judged once every store to the slot is known. */
         private final List<Map.Entry<Integer, FileRange>> operandSlots = new ArrayList<>();
         private String label;
         private List<Cmd> cmds;
@@ -1218,7 +1231,9 @@ public final class BytecodeToCortexCompiler {
                     work.add(t.handlerBlk());
                 }
             }
-            var done = new java.util.HashSet<Integer>();
+            var done = translated;
+            // `this` is never null; a reference parameter may be. Mutable: block 0 may be a loop header.
+            entryProvenNonNull.put(0, new java.util.HashSet<>(method.flags().has(AccessFlag.STATIC) ? Set.of() : Set.of(0)));
             while (!work.isEmpty()) {
                 int id = work.poll();
                 if (!done.add(id)) {
@@ -1236,6 +1251,7 @@ public final class BytecodeToCortexCompiler {
                     } else {
                         entryTypes.put(s, mergeTypes(entryTypes.get(s), stackTypes));
                     }
+                    meetEntryProvenance(s);
                 }
             }
             var handlers = new ArrayList<Handler>(guardHandlers);
@@ -1281,7 +1297,7 @@ public final class BytecodeToCortexCompiler {
             var neverNull = neverNullSlots();
             for (var operand : operandSlots) {
                 if (!neverNull.contains(operand.getKey())) {
-                    throw refuse(MAYBE_NULL_OPERAND, operand.getValue());
+                    throw refuse(MAYBE_NULL_STRING, operand.getValue());
                 }
             }
             var entryCmds = new ArrayList<Cmd>();
@@ -1377,11 +1393,11 @@ public final class BytecodeToCortexCompiler {
         /**
          * Whether a reference value is known not to be null: an object this
          * method allocated or a resolved string constant ({@link #NON_NULL}),
-         * a local's value, judged by the stores to its slot ({@link Slot}), or
-         * anything else, such as a field, a call result or a merge of paths
-         * ({@link #UNKNOWN}). The translation has no null, so an operation that
-         * reads a field of a value that may be null is refused rather than
-         * left to stop the run.
+         * a local's value not proven on the path, judged by every store to its
+         * slot in the method ({@link Slot}), or anything else, such as a field,
+         * a call result or a merge of such paths ({@link #UNKNOWN}). The
+         * translation has no null, so an operation that reads a field of a
+         * value that may be null is refused rather than left to stop the run.
          */
         private sealed interface Provenance {
             Provenance NON_NULL = new NonNull();
@@ -1410,6 +1426,56 @@ public final class BytecodeToCortexCompiler {
 
         private void markProvenance(Provenance p) {
             stackProvenance.set(stackProvenance.size() - 1, p);
+        }
+
+        /** The meet of two facts about one value: never null only when both say so. */
+        private static Provenance meet(Provenance a, Provenance b) {
+            return a.equals(b) ? a : Provenance.UNKNOWN;
+        }
+
+        /** Folds the state at the end of the current block into the entry state of successor {@code s}. */
+        private void meetEntryProvenance(int s) {
+            var proven = entryProvenNonNull.get(s);
+            if (proven == null) {
+                entryProvenNonNull.put(s, new java.util.HashSet<>(provenNonNull));
+            } else {
+                proven.retainAll(provenNonNull);
+            }
+            var onStack = entryStackProvenance.get(s);
+            if (onStack == null) {
+                entryStackProvenance.put(s, new ArrayList<>(stackProvenance));
+            } else {
+                for (int i = 0; i < onStack.size() && i < stackProvenance.size(); i++) {
+                    onStack.set(i, meet(onStack.get(i), stackProvenance.get(i)));
+                }
+            }
+        }
+
+        /**
+         * The state at the entry of block {@code b}: the meet over its predecessors when all of them
+         * are translated; otherwise (a loop header, an exception handler) nothing is proven on the
+         * path, and loads defer to the whole-method rule.
+         */
+        private void enterProvenance(BasicBlock b) {
+            boolean complete = !handlerBlocks.contains(b.id) && translated.containsAll(b.preds);
+            var proven = entryProvenNonNull.get(b.id);
+            provenNonNull = complete && proven != null ? new java.util.HashSet<>(proven) : new java.util.HashSet<>();
+            var onStack = entryStackProvenance.get(b.id);
+            stackProvenance = complete && onStack != null && onStack.size() == stack.size()
+                    ? new ArrayList<>(onStack)
+                    : new ArrayList<>(java.util.Collections.nCopies(stack.size(), Provenance.UNKNOWN));
+        }
+
+        /**
+         * Accepts a String value that is never null, or defers a local not proven on the path to the
+         * whole-method rule; refuses anything else ({@link #MAYBE_NULL_STRING}).
+         */
+        private void requireNonNull(Value v, FileRange at) {
+            switch (v.provenance) {
+                case Provenance.NonNull n -> { }
+                case Provenance.Slot sl -> operandSlots.add(Map.entry(sl.slot(), at));
+                case Provenance.Unknown u -> throw refuse(MAYBE_NULL_STRING, at);
+            }
         }
 
         /** The slots whose every store is never null, given the stores seen in the whole method. */
@@ -1792,7 +1858,7 @@ public final class BytecodeToCortexCompiler {
             stack = new ArrayList<>(entryShape.get(b.id));
             stackTypes = new ArrayList<>(entryTypes.get(b.id));
             enterArrayTypes(b);
-            stackProvenance = new ArrayList<>(java.util.Collections.nCopies(stack.size(), Provenance.UNKNOWN));
+            enterProvenance(b);
             startBlock("b" + b.id);
             for (int idx : b.instrs) {
                 CodeElement el = cfg.seq.get(idx);
@@ -1868,7 +1934,7 @@ public final class BytecodeToCortexCompiler {
                     Kind k = kindOf(li.typeKind(), at);
                     push(k, new Expr.Var(localVar(li.slot(), k)), k == Kind.A ? localArrays.get(li.slot()) : null, at);
                     if (k == Kind.A) {
-                        markProvenance(new Provenance.Slot(li.slot()));
+                        markProvenance(provenNonNull.contains(li.slot()) ? Provenance.NON_NULL : new Provenance.Slot(li.slot()));
                     }
                 }
                 case StoreInstruction si -> {
@@ -1884,6 +1950,16 @@ public final class BytecodeToCortexCompiler {
                     }
                     if (k == Kind.A) {
                         slotStores.computeIfAbsent(si.slot(), x -> new ArrayList<>()).add(v.provenance);
+                        if (v.provenance instanceof Provenance.NonNull) {
+                            provenNonNull.add(si.slot());
+                        } else {
+                            provenNonNull.remove(si.slot());
+                        }
+                    } else {
+                        provenNonNull.remove(si.slot());
+                        if (k == Kind.J) {
+                            provenNonNull.remove(si.slot() + 1);
+                        }
                     }
                 }
                 case IncrementInstruction ii -> {
@@ -2409,19 +2485,14 @@ public final class BytecodeToCortexCompiler {
         /**
          * The text of a concatenation operand of static type {@code type}
          * (JLS 5.1.11). A String operand that may be null would read a field
-         * of nothing, so it is refused: accepted are objects this method
-         * allocated, resolved constants, and locals whose every store is one
-         * of those ({@link Provenance}); a null String would concatenate as
-         * {@code "null"}, which needs a null in the translation first.
+         * of nothing, so it is refused ({@link #requireNonNull}); a null
+         * String would concatenate as {@code "null"}, which needs a null in
+         * the translation first.
          */
         private Expr textOf(Value v, ClassDesc type, FileRange at) {
             return switch (type.descriptorString()) {
                 case "Ljava/lang/String;" -> {
-                    switch (v.provenance) {
-                        case Provenance.NonNull n -> { }
-                        case Provenance.Slot sl -> operandSlots.add(Map.entry(sl.slot(), at));
-                        case Provenance.Unknown u -> throw refuse(MAYBE_NULL_OPERAND, at);
-                    }
+                    requireNonNull(v, at);
                     yield stringValue(v.expr, at);
                 }
                 case "Z" -> new Expr.Ite(isZero(v.expr), new Expr.Str("false"), new Expr.Str("true"));
@@ -2498,6 +2569,7 @@ public final class BytecodeToCortexCompiler {
          */
         private void stringConstructor(Optional<Value> src, FileRange at) {
             var self = pop();
+            src.ifPresent(v -> requireNonNull(v, at));
             Expr text = src.isPresent() ? stringValue(src.get().expr, at) : new Expr.Str("");
             cmds.add(new Cmd.WriteField(self.expr, STRING, STRING_VALUE, text, at));
         }
@@ -2505,6 +2577,7 @@ public final class BytecodeToCortexCompiler {
         /** {@code s.intern()}: a call to {@link #STRING_INTERN}, which runs under this method's {@link #stringGuard}. */
         private void stringIntern(FileRange at) {
             var s = pop();
+            requireNonNull(s, at);
             declarePool(at);
             String r = pushTarget(Kind.A, STRING);
             cmds.add(new Cmd.Call(List.of(r), STRING_INTERN, List.of(s.expr), at));

@@ -392,17 +392,51 @@ class CortexStringsEndToEndTest {
                     static String mk() { return new String("m"); }
                     static String fromCall() { String s = mk(); return s + "!"; }
                     static String fromBranch(boolean b) { String s = b ? "y" : field; return s + "!"; }
+                    static String ctorOfField() { return new String(field); }
+                    static String internOfField() { return field.intern(); }
                     @InterpretEntry
                     static void ok() { check(true); }
                 }
                 """);
         assertEquals(0, ran.verificationResults().verificationFailedMethods(), () -> messages(ran).toString());
         String prefix = "error: not supported by the direct Cortex translation: ";
-        String mayBeNull = prefix + BytecodeToCortexCompiler.MAYBE_NULL_OPERAND;
+        String mayBeNull = prefix + BytecodeToCortexCompiler.MAYBE_NULL_STRING;
         assertEquals(List.of(
                 prefix + "string conversion of int in a concatenation",
                 prefix + "invokedynamic run",
-                mayBeNull, mayBeNull, mayBeNull, mayBeNull), messages(ran));
+                mayBeNull, mayBeNull, mayBeNull, mayBeNull, mayBeNull, mayBeNull), messages(ran));
+    }
+
+    /**
+     * Never-null follows the path: a local reassigned from a constant after holding a field, a
+     * value merged from two constants, and a local updated in a loop by concatenation are accepted.
+     */
+    @Test
+    void nonNullIsProvenAlongThePath(@TempDir Path tmp) throws Exception {
+        assertPasses(interpret(tmp, "Paths.java", "Paths#run", """
+                import org.strata.jverify.InterpretEntry;
+                import static org.strata.jverify.JVerify.check;
+
+                class Paths {
+                    static String field = "f";
+                    @InterpretEntry
+                    static void run() {
+                        { String a = field; check(a.length() == 1); }     // javac may reuse a's slot for b
+                        { String b = "lit"; check((b + "!").equals("lit!")); }
+                        boolean c = field.length() == 1;
+                        String t = c ? "a" : "b";                            // merged from two constants
+                        check((t + "!").equals("a!"));
+                        String s = "x";
+                        for (int i = 0; i < 3; i++) {
+                            s = s + "y";                                     // every store to s is never null
+                        }
+                        check(s.equals("xyyy"));
+                        String r = field;
+                        r = "z";                                             // the last store on the path wins
+                        check((r + r).equals("zz"));
+                    }
+                }
+                """));
     }
 
     /**
