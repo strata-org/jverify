@@ -135,6 +135,28 @@ import java.util.Set;
  * text is what the constant resolves to (JVMS 5.1). Every other {@code String}
  * method is a library call.
  *
+ * <p>A few other library classes are modelled the same way, with explicit
+ * fields on their composite and inline models of their methods
+ * ({@link MethodTranslator#libraryMethod}): {@code Integer} boxes
+ * ({@code valueOf}, {@code intValue}; reference equality between values
+ * that may be boxes is refused, as Java's box cache decides it),
+ * {@code StringBuilder} ({@code append}, {@code toString},
+ * {@code setLength(0)}), a {@code Throwable}'s message and cause
+ * ({@code getMessage}, {@code getCause}, the constructors that set them;
+ * {@code addSuppressed} records nothing), an enum constant's {@code name()}
+ * and {@code ordinal()}, and records, whose generated {@code toString},
+ * {@code hashCode} and {@code equals} are refused when called. These inline
+ * models are temporary. They put knowledge of the Java language and the JDK
+ * (what boxing does, what an exception's constructor stores) into a
+ * translation of bytecode, where a call to a library method is just a call.
+ * The long-term solution, planned next, describes library methods outside
+ * this translation: a contract per method (preconditions, and either
+ * postconditions or the library's own bytecode for the behaviour), so that
+ * every library call is translated the same way and modular verification
+ * has the specifications it needs. The models here exist only so that the
+ * Cortex interpreter, which has no contract mechanism yet, can run programs
+ * that reach these classes.
+ *
  * <p>What the translation does not support it refuses, per method, with an
  * error: JVerify specifications (every {@code JVerify} call but {@code check},
  * {@code assume} and {@code implies}, and the specification annotations such
@@ -246,14 +268,35 @@ public final class BytecodeToCortexCompiler {
     public static final String STRING_POOL_HEAD = "$string$poolHead";
     public static final String STRING_POOL_TAIL = "$string$poolTail";
     public static final String MAYBE_NULL_STRING = "a String that may be null (a field, a call result or a parameter)"
-            + " as a concatenation operand, String constructor argument or intern() receiver";
+            + " as a concatenation or StringBuilder.append operand, String constructor argument or intern() receiver";
     /** The procedure that implements {@code String.intern} on the pool. */
     public static final String STRING_INTERN = "$string$intern";
     /** Whether the program calls {@code String.intern}, so the pool is built. */
     private boolean internUsed;
+    /** Whether the program boxes an int ({@code Integer.valueOf}), known before any method is translated. */
+    private boolean boxes;
     static final String INIT_FLAG = "<initialized>";
     static final String INIT_FAILED_FLAG = "<initFailed>";
     static final String THROWABLE = "java.lang.Throwable";
+    /** {@code Throwable}'s modelled state, written by its constructors: the detail message and the cause ({@link #libraryFields}). */
+    static final String THROWABLE_MESSAGE = "$message";
+    static final String THROWABLE_CAUSE = "$cause";
+    static final String INTEGER = "java.lang.Integer";
+    static final String STRING_BUILDER = "java.lang.StringBuilder";
+    static final String ENUM = "java.lang.Enum";
+    static final String RECORD = "java.lang.Record";
+    /** {@code Enum}'s modelled state, written by its constructor: the constant's name and ordinal. */
+    static final String ENUM_NAME = "$name";
+    static final String ENUM_ORDINAL = "$ordinal";
+    /**
+     * The reference types a value of which may be an {@link #INTEGER} box: Integer and its
+     * supertypes. Reference equality between such values is refused in a program that boxes
+     * ({@link MethodTranslator#refuseBoxIdentity}). Temporary, with the box model: a model of
+     * the Integer cache (JLS 5.1.7) or a contract for {@code Integer.valueOf} makes the
+     * comparison exact and this set unnecessary.
+     */
+    static final Set<String> MAY_HOLD_BOX = Set.of(INTEGER, "java.lang.Number", OBJECT, "java.lang.Comparable",
+            "java.io.Serializable", "java.lang.constant.Constable", "java.lang.constant.ConstantDesc");
     static final String ERROR = "java.lang.Error";
     static final String EXCEPTION_IN_INITIALIZER_ERROR = "java.lang.ExceptionInInitializerError";
     static final String NO_CLASS_DEF_FOUND_ERROR = "java.lang.NoClassDefFoundError";
@@ -302,6 +345,10 @@ public final class BytecodeToCortexCompiler {
                         .anyMatch(el -> el instanceof InvokeInstruction inv && isStringIntern(inv))) {
                     // Known before any `ldc` is translated: a program that interns resolves its literals lazily.
                     declarePool(NO_LOCATION);
+                }
+                if (code.isPresent() && code.get().elementList().stream()
+                        .anyMatch(el -> el instanceof InvokeInstruction inv && isBoxing(inv))) {
+                    boxes = true;
                 }
             }
         }
@@ -373,9 +420,14 @@ public final class BytecodeToCortexCompiler {
                     parents.add(OBJECT);
                 }
             }
-            var fields = c.equals(STRING) ? List.of(new Field(STRING_VALUE, new Ty.String_())) : fieldsOf(c);
+            var fields = libraryFields(c);
             out.put(c, new Composite(c, parents, fields));
             work.addAll(parents);
+            for (var f : fields) {
+                if (f.ty() instanceof Ty.Named n) {
+                    work.add(n.name());
+                }
+            }
             for (String r : referenced) {
                 if (!out.containsKey(r)) {
                     work.add(r);
@@ -383,6 +435,27 @@ public final class BytecodeToCortexCompiler {
             }
         }
         return List.copyOf(out.values());
+    }
+
+    /**
+     * The fields of a composite: the modelled state of a library class whose
+     * methods the translation inlines (String, Integer and StringBuilder hold
+     * their value; Throwable its message and cause; Enum the constant's name
+     * and ordinal; see {@link MethodTranslator#libraryMethod}), or a program
+     * class's instance fields. Any other library class has none. The modelled
+     * fields are a temporary stand-in for the library classes' own state,
+     * until library methods are described by contracts or translated from
+     * their own bytecode (see the class comment).
+     */
+    private List<Field> libraryFields(String c) {
+        return switch (c) {
+            case STRING, STRING_BUILDER -> List.of(new Field(STRING_VALUE, new Ty.String_()));
+            case INTEGER -> List.of(new Field(STRING_VALUE, new Ty.Bv(32)));
+            case THROWABLE -> List.of(new Field(THROWABLE_MESSAGE, new Ty.Named(STRING)),
+                    new Field(THROWABLE_CAUSE, new Ty.Named(THROWABLE)));
+            case ENUM -> List.of(new Field(ENUM_NAME, new Ty.Named(STRING)), new Field(ENUM_ORDINAL, new Ty.Bv(32)));
+            default -> fieldsOf(c);
+        };
     }
 
     private List<Field> fieldsOf(String fqn) {
@@ -538,6 +611,22 @@ public final class BytecodeToCortexCompiler {
 
     static String procName(String owner, String name, MethodTypeDesc desc) {
         return owner + "$" + methodKey(name, desc);
+    }
+
+    /**
+     * Whether {@code m} is the {@code toString}, {@code hashCode} or {@code equals} javac
+     * generates for a record (JLS 8.10.3): a call to the {@code ObjectMethods} bootstrap, which
+     * the translation does not model. One the record declares itself has a body of its own.
+     */
+    private static boolean isGeneratedRecordMember(ClassModel cm, MethodModel m) {
+        String name = m.methodName().stringValue();
+        if (!(name.equals("toString") || name.equals("hashCode") || name.equals("equals"))
+                || cm.superclass().map(c -> !c.asInternalName().equals("java/lang/Record")).orElse(true)) {
+            return false;
+        }
+        return m.code().map(code -> code.elementList().stream().anyMatch(el -> el instanceof InvokeDynamicInstruction indy
+                && indy.invokedynamic().bootstrap().bootstrapMethod().reference().owner().asInternalName()
+                        .equals("java/lang/runtime/ObjectMethods"))).orElse(false);
     }
 
     private static boolean isSynthetic(MethodModel m) {
@@ -734,6 +823,9 @@ public final class BytecodeToCortexCompiler {
             if (isEnum && (name.equals("values") || name.equals("valueOf") || name.equals("$values"))) {
                 continue;   // javac's enum members, over the $VALUES array, which is not modelled
             }
+            if (isGeneratedRecordMember(cm, m)) {
+                continue;   // javac's record members, an ObjectMethods bootstrap; a call to one is refused
+            }
             compileMethod(cm, fqn, m);
         }
         // <clinit> is translated like a static method; the guards emitted where
@@ -833,6 +925,13 @@ public final class BytecodeToCortexCompiler {
         cmds.add(new Cmd.WriteField(tail, STRING_POOL, POOL_NEXT, new Expr.Var(n), NO_LOCATION));
         cmds.add(new Cmd.WriteField(tail, STRING_POOL, POOL_HAS_NEXT, new Expr.Bool(true), NO_LOCATION));
         cmds.add(new Cmd.Set(STRING_POOL_TAIL, Optional.of(new Expr.Var(n)), NO_LOCATION));
+    }
+
+    /** {@code Integer.valueOf(int)}: javac's boxing conversion, and the explicit call. */
+    private static boolean isBoxing(InvokeInstruction inv) {
+        return JavaNames.dottedFqn(inv.owner().asInternalName()).equals(INTEGER)
+                && inv.name().stringValue().equals("valueOf")
+                && inv.typeSymbol().descriptorString().equals("(I)Ljava/lang/Integer;");
     }
 
     private static boolean isStringIntern(InvokeInstruction inv) {
@@ -1141,18 +1240,20 @@ public final class BytecodeToCortexCompiler {
         /** The stack-map frame at each bytecode offset that has one. */
         private final Map<Integer, StackMapFrameInfo> frames = new HashMap<>();
         private final Set<Integer> handlerBlocks = new java.util.HashSet<>();
-        /** {@link #localArrays} at the end of each translated block. */
-        private final Map<Integer, Map<Integer, String>> exitArrays = new HashMap<>();
+        /** {@link #localTypes} at the end of each translated block. */
+        private final Map<Integer, Map<Integer, String>> exitTypes = new HashMap<>();
         private int fresh;
 
         private List<Kind> stack = new ArrayList<>();
         /** The static type ({@link #staticType}) of each stack value, or null where it is not known. */
         private List<String> stackTypes = new ArrayList<>();
         /**
-         * The static type of each local that is known to hold an array, by slot. An array type is
-         * tracked exactly, because {@code baload} and {@code bastore} take the element type from it.
+         * The static type ({@link #staticType}) of each reference local whose type is known, by
+         * slot: a class, or an array type, which is tracked exactly because {@code baload} and
+         * {@code bastore} take the element type from it. A class type bounds the value's class
+         * from above ({@link #refuseBoxIdentity}).
          */
-        private Map<Integer, String> localArrays = new HashMap<>();
+        private Map<Integer, String> localTypes = new HashMap<>();
         /** Where each stack value comes from, as far as nullness goes; see {@link Provenance}. */
         private List<Provenance> stackProvenance = new ArrayList<>();
         /**
@@ -1857,7 +1958,7 @@ public final class BytecodeToCortexCompiler {
             blockId = b.id;
             stack = new ArrayList<>(entryShape.get(b.id));
             stackTypes = new ArrayList<>(entryTypes.get(b.id));
-            enterArrayTypes(b);
+            enterLocalTypes(b);
             enterProvenance(b);
             startBlock("b" + b.id);
             for (int idx : b.instrs) {
@@ -1866,7 +1967,7 @@ public final class BytecodeToCortexCompiler {
                     instruction(in, idx, b);
                 }
             }
-            exitArrays.put(b.id, localArrays);
+            exitTypes.put(b.id, localTypes);
             var last = b.last;
             boolean terminated = last instanceof BranchInstruction || last instanceof ReturnInstruction
                     || last instanceof ThrowInstruction || last instanceof TableSwitchInstruction
@@ -1878,51 +1979,52 @@ public final class BytecodeToCortexCompiler {
         }
 
         /**
-         * Sets the array types of the locals and of the stack values on entry to {@code b}. A
+         * Sets the reference types of the locals and of the stack values on entry to {@code b}. A
          * stack-map frame at the block's offset states them. A block without a frame is no branch
-         * target: the first block starts with the parameters, and a later block that is no handler
-         * and has one predecessor starts with the types that predecessor ends with. Any other
-         * block starts with no array type known.
+         * target: the first block starts with the parameters (the receiver's type is not tracked),
+         * and a later block that is no handler and has one predecessor starts with the types that
+         * predecessor ends with. Any other block starts with no local type known and no array type
+         * on the stack.
          */
-        private void enterArrayTypes(BasicBlock b) {
-            localArrays = new HashMap<>();
+        private void enterLocalTypes(BasicBlock b) {
+            localTypes = new HashMap<>();
             var frame = b.instrs.isEmpty() ? null : frames.get(seqToBci[b.instrs.getFirst()]);
             if (frame != null) {
                 int slot = 0;
                 for (var t : frame.locals()) {
-                    String array = arrayDescriptor(t);
-                    if (array != null) {
-                        localArrays.put(slot, array);
+                    String type = referenceType(t);
+                    if (type != null) {
+                        localTypes.put(slot, type);
                     }
                     slot += t == StackMapFrameInfo.SimpleVerificationTypeInfo.LONG
                             || t == StackMapFrameInfo.SimpleVerificationTypeInfo.DOUBLE ? 2 : 1;
                 }
                 boolean aligned = frame.stack().size() == stackTypes.size();
                 for (int i = 0; i < stackTypes.size(); i++) {
-                    String array = aligned ? arrayDescriptor(frame.stack().get(i)) : null;
-                    if (array != null || isArrayType(stackTypes.get(i))) {
-                        stackTypes.set(i, array);
+                    String type = aligned ? referenceType(frame.stack().get(i)) : null;
+                    if (type != null || isArrayType(stackTypes.get(i))) {
+                        stackTypes.set(i, type);
                     }
                 }
             } else if (b.id == 0 && b.preds.isEmpty()) {
                 int slot = method.flags().has(AccessFlag.STATIC) ? 0 : 1;
                 for (var p : method.methodTypeSymbol().parameterList()) {
-                    if (p.isArray()) {
-                        localArrays.put(slot, p.descriptorString());
+                    if (!p.isPrimitive()) {
+                        localTypes.put(slot, staticType(p));
                     }
                     slot += p.descriptorString().equals("J") || p.descriptorString().equals("D") ? 2 : 1;
                 }
             } else if (b.preds.size() == 1 && !handlerBlocks.contains(b.id)
-                    && exitArrays.containsKey(b.preds.getFirst())) {
-                localArrays.putAll(exitArrays.get(b.preds.getFirst()));
+                    && exitTypes.containsKey(b.preds.getFirst())) {
+                localTypes.putAll(exitTypes.get(b.preds.getFirst()));
             } else {
                 stackTypes.replaceAll(t -> isArrayType(t) ? null : t);
             }
         }
 
-        private static @Nullable String arrayDescriptor(StackMapFrameInfo.VerificationTypeInfo t) {
-            return t instanceof StackMapFrameInfo.ObjectVerificationTypeInfo o && o.classSymbol().isArray()
-                    ? o.classSymbol().descriptorString() : null;
+        /** The static type a verification type states: a class or an array type; null for the others (null, uninitialized, primitives). */
+        private static @Nullable String referenceType(StackMapFrameInfo.VerificationTypeInfo t) {
+            return t instanceof StackMapFrameInfo.ObjectVerificationTypeInfo o ? staticType(o.classSymbol()) : null;
         }
 
         private void instruction(Instruction in, int idx, BasicBlock b) {
@@ -1932,7 +2034,7 @@ public final class BytecodeToCortexCompiler {
                 case ConstantInstruction ci -> constant(ci, at);
                 case LoadInstruction li -> {
                     Kind k = kindOf(li.typeKind(), at);
-                    push(k, new Expr.Var(localVar(li.slot(), k)), k == Kind.A ? localArrays.get(li.slot()) : null, at);
+                    push(k, new Expr.Var(localVar(li.slot(), k)), k == Kind.A ? localTypes.get(li.slot()) : null, at);
                     if (k == Kind.A) {
                         markProvenance(provenNonNull.contains(li.slot()) ? Provenance.NON_NULL : new Provenance.Slot(li.slot()));
                     }
@@ -1941,12 +2043,12 @@ public final class BytecodeToCortexCompiler {
                     Kind k = kindOf(si.typeKind(), at);
                     var v = pop();
                     cmds.add(new Cmd.Set(localVar(si.slot(), k), Optional.of(v.expr), at));
-                    localArrays.remove(si.slot());
+                    localTypes.remove(si.slot());
                     if (k == Kind.J) {
-                        localArrays.remove(si.slot() + 1);
+                        localTypes.remove(si.slot() + 1);
                     }
-                    if (isArrayType(v.type)) {
-                        localArrays.put(si.slot(), v.type);
+                    if (k == Kind.A && v.type != null) {
+                        localTypes.put(si.slot(), v.type);
                     }
                     if (k == Kind.A) {
                         slotStores.computeIfAbsent(si.slot(), x -> new ArrayList<>()).add(v.provenance);
@@ -2301,6 +2403,9 @@ public final class BytecodeToCortexCompiler {
                 seal(new Transfer.Goto("b" + b.gotoTarget, at));
                 return;
             }
+            if (o == Opcode.IF_ACMPEQ || o == Opcode.IF_ACMPNE) {
+                refuseBoxIdentity(o == Opcode.IF_ACMPEQ ? "==" : "!=", at);
+            }
             Expr cond = switch (o) {
                 case IFEQ -> isZero(pop().expr);
                 case IFNE -> not(isZero(pop().expr));
@@ -2364,6 +2469,9 @@ public final class BytecodeToCortexCompiler {
             if (target.equals(STRING) && !isStatic && stringMethod(name, desc, at)) {
                 return;
             }
+            if (libraryMethod(target, name, desc, isStatic, at)) {
+                return;
+            }
             if (ClassInitialization.isEnumValuesMethod(resolver, inv)) {
                 // Only in an enum's <clinit>, as the value assigned to $VALUES, an
                 // assignment that is dropped: any reference does.
@@ -2386,8 +2494,9 @@ public final class BytecodeToCortexCompiler {
                 initialize(declaringIn, at);
             }
             if (name.equals("<init>") && !programClasses.containsKey(target)
-                    && (target.equals(OBJECT) || target.equals("java.lang.Enum") || resolver.isThrowableSubtype(target))) {
-                // The name and ordinal an enum constructor passes to Enum are not modelled.
+                    && (target.equals(OBJECT) || target.equals(ENUM) || target.equals(RECORD)
+                            || resolver.isThrowableSubtype(target))) {
+                // Nothing of the object's state to set (the modelled constructors are in libraryMethod).
                 return;
             }
             var lhs = new ArrayList<String>();
@@ -2399,6 +2508,9 @@ public final class BytecodeToCortexCompiler {
                 throw refuse("calls to library methods (" + target + "." + name + ") when interpreting", at);
             }
             MethodModel callee = declaringIn == null ? null : declared(programClasses.get(declaringIn), name, desc, isStatic);
+            if (callee != null && isGeneratedRecordMember(programClasses.get(declaringIn), callee)) {
+                throw refuse("the " + name + " javac generates for a record", at);
+            }
             boolean isPrivate = callee != null && callee.flags().has(AccessFlag.PRIVATE);
             var kind = declaringIn == null ? StaticEffectNotes.Kind.NO_BODY : StaticEffectNotes.Kind.BODY;
             staticNotes.recordCall(src.uri, lineOf(at), StaticEffectNotes.describe(kind, name + "()"), kind);
@@ -2474,11 +2586,16 @@ public final class BytecodeToCortexCompiler {
             }
             String joined = temp(new Ty.String_());
             cmds.add(new Cmd.Set(joined, Optional.of(text), at));
+            newString(new Expr.Var(joined), at);
+        }
+
+        /** A new String object with the text {@code text}, pushed: not a pooled literal, so {@code !=} to every other String. */
+        private void newString(Expr text, FileRange at) {
             referenced.add(STRING);
             initialize(STRING, at);
             String result = pushTarget(Kind.A, STRING);
             cmds.add(new Cmd.New(result, STRING, at));
-            cmds.add(new Cmd.WriteField(new Expr.Var(result), STRING, STRING_VALUE, new Expr.Var(joined), at));
+            cmds.add(new Cmd.WriteField(new Expr.Var(result), STRING, STRING_VALUE, text, at));
             markNonNull();
         }
 
@@ -2582,6 +2699,263 @@ public final class BytecodeToCortexCompiler {
             String r = pushTarget(Kind.A, STRING);
             cmds.add(new Cmd.Call(List.of(r), STRING_INTERN, List.of(s.expr), at));
             markNonNull();
+        }
+
+        /**
+         * The library methods, besides String's, that the translation models
+         * inline on the modelled fields of their class ({@link #libraryFields});
+         * the operands are popped and the result pushed. Returns false for a
+         * call it does not model, which the caller refuses or translates as a
+         * call.
+         *
+         * <p>TEMPORARY. Recognizing JDK methods by name here and hand-writing
+         * their effect is a stopgap for the interpret-only Cortex path, which
+         * has no contract mechanism. The planned long-term solution replaces
+         * every case below by a contract for the method (and, where wanted,
+         * the library's own bytecode), translated like any other call; this
+         * method and {@link #libraryFields} then go away. Modelled for now:
+         * <ul>
+         *   <li>{@code Integer.valueOf(int)} and {@code intValue()}: boxing
+         *       and unboxing ({@link #box}, {@link #unbox}).</li>
+         *   <li>{@code StringBuilder}: {@code new StringBuilder()},
+         *       {@code append} of a String or boolean, {@code toString()} and
+         *       {@code setLength(0)} ({@link #stringBuilderMethod}).</li>
+         *   <li>A Throwable's constructors taking a message and/or a cause,
+         *       {@code getMessage()} and {@code getCause()} when no program
+         *       class overrides them, and {@code addSuppressed}, which records
+         *       nothing: {@code getSuppressed()} is not modelled.</li>
+         *   <li>{@code Enum(String, int)}, {@code name()} and
+         *       {@code ordinal()}, which are final.</li>
+         * </ul>
+         */
+        private boolean libraryMethod(String target, String name, MethodTypeDesc desc, boolean isStatic, FileRange at) {
+            String key = name + desc.descriptorString();
+            if (target.equals(INTEGER)) {
+                switch (key) {
+                    case "valueOf(I)Ljava/lang/Integer;" -> box(at);
+                    case "intValue()I" -> unbox(at);
+                    default -> {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            if (target.equals(STRING_BUILDER)) {
+                return stringBuilderMethod(key, desc, at);
+            }
+            if (target.equals(ENUM) && key.equals("<init>(Ljava/lang/String;I)V")) {
+                enumConstructor(at);
+                return true;
+            }
+            if (isEnumClass(target) && !isStatic) {
+                switch (key) {
+                    case "name()Ljava/lang/String;" -> enumField(ENUM_NAME, Kind.A, STRING, at);
+                    case "ordinal()I" -> enumField(ENUM_ORDINAL, Kind.I, null, at);
+                    default -> {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            if (resolver.isThrowableSubtype(target) && !isStatic) {
+                boolean library = !programClasses.containsKey(target);
+                boolean overridden = programDeclares(name, desc);
+                if (library && key.equals("<init>(Ljava/lang/String;)V")) {
+                    throwableConstructor(true, false, at);
+                } else if (library && key.equals("<init>(Ljava/lang/String;Ljava/lang/Throwable;)V")) {
+                    throwableConstructor(true, true, at);
+                } else if (library && key.equals("<init>(Ljava/lang/Throwable;)V")) {
+                    throwableConstructor(false, true, at);
+                } else if (key.equals("addSuppressed(Ljava/lang/Throwable;)V")) {
+                    pop();
+                    pop();
+                } else if (!overridden && key.equals("getMessage()Ljava/lang/String;")) {
+                    throwableField(THROWABLE_MESSAGE, STRING, at);
+                } else if (!overridden && key.equals("getCause()Ljava/lang/Throwable;")) {
+                    throwableField(THROWABLE_CAUSE, THROWABLE, at);
+                } else {
+                    return false;
+                }
+                return true;
+            }
+            return false;
+        }
+
+        /** Whether a program class declares an instance method {@code name} with {@code desc}'s parameters: a possible override. */
+        private boolean programDeclares(String name, MethodTypeDesc desc) {
+            return programClasses.values().stream().anyMatch(cm -> declared(cm, name, desc, false) != null);
+        }
+
+        /** Whether {@code fqn} is {@code java.lang.Enum} or has it on its superclass chain (an enum or a constant's body class). */
+        private boolean isEnumClass(String fqn) {
+            for (String c = fqn; c != null; c = resolver.superclassOf(c)) {
+                if (c.equals(ENUM)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * {@code Integer.valueOf(i)}, which is also javac's boxing conversion
+         * (JLS 5.1.7): a new Integer object holding {@code i}. Java reuses the
+         * boxes of -128..127, so two boxes of one value may be one object
+         * there and never are here; see {@link #refuseBoxIdentity}.
+         */
+        private void box(FileRange at) {
+            var v = pop();
+            referenced.add(INTEGER);
+            String r = pushTarget(Kind.A, INTEGER);
+            cmds.add(new Cmd.New(r, INTEGER, at));
+            cmds.add(new Cmd.WriteField(new Expr.Var(r), INTEGER, STRING_VALUE, v.expr, at));
+            markNonNull();
+        }
+
+        /** {@code b.intValue()}, the unboxing conversion (JLS 5.1.8): the box's value. */
+        private void unbox(FileRange at) {
+            var b = pop();
+            String v = temp(new Ty.Bv(32));
+            cmds.add(new Cmd.ReadField(v, b.expr, INTEGER, STRING_VALUE, at));
+            push(Kind.I, new Expr.Var(v), null, at);
+        }
+
+        /**
+         * Reference {@code ==} or {@code !=} whose operands may be Integer
+         * boxes ({@link #MAY_HOLD_BOX}), in a program that boxes: Java reuses
+         * the boxes of -128..127 (JLS 5.1.7), so whether two boxes are one
+         * object depends on their values, while {@link #box} allocates each
+         * one. A program that never boxes compares no boxes, whatever the
+         * static types.
+         */
+        private void refuseBoxIdentity(String op, FileRange at) {
+            if (!boxes) {
+                return;
+            }
+            for (int i = stack.size() - 2; i < stack.size(); i++) {
+                String t = stackTypes.get(i);
+                if (t == null || MAY_HOLD_BOX.contains(t)) {
+                    throw refuse("'" + op + "' on references that may be boxed values (their identity depends on the box cache)", at);
+                }
+            }
+        }
+
+        /**
+         * {@code java.lang.StringBuilder} as a mutable text: {@code new StringBuilder()}
+         * starts empty; {@code append} of one operand concatenates its text
+         * form ({@link #textOf}, which refuses the types without one) and
+         * returns the builder; {@code toString()}
+         * is a new String of the text; {@code setLength(0)}, the idiom that
+         * clears a builder, empties it (any other length would need a prefix
+         * of the text, which the Core has no operation for).
+         */
+        private boolean stringBuilderMethod(String key, MethodTypeDesc desc, FileRange at) {
+            if (key.startsWith("append(") && key.endsWith(")Ljava/lang/StringBuilder;") && desc.parameterCount() == 1) {
+                key = "append";   // of any one operand: textOf refuses the types without a text form
+            }
+            switch (key) {
+                case "<init>()V" -> {
+                    var self = pop();
+                    cmds.add(new Cmd.WriteField(self.expr, STRING_BUILDER, STRING_VALUE, new Expr.Str(""), at));
+                }
+                case "append" -> {
+                    var v = pop();
+                    var self = pop();
+                    Expr text = textOf(v, desc.parameterType(0), at);
+                    Expr current = builderText(self.expr, at);
+                    cmds.add(new Cmd.WriteField(self.expr, STRING_BUILDER, STRING_VALUE, op("Str.Concat", current, text), at));
+                    pushBack(self, at);
+                }
+                case "toString()Ljava/lang/String;" -> {
+                    var self = pop();
+                    newString(builderText(self.expr, at), at);
+                }
+                case "setLength(I)V" -> {
+                    var n = pop();
+                    var self = pop();
+                    if (!isConstantZero(n)) {
+                        throw refuse("StringBuilder.setLength with a length other than the constant 0", at);
+                    }
+                    cmds.add(new Cmd.WriteField(self.expr, STRING_BUILDER, STRING_VALUE, new Expr.Str(""), at));
+                }
+                default -> {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /** The text of the StringBuilder {@code sb}, read into a fresh {@code string} temporary. */
+        private Expr builderText(Expr sb, FileRange at) {
+            String v = temp(new Ty.String_());
+            cmds.add(new Cmd.ReadField(v, sb, STRING_BUILDER, STRING_VALUE, at));
+            return new Expr.Var(v);
+        }
+
+        /** Whether the stack value {@code v} was set to the int constant 0 by the command just before (an {@code iconst_0}). */
+        private boolean isConstantZero(Value v) {
+            return !cmds.isEmpty() && cmds.getLast() instanceof Cmd.Set(String x, Optional<Expr> e, FileRange ignored)
+                    && v.expr.equals(new Expr.Var(x)) && e.isPresent() && e.get().equals(lit(0));
+        }
+
+        /** Pushes a popped value again (a method returning its receiver), with its provenance. */
+        private void pushBack(Value v, FileRange at) {
+            String var = pushTarget(v.kind, v.type);
+            if (!v.expr.equals(new Expr.Var(var))) {
+                cmds.add(new Cmd.Set(var, Optional.of(v.expr), at));
+            }
+            markProvenance(v.provenance);
+        }
+
+        /**
+         * {@code new T(message)}, {@code new T(message, cause)} or
+         * {@code new T(cause)} for a library Throwable class {@code T},
+         * including the {@code super(...)} call of a program exception class:
+         * the modelled fields get the arguments; the object was allocated by
+         * {@code new}. In Java, {@code Throwable(Throwable cause)} also sets
+         * the message to {@code cause.toString()}, which has no text here:
+         * the message stays unset, so a later {@code getMessage()} yields a
+         * reference to no object, and a use of it stops the run.
+         */
+        private void throwableConstructor(boolean message, boolean cause, FileRange at) {
+            Value c = cause ? pop() : null;
+            Value m = message ? pop() : null;
+            var self = pop();
+            if (m != null) {
+                cmds.add(new Cmd.WriteField(self.expr, THROWABLE, THROWABLE_MESSAGE, m.expr, at));
+            }
+            if (c != null) {
+                cmds.add(new Cmd.WriteField(self.expr, THROWABLE, THROWABLE_CAUSE, c.expr, at));
+            }
+        }
+
+        /**
+         * {@code e.getMessage()} or {@code e.getCause()}: the modelled field.
+         * Unset (no message or no cause given), it is a reference to no object
+         * where Java has null; a use of it stops the run.
+         */
+        private void throwableField(String field, String type, FileRange at) {
+            var self = pop();
+            String r = pushTarget(Kind.A, type);
+            cmds.add(new Cmd.ReadField(r, self.expr, THROWABLE, field, at));
+        }
+
+        /** {@code Enum(name, ordinal)}, called by every enum constructor (JLS 8.9.2): the modelled fields get the arguments. */
+        private void enumConstructor(FileRange at) {
+            var ordinal = pop();
+            var name = pop();
+            var self = pop();
+            cmds.add(new Cmd.WriteField(self.expr, ENUM, ENUM_NAME, name.expr, at));
+            cmds.add(new Cmd.WriteField(self.expr, ENUM, ENUM_ORDINAL, ordinal.expr, at));
+        }
+
+        /** {@code c.name()} or {@code c.ordinal()}: the modelled field; a name is never null. */
+        private void enumField(String field, Kind kind, @Nullable String type, FileRange at) {
+            var self = pop();
+            String r = pushTarget(kind, type);
+            cmds.add(new Cmd.ReadField(r, self.expr, ENUM, field, at));
+            if (kind == Kind.A) {
+                markNonNull();
+            }
         }
 
         /**
