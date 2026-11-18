@@ -18,6 +18,11 @@ class MathContract {
 
     @Transparent
     public static int min(int a, int b) {
+        return max(a, b);
+    }
+
+    @Transparent
+    public static int negateExact(int a) {
         return 7;
     }
 }

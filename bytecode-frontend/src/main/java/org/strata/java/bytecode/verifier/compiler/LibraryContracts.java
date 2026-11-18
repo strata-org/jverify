@@ -84,7 +84,15 @@ public final class LibraryContracts {
     static final String JARRAY_INTERNAL = "org/strata/jverify/builtin/JArray";
 
     private static final String OBJECT_CONTRACT_RESOURCE = "/object-contract.java";
-    private static final String BOX_CONTRACT_RESOURCE = "/cortex-box-contracts.java";
+    /** The contracts of the JDK's wrapper classes, one resource per class, loaded with every contract set. */
+    private static final List<String> WRAPPER_CONTRACT_RESOURCES = List.of(
+            "/wrapper-contracts/IntegerContract.java", "/wrapper-contracts/LongContract.java",
+            "/wrapper-contracts/ShortContract.java", "/wrapper-contracts/ByteContract.java",
+            "/wrapper-contracts/CharacterContract.java", "/wrapper-contracts/BooleanContract.java");
+    /** The internal names of the shipped wrapper contract classes, one per resource. */
+    private static final Set<String> WRAPPER_CONTRACT_INTERNALS = WRAPPER_CONTRACT_RESOURCES.stream()
+            .map(r -> "org/strata/jverify/builtin" + r.substring(r.lastIndexOf('/'), r.length() - ".java".length()))
+            .collect(java.util.stream.Collectors.toUnmodifiableSet());
     private static final String SPEC_INTERFACE_PREFIX = "org/strata/jverify/JVerify$";
 
     /** Loaded contract libraries; javac-failed loads are never inserted. */
@@ -144,6 +152,7 @@ public final class LibraryContracts {
      * {@code modifies}.
      */
     private final Map<String, Boolean> frameEmptyKeys = new HashMap<>();
+    private final java.util.Set<String> allocatingKeys = new java.util.HashSet<>();
 
     private LibraryContracts(boolean disabled, JavaFileObject objectContract,
                              List<JavaFileObject> userSources, List<Path> classPath) {
@@ -159,7 +168,8 @@ public final class LibraryContracts {
     }
 
     /**
-     * Contracts from {@code objectContract} (always loaded lazily on its own)
+     * Contracts from {@code objectContract} and the wrapper contracts
+     * ({@link #wrapperContractSources}; always loaded lazily on their own)
      * plus {@code userSources} (the {@code contractSourcePath} sources, loaded
      * eagerly), compiled against {@code classPath}.
      */
@@ -379,9 +389,53 @@ public final class LibraryContracts {
         return loadedBytes == null ? List.of() : loadedBytes.index().contractsByContractee().values();
     }
 
+    String compositeSortOf(String fqnOrSort) {
+        var cc = compositeOf(fqnOrSort);
+        return cc == null ? null : cc.sort();
+    }
+
+    /**
+     * As {@link #compositeSortOf}, for a contract of a wrapper class only. A wrapper class is
+     * final, so its sort is the class of every object that is of that class; a program class
+     * that extends any other described class is not declared below that class's sort.
+     */
+    String wrapperSortOf(String fqnOrSort) {
+        var cc = compositeOf(fqnOrSort);
+        return cc == null || BoxModel.wrapperOf(cc.contracteeFqn().replace('.', '/')) == null ? null : cc.sort();
+    }
+
+    private ContractClass compositeOf(String fqnOrSort) {
+        if (disabled || fqnOrSort == null) {
+            return null;
+        }
+        ensureLoaded();
+        if (loadedBytes == null) {
+            return null;
+        }
+        var cc = loadedBytes.index().contractsByContractee().get(fqnOrSort);
+        if (cc == null) {
+            cc = loadedBytes.index().contractsByInternal().get(fqnOrSort.replace('.', '/'));
+        }
+        if (cc == null) {
+            cc = loadedBytes.index().contractsByContractee().values().stream()
+                    .filter(c -> c.sort().equals(fqnOrSort)).findFirst().orElse(null);
+        }
+        if (cc == null || cc.sort().equals("String")) {
+            return null;
+        }
+        ClassModel cm = classBytes(cc.contractInternal());
+        return cm != null && cm.fields().stream().anyMatch(f -> !f.flags().has(java.lang.reflect.AccessFlag.STATIC))
+                ? cc : null;
+    }
+
     /** The indexed contract class with this internal name, or null (also when not loaded). */
     ContractClass contractClassOf(String internalName) {
         return loadedBytes == null ? null : loadedBytes.index().contractsByInternal().get(internalName);
+    }
+
+    /** Whether {@code internalName} is the contract class of a shipped wrapper contract ({@link #wrapperContractSources}). */
+    boolean isShippedWrapperContract(String internalName) {
+        return WRAPPER_CONTRACT_INTERNALS.contains(internalName) && contractClassOf(internalName) != null;
     }
 
     /** A fresh parse of a loaded contract-source classfile, or null when there is none. */
@@ -393,16 +447,22 @@ public final class LibraryContracts {
         return bytes == null ? null : ClassFile.of().parse(bytes);
     }
 
-    /**
-     * {@code cortex-box-contracts.java}: the contracts of the JDK's wrapper
-     * classes whose bodies the direct Cortex translation runs when interpreting.
-     */
-    public static JavaFileObject boxContractSource() {
-        String content = Common.getResourceFile(LibraryContracts.class, BOX_CONTRACT_RESOURCE);
-        if (content == null) {
-            throw new IllegalStateException("cortex-box-contracts.java resource missing");
+    /** The contract sources of the JDK's wrapper classes ({@link #WRAPPER_CONTRACT_RESOURCES}). */
+    public static List<JavaFileObject> wrapperContractSources() {
+        var out = new ArrayList<JavaFileObject>();
+        for (String resource : WRAPPER_CONTRACT_RESOURCES) {
+            String content = Common.getResourceFile(LibraryContracts.class, resource);
+            if (content == null) {
+                throw new IllegalStateException(resource + " resource missing");
+            }
+            out.add(new SourceFile(resource, content));
         }
-        return new SourceFile(BOX_CONTRACT_RESOURCE, content);
+        return out;
+    }
+
+    /** The wrapper contracts alone: what the direct Cortex translation runs bodies of. */
+    public static LibraryContracts ofWrappers(List<Path> classPath) {
+        return new LibraryContracts(false, null, List.of(), classPath);
     }
 
     private void requireBound() {
@@ -413,7 +473,10 @@ public final class LibraryContracts {
 
     private List<JavaFileObject> sources() {
         var out = new ArrayList<JavaFileObject>();
-        out.add(objectContract);
+        if (objectContract != null) {
+            out.add(objectContract);
+        }
+        out.addAll(wrapperContractSources());
         out.addAll(userSources);
         return out;
     }
@@ -499,8 +562,14 @@ public final class LibraryContracts {
         List<Diagnostic<? extends JavaFileObject>> errors = List.of();
     }
 
-    /** Compile into a temp dir, read the classfile bytes, and index; null when javac fails. */
+    /** Compile and index; null when javac fails. */
     private LoadedBytes compileAndIndex(List<JavaFileObject> sources, CompileOutcome outcome) {
+        Map<String, byte[]> classBytes = compile(sources, outcome);
+        return classBytes == null ? null : buildLoad(sources, classBytes);
+    }
+
+    /** Compile into a temp dir and read the classfile bytes, by internal name; null when javac fails. */
+    private Map<String, byte[]> compile(List<JavaFileObject> sources, CompileOutcome outcome) {
         Path outputDir = null;
         try {
             outputDir = Files.createTempDirectory("bytecode-contracts");
@@ -521,7 +590,7 @@ public final class LibraryContracts {
                 byte[] bytes = Files.readAllBytes(p);
                 classBytes.put(ClassFile.of().parse(bytes).thisClass().asInternalName(), bytes);
             }
-            return buildLoad(sources, classBytes);
+            return classBytes;
         } catch (IOException e) {
             throw new UncheckedIOException("Could not compile contract sources: " + reasonOf(e), e);
         } finally {
@@ -577,16 +646,29 @@ public final class LibraryContracts {
                 classUris.put(e.getKey(), uri);
             }
         }
-        // Source order: by source position in the compile, then declaration line.
+        // Source order: the shipped wrapper contracts, then by source position in the compile,
+        // then declaration line.
         var ordered = new ArrayList<>(models.keySet());
         ordered.sort(Comparator
                 .comparingInt((String n) -> {
+                    if (WRAPPER_CONTRACT_INTERNALS.contains(n)) {
+                        return -1;
+                    }
                     int i = sourceUris.indexOf(classUris.get(n));
                     return i < 0 ? Integer.MAX_VALUE : i;
                 })
                 .thenComparingInt(n -> MethodBodyFactory.classDeclLine(models.get(n)))
                 .thenComparing(n -> n));
 
+        // A class has one contract, so a user contract for a wrapper class replaces the shipped
+        // one, which is then not indexed.
+        var userContractees = new java.util.HashSet<String>();
+        for (String internal : ordered) {
+            ClassModel cm = models.get(internal);
+            if (Declarations.hasAnnotation(cm, "Contract") && !WRAPPER_CONTRACT_INTERNALS.contains(internal)) {
+                userContractees.add(contracteeInternalOf(cm));
+            }
+        }
         var byContractee = new LinkedHashMap<String, ContractClass>();
         var byInternal = new LinkedHashMap<String, ContractClass>();
         var helpers = new LinkedHashSet<String>();
@@ -603,6 +685,9 @@ public final class LibraryContracts {
             URI uri = classUris.get(internal);
             Range anchor = declAnchor(cm);
             String contracteeInternal = contracteeInternalOf(cm);
+            if (WRAPPER_CONTRACT_INTERNALS.contains(internal) && userContractees.contains(contracteeInternal)) {
+                continue;
+            }
             if (contracteeInternal == null) {
                 errors.add(new IndexError(uri, anchor, "could not find a target for @Contract class '"
                         + JavaNames.simpleName(JavaNames.dottedFqn(internal)) + "'"));
@@ -813,6 +898,66 @@ public final class LibraryContracts {
      * member; an instance call on any other helper misses), a {@code JVerify}
      * spec-interface method, otherwise the program lookups on the owner.
      */
+    private static boolean writesHeap(MethodModel mm) {
+        var code = mm.findAttribute(java.lang.classfile.Attributes.code()).orElse(null);
+        if (code == null) {
+            return false;
+        }
+        for (var el : code.elementList()) {
+            if (el instanceof java.lang.classfile.instruction.NewObjectInstruction n
+                    && !n.className().asInternalName().equals("org/strata/jverify/ContractException")) {
+                return true;
+            }
+            if (el instanceof java.lang.classfile.instruction.FieldInstruction f
+                    && (f.opcode() == java.lang.classfile.Opcode.PUTFIELD
+                            || f.opcode() == java.lang.classfile.Opcode.PUTSTATIC)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    ContractMember lookupConstructor(String ownerInternal, MethodTypeDesc desc) {
+        if (disabled) {
+            return null;
+        }
+        ensureLoaded();
+        if (loadedBytes == null) {
+            return null;
+        }
+        var index = loadedBytes.index();
+        ContractClass cc = index.contractsByInternal().get(ownerInternal);
+        if (cc == null) {
+            String owner = JavaNames.dottedFqn(ownerInternal);
+            if (resolver.programClassModels.containsKey(owner) || programContractTargets.contains(owner)) {
+                return null;
+            }
+            cc = index.contractsByContractee().get(owner);
+        }
+        if (cc == null) {
+            return null;
+        }
+        ClassModel cm = classBytes(cc.contractInternal());
+        if (cm == null || cm.fields().stream().allMatch(f -> f.flags().has(java.lang.reflect.AccessFlag.STATIC))) {
+            return null;
+        }
+        List<String> callParams = mappedParams(desc);
+        var ctors = cm.methods().stream().filter(mm -> mm.methodName().stringValue().equals("<init>")).toList();
+        for (var mm : ctors) {
+            if (!mappedParams(mm.methodTypeSymbol()).equals(callParams)) {
+                continue;
+            }
+            var m = memberOf(ContractMember.Kind.CONTRACT, cm, mm, ctors, cc.sort(), cc.contracteeFqn(), cc.uri(),
+                    cc.pure());
+            String name = m.laurelName().replace("<init>", "$init");
+            frameEmptyKeys.put(m.sortOrFqn() + "_" + name, false);
+            return new ContractMember(m.kind(), m.classInternal(), m.methodName(), m.methodDesc(), m.sortOrFqn(),
+                    name, m.contracteeFqn(), m.isStatic(), m.isTransparent(), m.hasCode(), m.verify(),
+                    m.returnsTypeVar(), m.paramIsTypeVar(), m.uri(), m.contractPure());
+        }
+        return null;
+    }
+
     ContractMember lookupContractCode(String ownerInternal, String name, MethodTypeDesc desc,
                                       boolean isStatic) {
         if (disabled) {
@@ -897,7 +1042,10 @@ public final class LibraryContracts {
                     && mappedParams(mm.methodTypeSymbol()).equals(callParams)) {
                 var member = memberOf(kind, cm, mm, declared, sortOrFqn, contracteeFqn, uri, contractPure);
                 frameEmptyKeys.put(member.sortOrFqn() + "_" + member.laurelName(),
-                        member.isTransparent() || !declaresModifies(mm));
+                        member.isTransparent() ? !writesHeap(mm) : !declaresModifies(mm));
+                if (writesHeap(mm)) {
+                    allocatingKeys.add(member.sortOrFqn() + "_" + member.laurelName());
+                }
                 return member;
             }
         }
@@ -999,6 +1147,42 @@ public final class LibraryContracts {
     /** The oldest queued member not yet handed out. */
     ContractMember nextDemand() {
         return demandQueue.poll();
+    }
+
+    /** The field that {@code member} returns, when it is an instance getter that only reads a field of its class; else null. */
+    String finalFieldGetter(ContractMember member) {
+        if (member == null || member.isStatic() || member.kind() != ContractMember.Kind.CONTRACT) {
+            return null;
+        }
+        ClassModel cm = classBytes(member.classInternal());
+        if (cm == null) {
+            return null;
+        }
+        MethodModel mm = cm.methods().stream()
+                .filter(x -> x.methodName().stringValue().equals(member.methodName())
+                        && x.methodTypeSymbol().equals(member.methodDesc()))
+                .findFirst().orElse(null);
+        var code = mm == null ? null : mm.findAttribute(java.lang.classfile.Attributes.code()).orElse(null);
+        if (code == null || mm.methodTypeSymbol().parameterCount() != 0) {
+            return null;
+        }
+        var ins = code.elementList().stream().filter(e -> e instanceof java.lang.classfile.Instruction).toList();
+        if (ins.size() != 3
+                || !(ins.get(0) instanceof java.lang.classfile.instruction.LoadInstruction l && l.slot() == 0)
+                || !(ins.get(1) instanceof java.lang.classfile.instruction.FieldInstruction f
+                        && f.opcode() == java.lang.classfile.Opcode.GETFIELD
+                        && f.owner().asInternalName().equals(member.classInternal()))
+                || !(ins.get(2) instanceof java.lang.classfile.instruction.ReturnInstruction)) {
+            return null;
+        }
+        String name = ((java.lang.classfile.instruction.FieldInstruction) ins.get(1)).name().stringValue();
+        return cm.fields().stream().anyMatch(x -> x.fieldName().stringValue().equals(name)
+                && x.flags().has(java.lang.reflect.AccessFlag.FINAL)
+                && !x.flags().has(java.lang.reflect.AccessFlag.STATIC)) ? name : null;
+    }
+
+    boolean allocatesKey(String key) {
+        return allocatingKeys.contains(key);
     }
 
     /** True iff a member a lookup returned under {@code sortOrFqn_laurelName} has an empty frame. */

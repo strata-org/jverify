@@ -1,4 +1,4 @@
-package org.strata.jverify.verifier.tests.interpret;
+package org.strata.jverify.verifier.tests.javasupport.boxing;
 
 import org.strata.jverify.InterpretEntry;
 import org.strata.jverify.testengine.Blocker;
@@ -17,7 +17,7 @@ import static org.strata.jverify.JVerify.*;
         expectedToFail = true,
         blockedBy = {Blocker.STRATA_OTHER},
         exitCode = 0)
-class InterpretBoxingNullEqualsUncaught {
+class BoxingNullEqualsUncaughtCortex {
     static class Holder {
         Integer x;
     }

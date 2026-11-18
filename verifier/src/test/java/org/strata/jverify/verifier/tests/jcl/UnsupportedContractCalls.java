@@ -7,7 +7,7 @@ import org.strata.jverify.testengine.JVerifyTest;
 import java.math.BigInteger;
 import java.util.Optional;
 
-@JVerifyTest(useBuiltinContracts = true, continueOnErrors = true, methodsVerified = 2, methodsSkipped = 7)
+@JVerifyTest(useBuiltinContracts = true, continueOnErrors = true, methodsVerified = 2, methodsSkipped = 8)
 class UnsupportedContractCalls {
     static int literalReceiver(String s) {
 //                                       ^ error: call to 'length' on a receiver whose static type is not a class is not yet supported
@@ -21,6 +21,12 @@ class UnsupportedContractCalls {
 
     static int callResultReceiver(String s) {
 //                                          ^ error: call to 'length' on a receiver whose static type is not a class is not yet supported
+        return s.substring(1).length();
+    }
+
+    static int localLiteralReceiver() {
+//                                    ^ error: call to 'length' on a receiver whose static type is not a class is not yet supported
+        String s = "abc";
         return s.substring(1).length();
     }
 

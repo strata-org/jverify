@@ -356,7 +356,6 @@ public class BytecodeToLaurelCompiler {
             emitCompositeClosure(typeName, emittedComposites, types);
         }
         List<Procedure> allProcedures = new ArrayList<>(lf.castHelpers.values());
-        allProcedures.addAll(composites.boxes.helpers.values());
         allProcedures.addAll(translationContext().missingContractProcs.values());
         allProcedures.addAll(procedures);
         var program = new LaurelProgram(allProcedures, List.of(), translationContext().statics.declared(),
@@ -650,7 +649,11 @@ public class BytecodeToLaurelCompiler {
      * supported: a program class below the contractee declaring a method of
      * the same name, or, for a member on {@code Object}, another emitted
      * library member of the same name (every library sort extends
-     * {@code Object} in the emitted Laurel).
+     * {@code Object} in the emitted Laurel). A member of a shipped wrapper
+     * contract refuses no member on {@code Object}: the wrapper classes are
+     * final and their contracts pure, so such a member is a function of its
+     * arguments and the box's value, which never changes, and the member on
+     * {@code Object} that a caller sees states no more than that.
      */
     private void refuseOverriddenLibraryMembers() {
         var live = new ArrayList<MethodGraph.MethodInfo>();
@@ -682,7 +685,8 @@ public class BytecodeToLaurelCompiler {
             if (overrider == null && info.classFqn.equals(OBJECT_SORT)) {
                 for (var other : live) {
                     if (other != info && !other.classFqn.equals(OBJECT_SORT)
-                            && javaNameOf(other.name).equals(javaName)) {
+                            && javaNameOf(other.name).equals(javaName)
+                            && !contracts.isShippedWrapperContract(libraryMembers.get(other.key()).classInternal())) {
                         overrider = other.classFqn;
                         break;
                     }
@@ -1664,7 +1668,8 @@ public class BytecodeToLaurelCompiler {
             }
         }
         String key = body.calleeKeys.get(n.val());
-        if (key != null && !decls.isTransparent(key) && !contracts.isFrameEmptyKey(key) && !calleeDeclaresEmptyFrame(body, n)) {
+        if (key != null && (contracts.allocatesKey(key)
+                || !decls.isTransparent(key) && !contracts.isFrameEmptyKey(key) && !calleeDeclaresEmptyFrame(body, n))) {
             return false;
         }
         for (var c : BodyTranslator.childrenOf(n.val())) {
@@ -1841,14 +1846,14 @@ public class BytecodeToLaurelCompiler {
             }
             case StmtExpr.While w -> {
                 // A loop whose body allocates havocs the whole heap, which an
-                // empty frame cannot cover; an array allocation or a box has
-                // no constructor call to count as the write.
-                if (allocatesArrayOrBox(n)) {
+                // empty frame cannot cover; an array allocation has no
+                // constructor call to count as the write.
+                if (allocatesArray(n)) {
                     return true;
                 }
             }
             case StmtExpr.Block b when isLoop(n) -> {
-                if (allocatesArrayOrBox(n)) {
+                if (allocatesArray(n)) {
                     return true;
                 }
             }
@@ -1856,7 +1861,8 @@ public class BytecodeToLaurelCompiler {
             }
         }
         String key = body.calleeKeys.get(n.val());
-        if (key != null && !decls.isTransparent(key) && !contracts.isFrameEmptyKey(key) && !calleeDeclaresEmptyFrame(body, n)) {
+        if (key != null && (contracts.allocatesKey(key)
+                || !decls.isTransparent(key) && !contracts.isFrameEmptyKey(key) && !calleeDeclaresEmptyFrame(body, n))) {
             return true;
         }
         for (var c : BodyTranslator.childrenOf(n.val())) {
@@ -1865,6 +1871,59 @@ public class BytecodeToLaurelCompiler {
             }
         }
         return false;
+    }
+
+    private boolean writesOnlyFresh(List<AstNode<StmtExpr>> stmts, BodyTranslator body, java.util.Set<String> fresh) {
+        for (var n : stmts) {
+            if (!writesOnlyFresh(n, body, fresh)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean writesOnlyFresh(AstNode<StmtExpr> n, BodyTranslator body, java.util.Set<String> fresh) {
+        switch (n.val()) {
+            case StmtExpr.Assign a when a.targets().size() == 1
+                    && a.targets().get(0).val() instanceof Variable.Declare d
+                    && a.value().val() instanceof StmtExpr.New -> {
+                fresh.add(d.parameter().name().text());
+                return true;
+            }
+            case StmtExpr.Assign a when a.targets().size() == 1
+                    && a.targets().get(0).val() instanceof Variable.Field f
+                    && f.target().val() instanceof StmtExpr.Var(Variable.Local l)
+                    && fresh.contains(l.name().text()) -> {
+                return !heapNode(a.value(), body);
+            }
+            case StmtExpr.Call c when c.receiver().isPresent()
+                    && c.receiver().get().val() instanceof StmtExpr.Var(Variable.Local l)
+                    && fresh.contains(l.name().text()) -> {
+                for (var arg : c.arguments()) {
+                    if (heapNode(arg, body)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            case StmtExpr.Assign a when a.targets().size() == 1
+                    && a.targets().get(0).val() instanceof Variable.Local l -> {
+                fresh.remove(l.name().text());
+                return !heapNode(a.value(), body);
+            }
+            case StmtExpr.Block b -> {
+                return writesOnlyFresh(b.statements(), body, new java.util.HashSet<>(fresh));
+            }
+            case StmtExpr.IfThenElse i -> {
+                return !heapNode(i.cond(), body)
+                        && writesOnlyFresh(i.thenBranch(), body, new java.util.HashSet<>(fresh))
+                        && i.elseBranch().map(e -> writesOnlyFresh(e, body, new java.util.HashSet<>(fresh)))
+                                .orElse(true);
+            }
+            default -> {
+                return !heapNode(n, body);
+            }
+        }
     }
 
     /** {@code n} is a labelled block that a {@code goto} jumps back into: a loop. */
@@ -1886,17 +1945,14 @@ public class BytecodeToLaurelCompiler {
         return false;
     }
 
-    /** {@code n}'s subtree allocates a JArray or calls a boxing helper ({@link BoxModel}). */
-    private static boolean allocatesArrayOrBox(AstNode<StmtExpr> n) {
+    /** {@code n}'s subtree allocates a JArray. */
+    private static boolean allocatesArray(AstNode<StmtExpr> n) {
         if (n.val() instanceof StmtExpr.New nw && nw.ref().text().equals(ArrayModel.SORT)
                 && !nw.typeArgs().isEmpty()) {
             return true;
         }
-        if (n.val() instanceof StmtExpr.Call c && c.receiver().isEmpty() && c.callee().text().startsWith(BoxModel.BOX_HELPER_PREFIX)) {
-            return true;
-        }
         for (var c : BodyTranslator.childrenOf(n.val())) {
-            if (allocatesArrayOrBox(c)) {
+            if (allocatesArray(c)) {
                 return true;
             }
         }
@@ -2888,12 +2944,13 @@ public class BytecodeToLaurelCompiler {
             var nonHoisted = topStmts.subList(hdr, topStmts.size());
             boolean contractThrowBody = nonHoisted.size() == 1
                     && body.contractThrows.contains(nonHoisted.get(0));
-            noImplementation = nonHoisted.isEmpty() || contractThrowBody;
+            noImplementation = isCtor ? ctorRest.isEmpty() || contractThrowBody
+                    : nonHoisted.isEmpty() || contractThrowBody;
             if (body.contractThrows.size() > (contractThrowBody ? 1 : 0)) {
                 throw new JavaViolationException(
                         "ContractException may only be thrown as the whole body of a contract method");
             }
-            if (!noImplementation && !member.isTransparent()) {
+            if (!noImplementation && !member.isTransparent() && !isCtor && posts.isEmpty()) {
                 throw new JavaViolationException("a contract for an impure method may only call super"
                         + " or this, or throw a ContractException in its body");
             }
@@ -3158,6 +3215,7 @@ public class BytecodeToLaurelCompiler {
                         : writesHeap(implementation, body)
                                 ? List.of(noRange(new StmtExpr.All()))
                                 : List.of();
+        boolean statesPostconditions = !postconditions.isEmpty();
         if (isCtor) {
             postconditions.addAll(constructorFieldFacts(implementation, inputs));
             // The object under construction is fresh, so it is distinct from every
@@ -3184,7 +3242,23 @@ public class BytecodeToLaurelCompiler {
         }
         Body procBody;
         if (member != null) {
-            procBody = libraryMemberBody(member, noImplementation, postconditions, explicitModifies,
+            boolean freshBody = !isCtor && !noImplementation && !member.isTransparent();
+            if (freshBody && (!member.verify() || !explicitModifies.isEmpty()
+                    || !writesOnlyFresh(implementation, body, new java.util.HashSet<>()))) {
+                throw new JavaViolationException("a contract for an impure method may only call super"
+                        + " or this, or throw a ContractException in its body");
+            }
+            // Whatever is emitted for it, the body is not checked against a postcondition, and
+            // callers would assume both the postcondition and what the body assigns.
+            if (isCtor && !noImplementation && statesPostconditions) {
+                throw new JavaViolationException("a contract constructor with both a body and postconditions"
+                        + " is not yet supported: the body is not checked against the postconditions");
+            }
+            procBody = isCtor && !noImplementation && member.verify() && explicitModifies.isEmpty()
+                    ? new Body.Transparent(noRange(methodBody))
+                    : freshBody
+                    ? new Body.Opaque(postconditions, Optional.of(noRange(methodBody)), unguardedModifies(List.of()))
+                    : libraryMemberBody(member, noImplementation, postconditions, explicitModifies,
                     implementation, methodBody);
             // Strata needs a termination measure for a recursive function,
             // and `decreases` clauses are not emitted.
@@ -3196,7 +3270,7 @@ public class BytecodeToLaurelCompiler {
             // generated $constraintLemma that does not assume its callees'
             // postconditions, so even a correct body (charAt's chars.get(index))
             // fails there and taints every caller's verdict.
-            if (procBody instanceof Body.Transparent && hasConstrainedOutput(outputs)) {
+            if (procBody instanceof Body.Transparent && hasConstrainedOutput(outputs) && !info.callees.isEmpty()) {
                 throw new JavaViolationException("a contract body that returns '"
                         + mt.returnType().displayName()
                         + "' is not yet supported: Strata cannot check the result's range");

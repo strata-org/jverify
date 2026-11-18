@@ -1,4 +1,4 @@
-package org.strata.jverify.verifier.tests.interpret;
+package org.strata.jverify.verifier.tests.javasupport.boxing;
 
 import org.strata.jverify.InterpretEntry;
 import org.strata.jverify.testengine.Blocker;
@@ -18,7 +18,7 @@ import static org.strata.jverify.JVerify.*;
         expectedToFail = true,
         blockedBy = {Blocker.FRONTEND_OTHER},
         exitCode = 2)
-class InterpretBoxingJoinRefusals {
+class BoxingJoinRefusalsCortex {
     static class Point {
     }
 

@@ -335,12 +335,9 @@ RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayStaticElementTyp
 RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayStaticFieldCheckFails passes on the direct Cortex translation
 RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayStaticFields passes on the direct Cortex translation
 RUN   org.strata.jverify.verifier.tests.interpret.InterpretArrayStaticInitializers passes on the direct Cortex translation
-RUN   org.strata.jverify.verifier.tests.interpret.InterpretBoxing passes on the direct Cortex translation
-RUN   org.strata.jverify.verifier.tests.interpret.InterpretBoxingCheckFails passes on the direct Cortex translation
-RUN   org.strata.jverify.verifier.tests.interpret.InterpretBoxingFields passes on the direct Cortex translation
-RUN   org.strata.jverify.verifier.tests.interpret.InterpretBoxingJoinRefusals passes on the direct Cortex translation
-RUN   org.strata.jverify.verifier.tests.interpret.InterpretBoxingReferenceComparison passes on the direct Cortex translation
-RUN   org.strata.jverify.verifier.tests.interpret.InterpretBoxingRefusals passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.javasupport.boxing.BoxingExecution passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.javasupport.boxing.BoxingJoinRefusalsCortex passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.javasupport.boxing.BoxingRefusalsCortex passes on the direct Cortex translation
 RUN   org.strata.jverify.verifier.tests.interpret.InterpretThrowLocal passes on the direct Cortex translation
 RUN   org.strata.jverify.langref.jls14.s14_20.TryFinally_3 passes on the direct Cortex translation: arrays in static fields
 RUN   org.strata.jverify.langref.jls14.s14_20.TryFinally_4 passes on the direct Cortex translation: arrays in static fields
@@ -368,3 +365,22 @@ XFAIL org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_2 CORTEX
 XFAIL org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_3 CORTEX_LAUREL_DIAGNOSTIC the fixture expects Laurel's 'Unsupported call: length'; Cortex models String.length
 XFAIL org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_4 CORTEX_LAUREL_DIAGNOSTIC the fixture expects Laurel's 'Unsupported call: length'; Cortex models String.length
 RUN   org.strata.jverify.langref.jls9.s9_3.InterfaceFieldInitialization_5 passes on the direct Cortex translation: string constants, String.length and String.equals
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretLibraryCalls passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretLibraryCallsCheckFails passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretLibraryDispatchCheckFails passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.javasupport.library.LibraryRefusalsCortex passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.javasupport.library.LibraryOverriderRefusalsCortex passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.javasupport.library.LibraryDispatchUnallocatedClass passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.javasupport.library.LibraryModelledReceiverRefusalsCortex passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.javasupport.library.LibraryRefusedOverrideRefusalsCortex passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.javasupport.library.LibraryUntranslatedOverrideRefusalsCortex passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretBooleanConstants passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretBooleanConstantsCheckFails passes on the direct Cortex translation
+RUN   org.strata.jverify.langref.jls10.s10_7.ArrayMembers_EqualsIsIdentity passes on the direct Cortex translation: library methods run from their bytecode
+RUN   org.strata.jverify.langref.jls4.s4_3.TheClassObject_1 passes on the direct Cortex translation: library methods run from their bytecode
+RUN   org.strata.jverify.langref.jls4.s4_3.TheClassObject_2 passes on the direct Cortex translation: library methods run from their bytecode
+RUN   org.strata.jverify.langref.jls7.s7_5.SingleStaticImport_2 passes on the direct Cortex translation: library methods run from their bytecode
+RUN   org.strata.jverify.langref.jls7.s7_5.StaticImportOnDemand_1 passes on the direct Cortex translation: library methods run from their bytecode
+RUN   org.strata.jverify.langref.jls15.s15_25.BooleanConditionalExpression_9 passes on the direct Cortex translation: Boolean.TRUE is a static field of the contract
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretLibraryDispatch passes on the direct Cortex translation
+RUN   org.strata.jverify.verifier.tests.interpret.InterpretBooleanConstantValues passes on the direct Cortex translation

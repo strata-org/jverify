@@ -28,6 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CortexLibraryModelsEndToEndTest {
 
     private static final String PREFIX = "error: not supported by the direct Cortex translation: ";
+    /** How the refusal of a call to a library method that could not be translated starts; its own reason follows. */
+    private static final String LIBRARY = "the library method '";
 
     private static final String REFERENCE_COMPARISON = "a reference comparison when an operand may be an object"
             + " that a contract body allocates: its identity may not be Java's";
@@ -83,7 +85,7 @@ class CortexLibraryModelsEndToEndTest {
     /** The entry runs, and the other methods are refused with the given reasons (in any order). */
     private static void assertRefused(JVerifyResults.Ran ran, String... reasons) {
         assertEquals(0, ran.verificationResults().verificationFailedMethods(), () -> messages(ran).toString());
-        assertEquals(List.of(reasons).stream().map(r -> PREFIX + r).sorted().toList(),
+        assertEquals(List.of(reasons).stream().map(r -> r.startsWith(LIBRARY) ? "error: " + r : PREFIX + r).sorted().toList(),
                 messages(ran).stream().sorted().toList());
     }
 
@@ -197,7 +199,10 @@ class CortexLibraryModelsEndToEndTest {
                 """));
     }
 
-    /** A program class that overrides {@code getMessage} keeps every such call a dispatch, which is not modelled. */
+    /**
+     * A program class that overrides {@code getMessage} keeps every such call a dispatch, which is not modelled:
+     * the call runs the JDK's {@code getMessage}, which reads a field the model replaces.
+     */
     @Test
     void overriddenGetMessageIsNotInlined(@TempDir Path tmp) throws Exception {
         assertRefused(interpret(tmp, "Overrides.java", "Overrides#ok", """
@@ -214,7 +219,8 @@ class CortexLibraryModelsEndToEndTest {
                     static void ok() { check(new Loud().getMessage().equals("LOUD")); }
                 }
                 """),
-                "calls to library methods (java.lang.RuntimeException.getMessage) when interpreting");
+                LIBRARY + "java.lang.Throwable.getMessage' could not be translated: not supported by the direct Cortex"
+                        + " translation: fields of java.lang.Throwable, whose state the translation models itself");
     }
 
     /** A StringBuilder is a mutable text: append (returning the builder), toString and setLength(0). */
@@ -257,7 +263,10 @@ class CortexLibraryModelsEndToEndTest {
                 """),
                 "string conversion of int in a concatenation",
                 "StringBuilder.setLength with a length other than the constant 0",
-                "calls to library methods (java.lang.StringBuilder.length) when interpreting",
+                LIBRARY + "java.lang.StringBuilder.length' could not be translated: the library method"
+                        + " 'java.lang.AbstractStringBuilder.length' could not be translated: not supported by the direct"
+                        + " Cortex translation: fields of java.lang.AbstractStringBuilder, whose state the translation"
+                        + " models itself",
                 BytecodeToCortexCompiler.MAYBE_NULL_STRING);
     }
 

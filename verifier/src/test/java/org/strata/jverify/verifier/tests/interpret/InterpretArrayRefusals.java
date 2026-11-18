@@ -55,12 +55,7 @@ class InterpretArrayRefusals {
 
     static void copied(int[] a, int[] b) {
         System.arraycopy(a, 0, b, 0, 1);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ error: not supported by the direct Cortex translation: calls to library methods (java.lang.System.arraycopy) when interpreting
-    }
-
-    static void library(int[] a) {
-        java.util.Arrays.fill(a, 1);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^ error: not supported by the direct Cortex translation: calls to library methods (java.util.Arrays.fill) when interpreting
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ error: the library method 'java.lang.System.arraycopy' could not be translated: not supported by the direct Cortex translation: native methods (java.lang.System.arraycopy)
     }
 
     static void staticReferences() {

@@ -124,7 +124,7 @@ final class BodyTranslator {
      * composite: a field read, a load of a {@linkplain #heapReadSlots local}
      * filled from the heap, a cast of either, and a conditional expression with
      * such an arm (ValueFolder). The box model refuses to
-     * unbox them (InvokeTranslator.boxMember), as a Laurel composite value is
+     * unbox them (InvokeTranslator), as a Laurel composite value is
      * never null where Java's may be.
      */
     final Set<AstNode<StmtExpr>> heapReadValues = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -669,8 +669,11 @@ final class BodyTranslator {
             throw new JavaViolationException(
                     "object allocation (including lambdas) inside a contract is not yet supported");
         }
-        if (n.val() instanceof StmtExpr.Call c && c.receiver().isEmpty() && c.callee().text().startsWith(BoxModel.BOX_HELPER_PREFIX)) {
-            throw new JavaViolationException("boxing inside a contract is not yet supported");
+        String key = calleeKeys.get(n.val());
+        if (key != null && ctx.contracts.allocatesKey(key)) {
+            throw new JavaViolationException(key.endsWith("_valueOf")
+                    ? "boxing inside a contract is not yet supported"
+                    : "a call that allocates inside a contract is not yet supported");
         }
     }
 
@@ -1693,7 +1696,7 @@ final class BodyTranslator {
     boolean isModelledBox(AstNode<StmtExpr> n) {
         String desc = descOf.get(n);
         return desc != null && desc.startsWith("L") && desc.endsWith(";")
-                && ctx.composites.boxes.models(BoxModel.wrapperOf(desc.substring(1, desc.length() - 1)));
+                && ctx.composites.boxes.hazard(BoxModel.wrapperOf(desc.substring(1, desc.length() - 1)));
     }
 
     /**
@@ -2453,22 +2456,11 @@ final class BodyTranslator {
                 // descOf would still see Object.
                 noteDesc(v, tc.type().asSymbol().descriptorString());
                 erasedResults.remove(v.val());
-                return;
-            }
-            BoxModel.Wrapper box = BoxModel.wrapperOf(tc.type().asInternalName());
-            if (!ctx.contractMode && ctx.composites.boxes.models(box)) {
-                // A cast to a box class is a downcast to its composite (BoxModel).
-                var boxType = LaurelFactory.node(new HighType.UserDefined(
-                        LaurelFactory.ident(ctx.composites.boxes.declare(box))));
-                AstNode<StmtExpr> n = push(new StmtExpr.AsType(v, boxType));
-                staticTypeOf.put(n, t);
-                noteDesc(n, box.descriptor());
-                if (heapReadValues.contains(v)) {
-                    heapReadValues.add(n);
+                if (ctx.contracts.compositeSortOf(fqn) != null) {
+                    typeVarValues.remove(v);
+                    typeVarValues.remove(origin(v));
+                    staticTypeOf.put(origin(v), t);
                 }
-                implicitThrows.put(n, new ImplicitThrow(
-                        e(LaurelFactory.primitiveOp(new Operation.Not(), e(new StmtExpr.IsType(v, boxType)))),
-                        CLASS_CAST_EXCEPTION));
                 return;
             }
             // A reference DOWNCAST is Laurel's `as`, whose embedded type test
@@ -2479,6 +2471,24 @@ final class BodyTranslator {
             // is already the identity. Any other library target stays refused --
             // String is modelled as a Laurel value rather than a composite, so
             // `as` on it would collide with that encoding.
+            String castSort = ctx.contracts.wrapperSortOf(fqn);
+            if (castSort != null) {
+                ctx.composites.referencedCompositeTypes.add(castSort);
+                var castType = LaurelFactory.node(new HighType.UserDefined(LaurelFactory.ident(castSort)));
+                AstNode<StmtExpr> n = push(new StmtExpr.AsType(v, castType));
+                staticTypeOf.put(n, t);
+                noteDesc(n, tc.type().asSymbol().descriptorString());
+                if (heapReadValues.contains(v)) {
+                    heapReadValues.add(n);
+                }
+                if (ctx.contractMode) {
+                    return;
+                }
+                implicitThrows.put(n, new ImplicitThrow(
+                        e(LaurelFactory.primitiveOp(new Operation.Not(), e(new StmtExpr.IsType(v, castType)))),
+                        CLASS_CAST_EXCEPTION));
+                return;
+            }
             if (fqn != null && (ctx.resolver.isThrowableSubtype(fqn)
                     || ctx.resolver.programClassModels.containsKey(fqn))) {
                 if (ctx.resolver.isThrowableSubtype(fqn)) {
@@ -2516,10 +2526,11 @@ final class BodyTranslator {
             // declares every sort's FULL supertype closure and Laurel keeps a runtime
             // tag per composite, so `is` decides properly for any composite this
             // compilation declares.
-            BoxModel.Wrapper box = BoxModel.wrapperOf(tc.type().asInternalName());
-            if (!ctx.contractMode && ctx.composites.boxes.models(box) && !patternBindTests.contains(tc)) {
-                AstNode<StmtExpr> n = push(new StmtExpr.IsType(v, LaurelFactory.node(new HighType.UserDefined(
-                        LaurelFactory.ident(ctx.composites.boxes.declare(box))))));
+            String contractSort = patternBindTests.contains(tc) ? null : ctx.contracts.wrapperSortOf(fqn);
+            if (contractSort != null) {
+                ctx.composites.referencedCompositeTypes.add(contractSort);
+                AstNode<StmtExpr> n = push(new StmtExpr.IsType(v,
+                        LaurelFactory.node(new HighType.UserDefined(LaurelFactory.ident(contractSort)))));
                 bools.add(n);
                 return;
             }

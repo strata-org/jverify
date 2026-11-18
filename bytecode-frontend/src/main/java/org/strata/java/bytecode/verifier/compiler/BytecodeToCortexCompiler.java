@@ -144,6 +144,23 @@ import java.util.Set;
  * is a new one, where Java may return one it has cached, so in a program that
  * calls into a contract class with instance fields a reference comparison is
  * refused unless an operand's static type rules an object of such a class out.
+ * A static field that a contract class declares is a global that the contract's
+ * static initializer assigns, run once before the first read
+ * ({@code Boolean.TRUE}).
+ *
+ * <p>When interpreting, a call to any other library method runs a procedure
+ * translated from the method's own bytecode, read from the class path or the
+ * running JDK, as a program method is ({@link #libraryCall}). In it arithmetic
+ * wraps, assertions are disabled, and an instance field of a library class is
+ * a field of the class's composite. A call that dispatches is a virtual call:
+ * the receiver's class is one the translated code allocates, and the method
+ * each of them runs is translated under its name
+ * ({@link #translateLibraryOverriders}); where that method is the program's
+ * own and has no translated body, the methods that make the call are refused. A library method that cannot be
+ * translated (a native or abstract method, a read of a static field of a
+ * library class, any construct refused in a program) refuses the methods that
+ * call it, with its reason; so does a method of a class whose state is
+ * modelled inline or by a contract, where it reads a field of the class.
  *
  * <p>A few other library classes are still modelled like {@code String}, with
  * explicit fields on their composite and inline models of their methods
@@ -173,9 +190,8 @@ import java.util.Set;
  * arrays of references,
  * multi-dimensional arrays, arrays in static fields of library classes, a
  * {@code baload} or {@code bastore} on an array whose static type is not
- * known and, when verifying, every array; and, when interpreting, calls to library
- * methods, {@code clone} on an array included, other than the {@code String}
- * members, the contract bodies and the inline models above.
+ * known and, when verifying, every array; and, when interpreting, {@code clone}
+ * on an array and the library methods that cannot be translated, above.
  *
  * <p>A static field is a global variable named {@code owner:field}, holding
  * the JVM default of its type when an entry procedure starts and an arbitrary
@@ -318,6 +334,27 @@ public final class BytecodeToCortexCompiler {
      * ({@link #callsFieldContract}): reference comparisons are then checked.
      */
     private boolean programCreatesContractObjects;
+    /** The class model of each library class asked for ({@link #libraryModel}); empty for a class that was not found. */
+    private final Map<String, Optional<ClassModel>> libraryModels = new HashMap<>();
+    /** Why each library method that has no translated body was refused, by procedure name. */
+    private final Map<String, String> libraryRefusals = new HashMap<>();
+    /** The method each library procedure stands for, as {@code Class.method}, for messages. */
+    private final Map<String, String> libraryDisplayNames = new HashMap<>();
+    /** The library procedures whose translation is under way. */
+    private final Set<String> libraryInProgress = new java.util.HashSet<>();
+    /** The library classes whose composite takes its instance fields from the class's own classfile, in first-use order. */
+    private final Set<String> libraryFieldClasses = new LinkedHashSet<>();
+    /**
+     * The classes the translated code allocates, at a {@code new} or where the translation makes
+     * the object itself (a string constant, concatenation or {@code StringBuilder.toString}, an
+     * exception the JVM throws): the classes a library receiver can have. An object of any other
+     * class is made only by code that was not translated, which does not run.
+     */
+    private final Set<String> instantiated = new LinkedHashSet<>();
+    /** The virtual calls whose static target is a library method, by the target's procedure name. */
+    private final Map<String, LibrarySite> librarySites = new LinkedHashMap<>();
+    /** The library classes whose contract class has a static initializer that was translated or refused. */
+    private final Set<String> contractInitializers = new java.util.HashSet<>();
 
     public BytecodeToCortexCompiler(Reporter reporter, boolean verifyByDefault, List<Path> classPath,
                                     boolean interpret) {
@@ -374,6 +411,7 @@ public final class BytecodeToCortexCompiler {
             }
         }
         addInheritedForwarders();
+        translateLibraryOverriders();
         refuseUsersOfUntranslatedInitializers();
         if (!stringLiterals.isEmpty() || internUsed) {
             procedures.put(STRING_INIT, stringInitProcedure());
@@ -476,6 +514,9 @@ public final class BytecodeToCortexCompiler {
         var cm = programClasses.get(fqn);
         if (cm == null && contractFieldClasses.contains(fqn)) {
             cm = contractModel(fqn);
+        }
+        if (cm == null && libraryFieldClasses.contains(fqn)) {
+            cm = libraryModel(fqn);
         }
         if (cm == null) {
             return List.of();
@@ -595,7 +636,7 @@ public final class BytecodeToCortexCompiler {
             contractsInProgress.add(proc);
             try {
                 var code = (CodeAttribute) body.method().findAttribute(Attributes.code()).orElseThrow();
-                var translated = new MethodTranslator(body.cm(), owner, body.method(), code, NO_LOCATION, false, true)
+                var translated = new MethodTranslator(body.cm(), owner, body.method(), code, NO_LOCATION, false, true, false)
                         .translate();
                 procedures.put(proc, new Procedure(proc, paramsOf(owner, isStatic, desc, NO_LOCATION),
                         outputsOf(desc, NO_LOCATION), throwsOf(body.cm(), body.method()), List.of(),
@@ -668,6 +709,392 @@ public final class BytecodeToCortexCompiler {
             }
         }
         return false;
+    }
+
+    // --- Library methods translated from their own bytecode ---
+
+    /**
+     * The method a library call runs: the class on the receiver class's chain that declares it,
+     * with that class's model; or why there is none to run.
+     */
+    private record LibraryImpl(String declaring, @Nullable ClassModel cm, @Nullable MethodModel m,
+                               @Nullable String refusal) {
+        static LibraryImpl refused(String declaring, String why) {
+            return new LibraryImpl(declaring, null, null, why);
+        }
+    }
+
+    /** A virtual call whose static target is the library method {@code owner.name}. */
+    private record LibrarySite(String owner, String name, MethodTypeDesc desc) {
+    }
+
+    /** The classfile of library class {@code fqn}, from the class path or else from the running JDK; null when not found. */
+    private @Nullable ClassModel libraryModel(String fqn) {
+        return libraryModels.computeIfAbsent(fqn, c -> {
+            ClassModel cm;
+            try {
+                cm = resolver.loadClassModel(c);
+                if (cm == null) {
+                    cm = systemClassModel(c);
+                }
+            } catch (RuntimeException e) {
+                cm = null;
+            }
+            return Optional.ofNullable(cm);
+        }).orElse(null);
+    }
+
+    /** The classfile of {@code fqn} in the running JDK; a nested class is tried with {@code $} at each dot from the right. */
+    private static @Nullable ClassModel systemClassModel(String fqn) {
+        String binary = fqn;
+        while (true) {
+            try (var in = ClassLoader.getSystemResourceAsStream(binary.replace('.', '/') + ".class")) {
+                if (in != null) {
+                    return ClassFile.of().parse(in.readAllBytes());
+                }
+            } catch (java.io.IOException e) {
+                return null;
+            }
+            int dot = binary.lastIndexOf('.');
+            if (dot < 0) {
+                return null;
+            }
+            binary = binary.substring(0, dot) + "$" + binary.substring(dot + 1);
+        }
+    }
+
+    private static @Nullable MethodModel declaredExactly(ClassModel cm, String name, MethodTypeDesc desc,
+                                                         boolean isStatic) {
+        for (var m : cm.methods()) {
+            if (m.methodName().stringValue().equals(name) && m.methodTypeSymbol().equals(desc)
+                    && m.flags().has(AccessFlag.STATIC) == isStatic) {
+                return m;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The method that a call of {@code name} on an object of class {@code cls} runs (JVMS 5.4.6): the
+     * one declared by the nearest class on the superclass chain, else a default method of a
+     * superinterface. Null when a class on the way is not found or none declares the method.
+     */
+    private @Nullable LibraryImpl resolveLibrary(String cls, String name, MethodTypeDesc desc, boolean isStatic) {
+        for (String c = cls; c != null; c = resolver.superclassOf(c)) {
+            ClassModel cm = programClasses.containsKey(c) ? programClasses.get(c) : libraryModel(c);
+            if (cm == null) {
+                return null;
+            }
+            var m = declaredExactly(cm, name, desc, isStatic);
+            if (m != null) {
+                return new LibraryImpl(c, cm, m, null);
+            }
+        }
+        if (isStatic) {
+            return null;
+        }
+        var seen = new java.util.HashSet<String>();
+        var work = new ArrayDeque<String>();
+        for (String c = cls; c != null; c = resolver.superclassOf(c)) {
+            work.addAll(resolver.directInterfacesOf(c));
+        }
+        while (!work.isEmpty()) {
+            String i = work.poll();
+            if (!seen.add(i)) {
+                continue;
+            }
+            ClassModel cm = programClasses.containsKey(i) ? programClasses.get(i) : libraryModel(i);
+            if (cm == null) {
+                continue;
+            }
+            var m = declaredExactly(cm, name, desc, false);
+            if (m != null && !m.flags().has(AccessFlag.ABSTRACT)) {
+                return new LibraryImpl(i, cm, m, null);
+            }
+            work.addAll(resolver.directInterfacesOf(i));
+        }
+        return null;
+    }
+
+    /**
+     * {@link #resolveLibrary}, refused where the bytecode found is not what runs here: a class
+     * whose contract declares its fields is made of those fields, which its own bytecode does
+     * not read.
+     */
+    private @Nullable LibraryImpl libraryImpl(String cls, String name, MethodTypeDesc desc, boolean isStatic) {
+        var impl = resolveLibrary(cls, name, desc, isStatic);
+        if (impl != null && !programClasses.containsKey(impl.declaring()) && contractHasFields(impl.declaring())) {
+            return LibraryImpl.refused(impl.declaring(), "not supported by the direct Cortex translation: a method of "
+                    + impl.declaring() + " that its contract gives no body");
+        }
+        return impl;
+    }
+
+    /**
+     * Whether the translation models the state of library class {@code c} itself
+     * ({@link #libraryFields}, and the constructors of {@code Throwable} and {@code Enum}
+     * subclasses, which are not run): the class's own fields are then not its state.
+     */
+    private boolean hasModelledState(String c) {
+        return c.equals(STRING) || c.equals(STRING_BUILDER) || c.equals("java.lang.AbstractStringBuilder")
+                || resolver.isThrowableSubtype(c) || resolver.isSubclassOf(c, ENUM);
+    }
+
+    /**
+     * The library class on {@code target}'s superclass chain that declares instance field
+     * {@code name}, whose composite then takes the fields of its classfile; null when none does.
+     */
+    private @Nullable String libraryFieldOwner(String target, String name, FileRange at) {
+        for (String c = target; c != null; c = resolver.superclassOf(c)) {
+            if (programClasses.containsKey(c)) {
+                continue;
+            }
+            var cm = contractHasFields(c) ? contractModel(c) : libraryModel(c);
+            if (cm == null) {
+                return null;
+            }
+            for (var f : cm.fields()) {
+                if (f.fieldName().stringValue().equals(name) && !f.flags().has(AccessFlag.STATIC)) {
+                    if (hasModelledState(c)) {
+                        throw new Refusal("not supported by the direct Cortex translation: fields of " + c
+                                + ", whose state the translation models itself", at);
+                    }
+                    if (contractHasFields(c)) {
+                        contractFieldClasses.add(c);
+                    } else {
+                        libraryFieldClasses.add(c);
+                    }
+                    referenced.add(c);
+                    return c;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static String libraryRefusal(String display, String why) {
+        return "the library method '" + display + "' could not be translated: " + why;
+    }
+
+    /**
+     * The procedure of library method {@code target.name}, translated at its first call from the
+     * bytecode of the method that a call on a {@code target} runs. A method that is refused
+     * refuses each call to it, with the reason.
+     */
+    private String libraryCall(String target, String name, MethodTypeDesc desc, boolean isStatic, FileRange at) {
+        String proc = procName(target, name, desc);
+        if (!procedures.containsKey(proc) && !libraryRefusals.containsKey(proc)) {
+            translateLibraryMethod(proc, target, name, isStatic, desc);
+        }
+        String why = libraryRefusals.get(proc);
+        if (why != null) {
+            throw new Refusal(libraryRefusal(libraryDisplayNames.get(proc), why), at);
+        }
+        return proc;
+    }
+
+    private void translateLibraryMethod(String proc, String owner, String name, boolean isStatic, MethodTypeDesc desc) {
+        var declared = resolveLibrary(owner, name, desc, isStatic);
+        libraryDisplayNames.put(proc, (declared == null ? owner : declared.declaring()) + "." + name);
+        var body = contractBody(owner, name, desc, isStatic);
+        if (body != null) {
+            try {
+                contractProc(owner, name, desc, isStatic, body, NO_LOCATION);
+            } catch (Refusal r) {
+                libraryRefusals.put(proc, r.getMessage());
+            }
+            return;
+        }
+        var impl = libraryImpl(owner, name, desc, isStatic);
+        if (impl == null) {
+            libraryRefusals.put(proc, "not supported by the direct Cortex translation: a library method whose bytecode"
+                    + " was not found");
+            return;
+        }
+        if (impl.refusal() != null) {
+            libraryRefusals.put(proc, impl.refusal());
+            return;
+        }
+        var m = impl.m();
+        String what = impl.declaring() + "." + name;
+        if (m.flags().has(AccessFlag.NATIVE)) {
+            libraryRefusals.put(proc, "not supported by the direct Cortex translation: native methods (" + what + ")");
+            return;
+        }
+        var code = m.findAttribute(Attributes.code()).orElse(null);
+        if (code == null) {
+            libraryRefusals.put(proc, "not supported by the direct Cortex translation: abstract library methods ("
+                    + what + ")");
+            return;
+        }
+        List<Param> inputs;
+        List<Param> outputs;
+        try {
+            inputs = paramsOf(owner, isStatic, desc, NO_LOCATION);
+            outputs = outputsOf(desc, NO_LOCATION);
+        } catch (Refusal r) {
+            libraryRefusals.put(proc, r.getMessage());
+            return;
+        }
+        var throwsType = throwsOf(impl.cm(), m);
+        // Declared before its body is translated, for a method that calls itself.
+        procedures.put(proc, new Procedure(proc, inputs, outputs, throwsType, List.of(), Optional.empty(), false,
+                NO_LOCATION));
+        libraryInProgress.add(proc);
+        try {
+            var translated = new MethodTranslator(impl.cm(), impl.declaring(), m, (CodeAttribute) code, NO_LOCATION,
+                    false, false, true).translate();
+            procedures.put(proc, new Procedure(proc, inputs, outputs, throwsType, List.of(), Optional.of(translated),
+                    false, NO_LOCATION));
+        } catch (Refusal r) {
+            libraryRefusals.put(proc, r.getMessage());
+        } catch (RuntimeException e) {
+            libraryRefusals.put(proc, "not supported by the direct Cortex translation: " + e);
+        } finally {
+            libraryInProgress.remove(proc);
+        }
+    }
+
+    /**
+     * A virtual call on a library receiver runs the method of the receiver's class. The classes
+     * a receiver can have are those the translated code allocates ({@link #instantiated}); for
+     * each that is a subtype of a call's static target and runs another library method than the
+     * target does, that method is translated too, under the class's name, where dispatch finds
+     * it. Where the class runs a method of the program that has no translated body (it was
+     * refused, or javac generated it for a record), the methods that make the call are refused.
+     * Repeated until nothing changes: a method translated here may allocate and call.
+     */
+    private void translateLibraryOverriders() {
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (var site : List.copyOf(librarySites.values())) {
+                var ownerImpl = resolveLibrary(site.owner(), site.name(), site.desc(), false);
+                for (String c : List.copyOf(instantiated)) {
+                    if (c.equals(site.owner()) || !resolver.isSubtypeOf(c, site.owner())) {
+                        continue;
+                    }
+                    String proc = procName(c, site.name(), site.desc());
+                    var impl = resolveLibrary(c, site.name(), site.desc(), false);
+                    boolean contractBody = contractBody(c, site.name(), site.desc(), false) != null;
+                    if (!contractBody && impl != null && impl.m() != null && impl.m().code().isPresent()
+                            && programClasses.containsKey(impl.declaring())) {
+                        // The program's own method is what runs: without a body, dispatch would
+                        // fall back to the library method, so the calls are refused.
+                        String own = procName(impl.declaring(), site.name(), site.desc());
+                        var translated = procedures.get(own);
+                        if ((translated == null || translated.body().isEmpty()) && !libraryRefusals.containsKey(own)) {
+                            libraryDisplayNames.put(own, impl.declaring() + "." + site.name());
+                            libraryRefusals.put(own, "not supported by the direct Cortex translation: "
+                                    + (isGeneratedRecordMember(impl.cm(), impl.m())
+                                            ? "the " + site.name() + " javac generates for a record"
+                                            : "an override that was not translated"));
+                        }
+                        continue;
+                    }
+                    if (procedures.containsKey(proc) || libraryRefusals.containsKey(proc)) {
+                        continue;
+                    }
+                    if (!contractBody && (impl == null || programClasses.containsKey(impl.declaring())
+                            || ownerImpl != null && impl.declaring().equals(ownerImpl.declaring()))) {
+                        continue;
+                    }
+                    translateLibraryMethod(proc, c, site.name(), false, site.desc());
+                    changed = true;
+                }
+            }
+        }
+    }
+
+    /**
+     * A procedure that calls a library method that has no body (its translation was refused
+     * after the call was translated: an overrider, or a method that calls itself) is refused
+     * with that reason, as the user of an untranslated initializer is.
+     */
+    private boolean refuseIfCallsUntranslatedLibraryMethod(String name, Procedure p) {
+        if (p.body().isEmpty() || libraryRefusals.isEmpty() || libraryInProgress.contains(name)) {
+            return false;
+        }
+        String callee = null;
+        for (Block b : p.body().get().blocks()) {
+            for (Cmd c : b.cmds()) {
+                if (c instanceof Cmd.Call call && libraryRefusals.containsKey(call.proc())) {
+                    callee = call.proc();
+                } else if (c instanceof Cmd.VirtualCall vc) {
+                    String suffix = "$" + vc.method();
+                    for (String r : libraryRefusals.keySet()) {
+                        if (r.endsWith(suffix)) {
+                            String cls = r.substring(0, r.length() - suffix.length());
+                            if (cls.equals(vc.owner()) || resolver.isSubtypeOf(cls, vc.owner())) {
+                                callee = r;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (callee == null) {
+            return false;
+        }
+        String message = libraryRefusal(libraryDisplayNames.getOrDefault(callee, callee), libraryRefusals.get(callee));
+        URI uri = uriOf.get(name);
+        if (uri != null) {
+            reporter.reportError(uri, src.pointOf(laurelRange(p.source())), message);
+            var status = statusOf.get(name);
+            if (status != null) {
+                status.setVerificationStatus(MethodVerificationStatus.VerificationStatus.Skipped);
+            }
+        } else {
+            libraryRefusals.put(name, message);
+        }
+        if (name.endsWith("$" + CLINIT)) {
+            initializerRefusals.put(name, message);
+        }
+        procedures.put(name, new Procedure(p.name(), p.inputs(), p.outputs(), p.throws_(), p.requires(),
+                Optional.empty(), false, p.source()));
+        return true;
+    }
+
+    // --- Static initializers of contract classes ---
+
+    /** Whether the contract of library class {@code fqn} declares static field {@code name}. */
+    private boolean contractDeclaresStatic(String fqn, String name) {
+        var cm = contractModel(fqn);
+        return cm != null && cm.fields().stream().anyMatch(
+                f -> f.fieldName().stringValue().equals(name) && f.flags().has(AccessFlag.STATIC));
+    }
+
+    /**
+     * The procedure of the static initializer of the contract of library class {@code fqn}, which
+     * assigns the static fields the contract declares; null when the contract has none. It is
+     * translated at its first use, as a contract body is.
+     */
+    private @Nullable String contractInitializer(String fqn, FileRange at) {
+        var cm = contractModel(fqn);
+        var clinit = cm == null ? null : declaredExactly(cm, CLINIT, CLINIT_DESC, true);
+        if (clinit == null) {
+            return null;
+        }
+        String proc = procName(fqn, CLINIT, CLINIT_DESC);
+        if (contractInitializers.add(fqn)) {
+            libraryDisplayNames.put(proc, fqn + "." + CLINIT);
+            procedures.put(proc, new Procedure(proc, List.of(), List.of(), throwsOf(cm, clinit), List.of(),
+                    Optional.empty(), false, NO_LOCATION));
+            try {
+                var code = (CodeAttribute) clinit.findAttribute(Attributes.code()).orElseThrow();
+                var translated = new MethodTranslator(cm, fqn, clinit, code, NO_LOCATION, false, true, false).translate();
+                procedures.put(proc, new Procedure(proc, List.of(), List.of(), throwsOf(cm, clinit), List.of(),
+                        Optional.of(translated), false, NO_LOCATION));
+            } catch (Refusal r) {
+                contractRefusals.put(proc, r.getMessage());
+            }
+        }
+        String why = contractRefusals.get(proc);
+        if (why != null) {
+            throw new Refusal("the static initializer of the contract of '" + fqn + "' could not be translated: " + why,
+                    at);
+        }
+        return proc;
     }
 
     private @Nullable Ty fieldTy(ClassDesc cd) {
@@ -1083,6 +1510,7 @@ public final class BytecodeToCortexCompiler {
     private String stringLiteral(String text, FileRange at) {
         return stringLiterals.computeIfAbsent(text, t -> {
             referenced.add(STRING);
+            instantiated.add(STRING);
             String global = "$string$lit" + stringLiterals.size();
             globals.put(global, new Global(global, new Ty.Named(STRING), Optional.empty(), at));
             return global;
@@ -1305,7 +1733,7 @@ public final class BytecodeToCortexCompiler {
                             range);
                 }
                 if (code != null && verify) {
-                    body = Optional.of(new MethodTranslator(cm, fqn, m, (CodeAttribute) code, range, entry, false)
+                    body = Optional.of(new MethodTranslator(cm, fqn, m, (CodeAttribute) code, range, entry, false, false)
                             .translate());
                     translated = true;
                 }
@@ -1351,6 +1779,11 @@ public final class BytecodeToCortexCompiler {
             changed = false;
             for (var e : List.copyOf(procedures.entrySet())) {
                 if (refuseIfGuardCallsUntranslatedInitializer(e.getKey(), e.getValue())) {
+                    changed = true;
+                }
+            }
+            for (var e : List.copyOf(procedures.entrySet())) {
+                if (refuseIfCallsUntranslatedLibraryMethod(e.getKey(), e.getValue())) {
                     changed = true;
                 }
             }
@@ -1503,12 +1936,19 @@ public final class BytecodeToCortexCompiler {
         private final boolean entry;
         /** Whether the method is a contract body, which has no source in the program and may state specifications. */
         private final boolean contract;
+        /**
+         * Whether the method is a library method translated from its own bytecode. It has no source
+         * in the program; its arithmetic wraps, where a program's overflow is an error; and its
+         * assertions are disabled, as they are when the JVM runs it.
+         */
+        private final boolean library;
         /** The types whose initialization has started when this method runs: no guard for them. */
         private final Set<String> initializationStarted;
 
         MethodTranslator(ClassModel cm, String owner, MethodModel method, CodeAttribute code, FileRange methodRange,
-                         boolean entry, boolean contract) {
+                         boolean entry, boolean contract, boolean library) {
             this.contract = contract;
+            this.library = library;
             this.cm = cm;
             this.owner = owner;
             this.method = method;
@@ -1904,7 +2344,7 @@ public final class BytecodeToCortexCompiler {
         // --- Ranges ---
 
         private FileRange rangeAt(int seqIdx) {
-            if (contract) {
+            if (contract || library) {
                 return methodRange;
             }
             Span s = MethodBodyFactory.spanOf(crt, seqToBci, seqIdx);
@@ -2098,6 +2538,7 @@ public final class BytecodeToCortexCompiler {
             seal(new Transfer.Finish(at));
             startBlock(wrap);
             String wrapped = temp(new Ty.Named(EXCEPTION_IN_INITIALIZER_ERROR));
+            instantiated.add(EXCEPTION_IN_INITIALIZER_ERROR);
             cmds.add(new Cmd.New(wrapped, EXCEPTION_IN_INITIALIZER_ERROR, at));
             cmds.add(new Cmd.Throw(new Expr.Var(wrapped), Optional.of(uncaught(EXCEPTION_IN_INITIALIZER_ERROR)), at));
             seal(new Transfer.Finish(at));
@@ -2110,8 +2551,24 @@ public final class BytecodeToCortexCompiler {
             String target = className(fi.owner().asInternalName());
             ClassDesc type = fi.typeSymbol();
             boolean read = fi.opcode() == Opcode.GETSTATIC;
+            if (interpret && !programClasses.containsKey(target) && contractDeclaresStatic(target, name)) {
+                contractStaticField(target, name, type, read, at);
+                return;
+            }
             if (contract) {
                 throw refuse("static fields in a contract body (" + target + "." + name + ")", at);
+            }
+            if (library && name.equals("$assertionsDisabled")) {
+                // The JVM runs library code with its assertions disabled.
+                if (!read) {
+                    throw refuse("static initializers of library classes (" + target + ")", at);
+                }
+                push(Kind.I, lit(1), null, at);
+                return;
+            }
+            if (library) {
+                // No initializer of a library class is translated, so nothing assigns the field.
+                throw refuse("static fields of library classes (" + target + "." + name + ")", at);
             }
             if (ClassInitialization.isAssertionsDisabled(resolver, fi)) {
                 // Assertions are translated as always enabled: a read is false,
@@ -2171,6 +2628,36 @@ public final class BytecodeToCortexCompiler {
             }
         }
 
+        /**
+         * The read or write of a static field that the contract of library class {@code target}
+         * declares: the field is a global, as a program's is, and a read first runs the contract's
+         * static initializer, once. Only that initializer assigns the field.
+         */
+        private void contractStaticField(String target, String name, ClassDesc type, boolean read, FileRange at) {
+            tyOf(type, at);
+            String global = declareGlobal(target, name, type, at);
+            if (!read) {
+                if (!(contract && owner.equals(target) && method.methodName().stringValue().equals(CLINIT))) {
+                    throw refuse("writes to static fields of library classes", at);
+                }
+                cmds.add(new Cmd.Set(global, Optional.of(pop().expr), at));
+                return;
+            }
+            String clinit = contractInitializer(target, at);
+            if (clinit != null && !(contract && owner.equals(target) && method.methodName().stringValue().equals(CLINIT))) {
+                String flag = declareInitFlag(target, at);
+                String init = freshLabel();
+                String cont = freshLabel();
+                seal(new Transfer.CondGoto(new Expr.Var(flag), cont, init, at));
+                startBlock(init);
+                cmds.add(new Cmd.Set(flag, Optional.of(new Expr.Bool(true)), at));
+                cmds.add(new Cmd.Call(List.of(), clinit, List.of(), at));
+                seal(new Transfer.Goto(cont, at));
+                startBlock(cont);
+            }
+            push(kindOf(type, at), new Expr.Var(global), staticType(type), at);
+        }
+
         // --- Implicit throws ---
 
         private void throwIf(Expr cond, String exception, FileRange at) {
@@ -2179,6 +2666,7 @@ public final class BytecodeToCortexCompiler {
             seal(new Transfer.CondGoto(cond, fail, cont, at));
             startBlock(fail);
             referenced.add(exception);
+            instantiated.add(exception);
             String e = temp(new Ty.Named(exception));
             cmds.add(new Cmd.New(e, exception, at));
             cmds.add(new Cmd.Throw(new Expr.Var(e), Optional.of(uncaught(exception)), at));
@@ -2307,7 +2795,11 @@ public final class BytecodeToCortexCompiler {
                 }
                 case IncrementInstruction ii -> {
                     String v = localVar(ii.slot(), Kind.I);
-                    cmds.add(new Cmd.Call(List.of(v), PRELUDE + "$iadd", List.of(new Expr.Var(v), lit(ii.constant())), at));
+                    if (library) {
+                        cmds.add(new Cmd.Set(v, Optional.of(bv(Kind.I, "Add", new Expr.Var(v), lit(ii.constant()))), at));
+                    } else {
+                        cmds.add(new Cmd.Call(List.of(v), PRELUDE + "$iadd", List.of(new Expr.Var(v), lit(ii.constant())), at));
+                    }
                 }
                 case OperatorInstruction oi when interpret && oi.opcode() == Opcode.ARRAYLENGTH -> {
                     var array = pop();
@@ -2321,6 +2813,9 @@ public final class BytecodeToCortexCompiler {
                 case NewObjectInstruction nw -> {
                     String c = className(nw.className().asInternalName());
                     referenced.add(c);
+                    if (interpret) {
+                        instantiated.add(c);
+                    }
                     initialize(c, at);
                     cmds.add(new Cmd.New(pushTarget(Kind.A, c), c, at));
                     markNonNull();
@@ -2470,12 +2965,25 @@ public final class BytecodeToCortexCompiler {
                     var l = pop();
                     if (o == Opcode.IDIV || o == Opcode.LDIV || o == Opcode.IREM || o == Opcode.LREM) {
                         referenced.add(ARITHMETIC_EXCEPTION);
+                        callPrelude(jvm, k, at, l.expr, r.expr);
+                    } else if (library) {
+                        String bvOp = switch (o) {
+                            case IADD, LADD -> "Add";
+                            case ISUB, LSUB -> "Sub";
+                            default -> "Mul";
+                        };
+                        push(k, bv(k, bvOp, l.expr, r.expr), null, at);
+                    } else {
+                        callPrelude(jvm, k, at, l.expr, r.expr);
                     }
-                    callPrelude(jvm, k, at, l.expr, r.expr);
                 }
                 case INEG, LNEG -> {
                     var v = pop();
-                    callPrelude(jvm, k, at, v.expr);
+                    if (library) {
+                        push(k, bv(k, "Neg", v.expr), null, at);
+                    } else {
+                        callPrelude(jvm, k, at, v.expr);
+                    }
                 }
                 case IAND, LAND, IOR, LOR, IXOR, LXOR -> {
                     var r = pop();
@@ -2519,10 +3027,24 @@ public final class BytecodeToCortexCompiler {
                 }
                 case L2I, I2B, I2S, I2C -> {
                     var v = pop();
-                    callPrelude(o.name().toLowerCase(), Kind.I, at, v.expr);
+                    if (library) {
+                        push(Kind.I, narrowed(o, v.expr), null, at);
+                    } else {
+                        callPrelude(o.name().toLowerCase(), Kind.I, at, v.expr);
+                    }
                 }
                 default -> throw refuse("floating point", at);
             }
+        }
+
+        /** A narrowing conversion that keeps the low bits (JLS 5.1.3), as library code relies on. */
+        private Expr narrowed(Opcode o, Expr v) {
+            return switch (o) {
+                case L2I -> toBv(32, toInt(64, v));
+                case I2B -> toBv(32, op("Bv8.ToInt", toBv(8, toInt(32, v))));
+                case I2S -> toBv(32, op("Bv16.ToInt", toBv(16, toInt(32, v))));
+                default -> toBv(32, op("Bv16.ToUInt", toBv(16, toInt(32, v))));
+            };
         }
 
         private boolean wide(int depthFromTop) {
@@ -2598,11 +3120,15 @@ public final class BytecodeToCortexCompiler {
             if (declaredIn == null && contract) {
                 declaredIn = contractFieldOwner(fieldTarget, name);
             }
+            if (declaredIn == null && interpret) {
+                declaredIn = libraryFieldOwner(fieldTarget, name, at);
+            }
             if (declaredIn == null) {
                 throw refuse("fields of library classes", at);
             }
             ClassDesc type = fi.typeSymbol();
-            var declaring = programClasses.containsKey(declaredIn) ? programClasses.get(declaredIn) : contractModel(declaredIn);
+            var declaring = programClasses.containsKey(declaredIn) ? programClasses.get(declaredIn)
+                    : contractFieldClasses.contains(declaredIn) ? contractModel(declaredIn) : libraryModel(declaredIn);
             for (var f : declaring.fields()) {
                 if (f.fieldName().stringValue().equals(name) && hasRangeAnnotation(f)) {
                     throw refuse("@Nat and @Unbounded", at);
@@ -2758,7 +3284,13 @@ public final class BytecodeToCortexCompiler {
                 // The contract of a class gives the bodies of that class only: with a subclass, another method may run.
                 var body = virtual && !isFinalClass(target) ? null : contractBody(target, name, desc, isStatic);
                 if (body == null) {
-                    throw refuse("calls to library methods (" + target + "." + name + ") when interpreting", at);
+                    libraryInvoke(target, name, desc, o, lhs, args, at);
+                    return;
+                }
+                if (library && !programCreatesContractObjects && contractHasFields(target)) {
+                    // The program's reference comparisons were translated as if no contract body allocated.
+                    throw refuse("a call from a library method into a contract body that allocates ("
+                            + target + "." + name + "), in a program that calls none", at);
                 }
                 String proc = contractProc(target, name, desc, isStatic, body, at);
                 if (!isStatic && !name.equals("<init>")) {
@@ -2786,6 +3318,34 @@ public final class BytecodeToCortexCompiler {
             }
             String proc = declaringIn != null ? procName(declaringIn, name, desc)
                     : libraryProc(target, name, desc, isStatic, at);
+            cmds.add(new Cmd.Call(lhs, proc, args, at));
+        }
+
+        /**
+         * A call to a library method that no contract gives a body: it runs the method's own
+         * bytecode, translated as a program method's is ({@link #libraryCall}). A call that
+         * dispatches (the method may be overridden) is a virtual call, which runs the method of the
+         * receiver's class ({@link #translateLibraryOverriders}); any other calls the procedure.
+         */
+        private void libraryInvoke(String target, String name, MethodTypeDesc desc, Opcode o, List<String> lhs,
+                                   List<Expr> args, FileRange at) {
+            boolean isStatic = o == Opcode.INVOKESTATIC;
+            String proc = libraryCall(target, name, desc, isStatic, at);
+            boolean dispatches = false;
+            if (o == Opcode.INVOKEVIRTUAL || o == Opcode.INVOKEINTERFACE) {
+                var impl = resolveLibrary(target, name, desc, false);
+                dispatches = !(isFinalClass(target) || impl != null && impl.m() != null
+                        && (impl.m().flags().has(AccessFlag.FINAL) || impl.m().flags().has(AccessFlag.PRIVATE)));
+            }
+            if (dispatches) {
+                librarySites.putIfAbsent(proc, new LibrarySite(target, name, desc));
+                cmds.add(new Cmd.VirtualCall(lhs, target, methodKey(name, desc), args, at));
+                return;
+            }
+            if (!isStatic && !name.equals("<init>")) {
+                // As for a contract body: the test stops the run when the receiver is no object.
+                cmds.add(new Cmd.InstanceOf(temp(new Ty.Bool()), args.getFirst(), new Ty.Named(target), at));
+            }
             cmds.add(new Cmd.Call(lhs, proc, args, at));
         }
 
@@ -2862,6 +3422,7 @@ public final class BytecodeToCortexCompiler {
         /** A new String object with the text {@code text}, pushed: not a pooled literal, so {@code !=} to every other String. */
         private void newString(Expr text, FileRange at) {
             referenced.add(STRING);
+            instantiated.add(STRING);
             initialize(STRING, at);
             String result = pushTarget(Kind.A, STRING);
             cmds.add(new Cmd.New(result, STRING, at));

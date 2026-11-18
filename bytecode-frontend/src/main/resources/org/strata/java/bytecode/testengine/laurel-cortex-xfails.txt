@@ -277,3 +277,4 @@ XFAIL org.strata.jverify.verifier.tests.interpret.InterpretCrossFile LAUREL_CORT
 XFAIL org.strata.jverify.verifier.tests.interpret.InterpretParameterReassignment LAUREL_CORTEX_UNSUPPORTED Cortex does not support the contract of procedure '…'
 XFAIL org.strata.jverify.verifier.tests.interpret.InterpretPostconditionFails LAUREL_CORTEX_UNSUPPORTED Cortex does not support the contract of procedure '…'
 XFAIL org.strata.jverify.verifier.tests.interpret.InterpretSwitchArmNestedLoop LAUREL_CORTEX_UNSUPPORTED Cortex does not support a goto to the unknown label '…'
+XFAIL org.strata.jverify.verifier.tests.javasupport.boxing.BoxingExecutionCheckFails LAUREL_CORTEX_UNSUPPORTED Cortex does not support the frame of procedure '…'

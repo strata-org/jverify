@@ -209,6 +209,10 @@ class LibraryContractsTest {
         URI expected = URI.create("jar:" + jar.toUri() + "!/q/MathContract.java");
         assertEquals(expected, abs.uri());
         assertTrue(abs.uri().toString().startsWith("jar:file:"));
-        assertEquals(List.of(OBJECT_CONTRACT_URI, expected), contracts.loadedUris());
+        var uris = new java.util.ArrayList<URI>();
+        uris.add(OBJECT_CONTRACT_URI);
+        LibraryContracts.wrapperContractSources().forEach(w -> uris.add(w.toUri()));
+        uris.add(expected);
+        assertEquals(uris, contracts.loadedUris());
     }
 }

@@ -1,4 +1,4 @@
-package org.strata.jverify.verifier.tests.interpret;
+package org.strata.jverify.verifier.tests.javasupport.boxing;
 
 import org.strata.jverify.InterpretEntry;
 import org.strata.jverify.testengine.Blocker;
@@ -11,16 +11,16 @@ import static org.strata.jverify.JVerify.*;
  * one per method, each with the message that names it: a reference comparison
  * that may be between two boxes, whether the operands are typed as a wrapper,
  * as one of its supertypes or as the merge of a box and another object, in a
- * class that boxes or in one that does not; the wrapper members other than
- * boxing, the unboxing method and {@code equals}; and a read of
- * {@code Boolean.TRUE}, a static field that no translated initializer assigns.
+ * class that boxes or in one that does not; and the wrapper members other than
+ * boxing, the unboxing method and {@code equals}, which the contract gives no
+ * body.
  */
 @JVerifyTest(
         interpret = true,
         expectedToFail = true,
         blockedBy = {Blocker.FRONTEND_OTHER},
         exitCode = 2)
-class InterpretBoxingRefusals {
+class BoxingRefusalsCortex {
     static class Point {
     }
 
@@ -81,27 +81,22 @@ class InterpretBoxingRefusals {
 
     static int parsed() {
         return Integer.parseInt("1");
-//             ^^^^^^^^^^^^^^^^^^^^^ error: not supported by the direct Cortex translation: calls to library methods (java.lang.Integer.parseInt) when interpreting
+//             ^^^^^^^^^^^^^^^^^^^^^ error: the library method 'java.lang.Integer.parseInt' could not be translated: not supported by the direct Cortex translation: a method of java.lang.Integer that its contract gives no body
     }
 
     static long widened(Integer a) {
         return a.longValue();
-//             ^^^^^^^^^^^^^ error: not supported by the direct Cortex translation: calls to library methods (java.lang.Integer.longValue) when interpreting
+//             ^^^^^^^^^^^^^ error: the library method 'java.lang.Integer.longValue' could not be translated: not supported by the direct Cortex translation: a method of java.lang.Integer that its contract gives no body
     }
 
     static int hashed(Integer a) {
         return a.hashCode();
-//             ^^^^^^^^^^^^ error: not supported by the direct Cortex translation: calls to library methods (java.lang.Integer.hashCode) when interpreting
+//             ^^^^^^^^^^^^ error: the library method 'java.lang.Integer.hashCode' could not be translated: not supported by the direct Cortex translation: a method of java.lang.Integer that its contract gives no body
     }
 
     static int compared(Integer a, Integer b) {
         return a.compareTo(b);
-//             ^^^^^^^^^^^^^^ error: not supported by the direct Cortex translation: calls to library methods (java.lang.Integer.compareTo) when interpreting
-    }
-
-    static boolean constant() {
-        return Boolean.TRUE;
-//             ^^^^^^^^^^^^ error: not supported by the direct Cortex translation: static fields of library classes that hold an object of a class with a contract (java.lang.Boolean.TRUE)
+//             ^^^^^^^^^^^^^^ error: the library method 'java.lang.Integer.compareTo' could not be translated: not supported by the direct Cortex translation: a method of java.lang.Integer that its contract gives no body
     }
 
     static void missing() {
