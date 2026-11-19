@@ -341,20 +341,28 @@ class CortexStringsEndToEndTest {
                 class Writers {
                     static String f = "lit";
                     String g;
-                    Writers(String s) { g = new String(s); }
-                    String h(String s) { String t = new String(s); return (t + "!").intern(); }
+                    Writers() { g = new String("a"); }                      // never-null arguments: a String
+                    String h(boolean b) {                                   // parameter would be refused
+                        String s = b ? "x" : "y";
+                        String t = new String(s);
+                        return (t + "!").intern();
+                    }
                     @InterpretEntry
                     static void run() {
-                        Writers w = new Writers("a");
+                        Writers w = new Writers();
                         String t = new String("b").intern();
-                        check(w.g.equals("a") && t == "b" && w.h("x") == "x!");
+                        check(w.g.equals("a") && t == "b" && w.h(true) == "x!");
                     }
                 }
                 """);
         var poolProcs = Set.of(BytecodeToCortexCompiler.STRING_INIT, BytecodeToCortexCompiler.STRING_INTERN);
         var poolGlobals = Set.of(BytecodeToCortexCompiler.STRING_POOL_HEAD, BytecodeToCortexCompiler.STRING_POOL_TAIL);
-        assertTrue(p.procedures().stream().map(Procedure::name).collect(java.util.stream.Collectors.toSet())
-                .containsAll(poolProcs));
+        var withBody = p.procedures().stream().filter(proc -> proc.body().isPresent()).map(Procedure::name)
+                .collect(java.util.stream.Collectors.toSet());
+        assertTrue(withBody.containsAll(poolProcs), withBody::toString);
+        // The writers outside `run` must be translated, or the scan below checks nothing about them.
+        assertTrue(withBody.stream().anyMatch(n -> n.startsWith("Writers$$init")), withBody::toString);
+        assertTrue(withBody.stream().anyMatch(n -> n.startsWith("Writers$h$")), withBody::toString);
         var violations = new ArrayList<String>();
         for (var proc : p.procedures()) {
             if (proc.body().isEmpty() || poolProcs.contains(proc.name())) {
