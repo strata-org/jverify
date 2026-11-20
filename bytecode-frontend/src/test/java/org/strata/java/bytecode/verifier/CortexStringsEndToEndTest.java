@@ -19,6 +19,7 @@ import java.util.Set;
 
 import org.strata.java.bytecode.frontend.BytecodeFrontend;
 import org.strata.java.bytecode.verifier.compiler.BytecodeToCortexCompiler;
+import org.strata.java.bytecode.verifier.compiler.LibraryContracts;
 import org.strata.java.bytecode.verifier.compiler.Reporter;
 import org.strata.jverify.cortex.Cmd;
 import org.strata.jverify.cortex.Expr;
@@ -266,13 +267,62 @@ class CortexStringsEndToEndTest {
     }
 
     private static Program compileToCortex(Path tmp, String className, String source) throws Exception {
+        return compileToCortex(tmp, className, source, null);
+    }
+
+    /** {@link #compileToCortex(Path, String, String)} with contract bodies from {@code contracts}, when not null. */
+    private static Program compileToCortex(Path tmp, String className, String source,
+                                           LibraryContracts contracts) throws Exception {
         Path classes = Files.createTempDirectory(tmp, "classes-" + className);
         var file = new SourceFile(tmp.resolve(className + ".java"), source);
         var result = BytecodeFrontend.compile(List.of(file), List.of(VerifierDriver.specLibraryLocation()), classes,
                 Writer.nullWriter());
         assertTrue(result.success(), () -> "javac failed: " + result.diagnostics());
-        return new BytecodeToCortexCompiler(new Reporter(), true, List.of(VerifierDriver.specLibraryLocation()), true)
-                .analyze(List.of(file.toUri()), BytecodeFrontend.readClasses(classes)).program();
+        var compiler = new BytecodeToCortexCompiler(new Reporter(), true, List.of(VerifierDriver.specLibraryLocation()), true);
+        if (contracts != null) {
+            compiler.withContracts(contracts);
+        }
+        return compiler.analyze(List.of(file.toUri()), BytecodeFrontend.readClasses(classes)).program();
+    }
+
+    /**
+     * A contract body is scanned for {@code intern} like a program method: a
+     * program that never interns itself but runs a contract body that does
+     * still gets the pool and {@code $string$intern}, and the body calls it.
+     */
+    @Test
+    void aContractBodyThatInternsDeclaresThePool(@TempDir Path tmp) throws Exception {
+        Path contractDir = Files.createDirectories(tmp.resolve("contracts"));
+        Files.writeString(contractDir.resolve("BooleanContract.java"), """
+                import org.strata.jverify.Contract;
+
+                @Contract(Boolean.class)
+                class BooleanContract {
+                    public static String toString(boolean b) {
+                        String s = new String(b ? "true" : "false");
+                        return s.intern();
+                    }
+                }
+                """);
+        var contracts = LibraryContracts.of(LibraryContracts.objectContractSource(),
+                LibraryContracts.collectUserSources(tmp, List.of(contractDir)),
+                List.of(VerifierDriver.specLibraryLocation()));
+        Program p = compileToCortex(tmp, "UsesBool", """
+                class UsesBool {
+                    static String m() { return Boolean.toString(true); }
+                }
+                """, contracts);
+        var procs = p.procedures().stream().map(Procedure::name).collect(java.util.stream.Collectors.toSet());
+        var globals = p.globals().stream().map(g -> g.name()).collect(java.util.stream.Collectors.toSet());
+        assertTrue(procs.contains(BytecodeToCortexCompiler.STRING_INTERN), procs::toString);
+        assertTrue(globals.containsAll(Set.of(BytecodeToCortexCompiler.STRING_POOL_HEAD,
+                BytecodeToCortexCompiler.STRING_POOL_TAIL)), globals::toString);
+        var body = p.procedures().stream()
+                .filter(proc -> proc.name().startsWith("java.lang.Boolean$toString$") && proc.body().isPresent())
+                .findFirst().orElseThrow(() -> new AssertionError("no contract body procedure in " + procs));
+        assertTrue(body.body().get().blocks().stream().flatMap(b -> b.cmds().stream())
+                .anyMatch(c -> c instanceof Cmd.Call call && call.proc().equals(BytecodeToCortexCompiler.STRING_INTERN)),
+                () -> "the contract body does not call " + BytecodeToCortexCompiler.STRING_INTERN);
     }
 
     /**
@@ -405,6 +455,40 @@ class CortexStringsEndToEndTest {
                 prefix + "string conversion of int in a concatenation",
                 prefix + "invokedynamic run",
                 mayBeNull, mayBeNull, mayBeNull, mayBeNull, mayBeNull, mayBeNull), messages(ran));
+    }
+
+    /**
+     * A single-block {@code do/while} is its own predecessor: the body's entry state must not be
+     * the forward edge alone, or the back edge's store of a field passes as never null and the
+     * interpreter reads {@code $value} of null on the second iteration.
+     */
+    @Test
+    void selfLoopDoesNotProveNonNullFromItsEntryEdgeAlone(@TempDir Path tmp) throws Exception {
+        var ran = interpret(tmp, "SelfLoop.java", "SelfLoop#ok", """
+                import org.strata.jverify.InterpretEntry;
+                import static org.strata.jverify.JVerify.check;
+
+                class SelfLoop {
+                    static String field;
+                    static void concat() {
+                        String s = "a"; int i = 0;
+                        do { String t = s + "x"; s = field; i++; } while (i < 2);
+                    }
+                    static void ctor() {
+                        String s = "a"; int i = 0;
+                        do { String t = new String(s); s = field; i++; } while (i < 2);
+                    }
+                    static void intern() {
+                        String s = "a"; int i = 0;
+                        do { String t = s.intern(); s = field; i++; } while (i < 2);
+                    }
+                    @InterpretEntry
+                    static void ok() { check(true); }
+                }
+                """);
+        assertEquals(0, ran.verificationResults().verificationFailedMethods(), () -> messages(ran).toString());
+        String mayBeNull = "error: not supported by the direct Cortex translation: " + BytecodeToCortexCompiler.MAYBE_NULL_STRING;
+        assertEquals(List.of(mayBeNull, mayBeNull, mayBeNull), messages(ran));
     }
 
     /**

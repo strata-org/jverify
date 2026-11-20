@@ -362,15 +362,10 @@ public final class BytecodeToCortexCompiler {
         for (var cm : programClasses.values()) {
             programCreatesContractObjects |= callsFieldContract(cm);
         }
-        for (var cm : programClasses.values()) {
-            for (var m : cm.methods()) {
-                var code = m.code();
-                if (code.isPresent() && code.get().elementList().stream()
-                        .anyMatch(el -> el instanceof InvokeInstruction inv && isStringIntern(inv))) {
-                    // Known before any `ldc` is translated: a program that interns resolves its literals lazily.
-                    declarePool(NO_LOCATION);
-                }
-            }
+        // Known before any `ldc` is translated: a program that interns resolves its literals lazily.
+        internUsed = anyInvocation(BytecodeToCortexCompiler::isStringIntern);
+        if (internUsed) {
+            declarePool();
         }
         for (var cls : units) {
             src.uri = SourceMap.sourceUriFor(cls, sourceUris);
@@ -1143,13 +1138,35 @@ public final class BytecodeToCortexCompiler {
                 && inv.typeSymbol().descriptorString().equals("()Ljava/lang/String;");
     }
 
-    /** Declares the pool's globals and composite, on the first {@code intern}. */
-    private void declarePool(FileRange at) {
-        internUsed = true;
+    /**
+     * Whether some method of the program, or of a contract class whose bodies
+     * the program may run ({@link #contractProc}), has an invoke instruction
+     * accepted by {@code test}.
+     */
+    private boolean anyInvocation(java.util.function.Predicate<InvokeInstruction> test) {
+        return java.util.stream.Stream.concat(programClasses.values().stream(), contractClassModels())
+                .flatMap(cm -> cm.methods().stream())
+                .flatMap(m -> m.code().stream())
+                .flatMap(code -> code.elementList().stream())
+                .anyMatch(el -> el instanceof InvokeInstruction inv && test.test(inv));
+    }
+
+    /** The class model of every contract class, when contract bodies run; empty otherwise. */
+    private java.util.stream.Stream<ClassModel> contractClassModels() {
+        if (contracts == null) {
+            return java.util.stream.Stream.empty();
+        }
+        return contracts.contractClasses().stream()
+                .map(cc -> contracts.classBytes(cc.contractInternal()))
+                .filter(java.util.Objects::nonNull);
+    }
+
+    /** Declares the pool's globals and composite, before any method is translated, when the program interns. */
+    private void declarePool() {
         referenced.add(STRING_POOL);
         referenced.add(STRING);
         for (String g : List.of(STRING_POOL_HEAD, STRING_POOL_TAIL)) {
-            globals.computeIfAbsent(g, n -> new Global(n, new Ty.Named(STRING_POOL), Optional.empty(), at));
+            globals.put(g, new Global(g, new Ty.Named(STRING_POOL), Optional.empty(), NO_LOCATION));
         }
     }
 
@@ -1544,10 +1561,13 @@ public final class BytecodeToCortexCompiler {
             entryProvenNonNull.put(0, new java.util.HashSet<>(method.flags().has(AccessFlag.STATIC) ? Set.of() : Set.of(0)));
             while (!work.isEmpty()) {
                 int id = work.poll();
-                if (!done.add(id)) {
+                if (done.contains(id)) {
                     continue;
                 }
                 translateBlock(cfg.blocks.get(id));
+                // Marked after its body: "translated" means its out-edges are in the entry meets below,
+                // so a block that is its own predecessor is an incomplete loop header in enterProvenance.
+                done.add(id);
                 for (int s : cfg.blocks.get(id).succ) {
                     var shape = entryShape.get(s);
                     if (shape == null) {
@@ -2945,7 +2965,6 @@ public final class BytecodeToCortexCompiler {
         private void stringIntern(FileRange at) {
             var s = pop();
             requireNonNull(s, at);
-            declarePool(at);
             String r = pushTarget(Kind.A, STRING);
             cmds.add(new Cmd.Call(List.of(r), STRING_INTERN, List.of(s.expr), at));
             markNonNull();
