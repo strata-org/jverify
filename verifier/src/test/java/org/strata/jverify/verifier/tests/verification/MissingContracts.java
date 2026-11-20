@@ -1,7 +1,8 @@
 package org.strata.jverify.verifier.tests.verification;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testing.GenericParent;
 
 import java.util.ArrayList;
@@ -9,7 +10,7 @@ import java.util.List;
 
 import static org.strata.jverify.JVerify.check;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 8, errorCount = 1)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_OTHER}, exitCode = 4, methodsVerified = 8, errorCount = 1)
 public class MissingContracts {
     
     void checkFalse() {
@@ -22,20 +23,20 @@ public class MissingContracts {
         void cantBePure();
     }
     
-    @Pure
+    @Transparent
     int pureUser(MissingContract missingContract) {
         return missingContract.assumedPure();
 //             ^ warning: missing contract for method 'assumedPure' in class 'org.strata.jverify.verifier.tests.verification.MissingContracts.MissingContract'
     }
 
     @SuppressWarnings("UnnecessaryBoxing")
-    @Pure
+    @Transparent
     Integer pureUser3() {
         return Integer.valueOf(3);
 //             ^ warning: missing contract for method 'valueOf' in class 'java.lang.Integer'
     }
     
-    @Pure
+    @Transparent
     List<Value> pureUser2(List<Value> values) {
         return List.of(new Value());
 //             ^ warning: missing contract for method 'of' in class 'java.util.List'

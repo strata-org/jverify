@@ -2,7 +2,7 @@ package org.strata.jverify.verifier.tests.javasupport.expressions;
 
 import org.strata.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 2)  // Compilation errors due to unsupported modulo operator
+@JVerifyTest(exitCode = 2)  // Compilation errors due to unsupported modulo operator
 @SuppressWarnings("ConstantValue")
 class FloatOperators {
     public void foo() {

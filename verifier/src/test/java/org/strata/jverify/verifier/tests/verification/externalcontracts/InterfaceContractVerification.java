@@ -2,13 +2,13 @@ package org.strata.jverify.verifier.tests.verification.externalcontracts;
 
 import org.strata.jverify.Contract;
 import org.strata.jverify.ContractException;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.check;
 import static org.strata.jverify.JVerify.postcondition;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 6, errorCount = 1)
+@JVerifyTest(exitCode = 4, methodsVerified = 6, errorCount = 1)
 public class InterfaceContractVerification {
     @SuppressWarnings("UnnecessaryLocalVariable")
     public void root() {
@@ -39,9 +39,8 @@ public class InterfaceContractVerification {
         int externalContract(int x);
         default int internalContract() {
             postcondition((int r) -> r > 2);
-//                                   ^^^^^ Related location: this is the postcondition that could not be proved
+//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: postcondition does not hold
             return 1;
-//          ^^^^^^^^^ Error: a postcondition could not be proved on this return path
         }
     }
 
@@ -52,7 +51,7 @@ public class InterfaceContractVerification {
             return 6;
         }
 
-        @Pure
+        @Transparent
         public int addedMethod() {
             return 1;
         }

@@ -1,7 +1,6 @@
 package org.strata.jverify.verifier;
 
 import org.strata.jverify.common.Common;
-import com.sun.tools.javac.util.DefinedBy;
 
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.NestingKind;
@@ -37,7 +36,7 @@ public class JarFileEntry implements JavaFileObject {
         this.uri = URI.create("jar:" + sourceJar.toUri() + "!/" + jarEntry.getName());
     }
 
-    @Override @DefinedBy(DefinedBy.Api.COMPILER)
+    @Override
     public String getName() {
         // (Comment and implementation copied from PathFileObject.JarFileObject)
         // The use of ( ) to delimit the entry name is not ideal

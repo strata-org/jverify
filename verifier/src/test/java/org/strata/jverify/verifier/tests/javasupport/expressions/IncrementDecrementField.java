@@ -3,16 +3,33 @@ package org.strata.jverify.verifier.tests.javasupport.expressions;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
+import org.strata.jverify.Unbounded;
 
 /**
  * Mirrors Strata's T23b_IncrDecrField.lean test cases.
  * Tests increment/decrement on object fields.
- * Skipped: JVerify does not yet support instance field access.
  */
-@JVerifyTest(skip = "JVerify: field increment requires class/instance support", exitCode = 0)
+@JVerifyTest(methodsVerified = 13, errorCount = 0)
 class IncrementDecrementField {
     static class Counter {
         int n;
+    }
+
+    // A method whose ONLY heap effect is `c.n++` (no preceding
+    // assignment) must still get a synthesized modifies clause: the
+    // heap-write fallback counts a field increment as a heap write
+    // just as it counts an assignment. Without that clause the
+    // method fails with "modifies clause could not be proved" at
+    // (1:1-1:1).
+    static class UnboundedCounter {
+        @Unbounded int n;
+    }
+    static void bumpOnlyPostIncr(UnboundedCounter c) {
+        c.n++;
+    }
+
+    static void bumpOnlyPreDecr(UnboundedCounter c) {
+        --c.n;
     }
 
     static void postIncrFieldStatement() {

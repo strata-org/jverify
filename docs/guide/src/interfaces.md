@@ -1,3 +1,5 @@
+> **Draft: not yet published; examples have not been checked against the current tool.**
+
 # Interfaces & Abstract Classes
 
 In one of the earliest sections, [Pre- and post-conditions](pre_and_postconditions.md), you've seen that method calls to the JVerify library can be placed in the body of a method to define the contract for that method. However, this approach does not work for methods without a body, such as a those in interfaces and abstract methods. For those cases, JVerify requires that you to define a contract class, which is a class that inherits from the interface or abstract class, and provides contracts for methods where it is still missing. Example:
@@ -10,7 +12,6 @@ interface I {
     @Contract
     class IContract implements I {
 
-        @Pure
         public int foo(int x) {
             precondition(x != 0);
             postcondition((Integer r) -> r > 10);
@@ -28,7 +29,7 @@ interface I {
 
 Because the contractor, `IContract`, implements `I`, JVerify infers that `I` is the _contractee_, the type for which a contract is provided. If `I` was a final type and could not be used in an `extends` or `implements` clause, then we could write `@Contract(I.class)` to specify `I` as the contractee.
 
-Notice that for `bar`, the contract is provided by the interface `I`, while for `foo`, the contract is provided by the contract class `IContract`. When both the contracter and the contractee occur in source, annotations on the type, such as `@Modifiable`, must be placed on the contractee, while annotations on the method, such as `@Pure`, must be placed on the method that defines the contract.
+Notice that for `bar`, the contract is provided by the interface `I`, while for `foo`, the contract is provided by the contract class `IContract`. When both the contracter and the contractee occur in source, annotations on the type, such as `@Modifiable`, must be placed on the contractee, while annotations on the method, such as `@Transparent`, must be placed on the method that defines the contract.
 
 `@Contract` classes are erased, so you won't be able to use them in executed code.
 

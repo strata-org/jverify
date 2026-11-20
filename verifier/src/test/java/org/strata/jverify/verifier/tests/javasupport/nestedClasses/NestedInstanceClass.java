@@ -5,7 +5,11 @@ import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.check;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 4, errorCount = 2)
+// Real front-end bug (was mislabelled FRONTEND_INSTANCE_METHODS, which no longer
+// exists -- instance methods are translated): a nested instance class's reference to
+// the OUTER instance's field emits a bare name, giving
+// `Resolution failed: 'x' is not defined` plus a source-less malformed diagnostic.
+@JVerifyTest(exitCode = 4, methodsVerified = 4, errorCount = 2)
 public class NestedInstanceClass {
     int x;
     
@@ -18,7 +22,7 @@ public class NestedInstanceClass {
 
         void checkX() {
             check(x == 3);
-//          ^^^^^^^^^^^^^ Error: assertion does not hold
+//          ^^^^^^^^^^^^^ Error: assertion could not be proved
         }
 
         @SuppressWarnings("ConstantValue")

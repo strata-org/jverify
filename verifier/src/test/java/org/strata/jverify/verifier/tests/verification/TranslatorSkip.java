@@ -13,19 +13,25 @@ import static org.strata.jverify.JVerify.check;
  */
 @JVerifyTest(
         continueOnErrors = true,
-        exitCode = 0,
+        exitCode = 4,
         methodsVerified = 2,
-        methodsSkipped = 1,
-        errorCount = 0
+        methodsInvalid = 1,
+        methodsSkipped = 0,
+        errorCount = 6
 )
 class TranslatorSkip {
     static int unsupported(int n) {
-//             ^ error: Multi-init or multi-step for loops are not supported
+//             ^ Error: postcondition could not be proved
         var sum = 0;
         for (int i = 0, j = n; i < j; i++, j--) {
+//                                    ^^^ Error: assertion could not be proved
+//                                         ^^^ Error: assertion could not be proved
             sum = sum + i;
+//                ^^^^^^^ Error: assertion could not be proved
+//                ^^^^^^^ Error: no int overflow on '+' could not be proved
         }
         return sum;
+//             ^^^ Error: assertion could not be proved
     }
 
     static void supported(int x) {

@@ -4,8 +4,21 @@ import org.strata.jverify.Contract;
 import org.strata.jverify.Impure;
 import org.strata.jverify.Nullable;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 2)
+/**
+ * The diagnostics this fixture pins are all emitted now; what is left is
+ * STRATA_NULLABLE. {@code i(int j)} and the second {@code hashCode} are
+ * DELIBERATELY legal -- a method may share a component's or a
+ * forbidden-to-override method's name as long as it takes parameters -- and
+ * overload disambiguation now translates them cleanly, so they no longer block.
+ *
+ * <ul>
+ * <li>STRATA_NULLABLE: `Unsupported constant type tag: BOT` from a @Nullable
+ * parameter compared against null, which needs Option synthesis.
+ * </ul>
+ */
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_NULLABLE}, exitCode = 2)
 @SuppressWarnings({"RedundantRecordConstructor", "unused"})
 class RecordsErrors {
     record ExplicitConstructors(int i, boolean b) {

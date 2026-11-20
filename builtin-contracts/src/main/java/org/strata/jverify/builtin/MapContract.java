@@ -10,14 +10,12 @@ abstract class MapContract<K, V> implements Map<K, V> {
 
     JVerify.Map<Object, V> elements;
 
-    @Pure
     static <K, V> Map<K, V> of() {
         postcondition((Map<K, V> r) ->
                 r.size() == 0);
         throw new ContractException();
     }
 
-    @Pure
     static <K, V> Map<K, V> of(K k1, V v1) {
         postcondition((Map<K, V> r) ->
                 r.size() == 1 &&
@@ -26,7 +24,6 @@ abstract class MapContract<K, V> implements Map<K, V> {
         throw new ContractException();
     }
 
-    @Pure
     static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2) {
         postcondition((Map<K, V> r) ->
                 r.size() == 2 &&
@@ -37,7 +34,6 @@ abstract class MapContract<K, V> implements Map<K, V> {
         throw new ContractException();
     }
 
-    @Pure
     static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3) {
         postcondition((Map<K, V> r) ->
                 r.size() == 2 &&
@@ -51,7 +47,6 @@ abstract class MapContract<K, V> implements Map<K, V> {
     }
 
     @Override
-    @Pure
     public boolean containsKey(Object key) {
         postcondition((boolean r) ->
                 r == JVerify.exists((K other) ->
@@ -60,7 +55,7 @@ abstract class MapContract<K, V> implements Map<K, V> {
     }
 
     @Override
-    @Pure
+    @Transparent
     public V get(Object key) {
         precondition(containsKey(key));
         // TODO: postconditions needs something like :| to get a hold of the key
@@ -69,21 +64,18 @@ abstract class MapContract<K, V> implements Map<K, V> {
     }
 
     @Override
-    @Pure
     public int size() {
         postcondition((int s) -> s == elements.size());
         throw new ContractException();
     }
 
     @Override
-    @Pure
     public boolean isEmpty() {
         postcondition((boolean r) -> r == (elements.size() == 0));
         throw new ContractException();
     }
 
     @Override
-    @Pure
     public Set<Entry<K, V>> entrySet() {
         postcondition((SetContract<Entry<K, V>> r) ->
                 size() == r.size() &&
@@ -93,7 +85,6 @@ abstract class MapContract<K, V> implements Map<K, V> {
         throw new ContractException();
     }
 
-    @Pure
     public static <K, V> Entry<K, V> entry(K key, V value) {
         postcondition((Entry<K, V> r) -> r.getKey() == key && r.getValue() == value);
         throw new ContractException();

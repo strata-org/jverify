@@ -5,7 +5,7 @@ import org.strata.jverify.testengine.JVerifyTest;
 import static org.strata.jverify.JVerify.*;
 
 @SuppressWarnings({"ConditionalBreakInInfiniteLoop", "ConstantValue"})
-@JVerifyTest(exitCode = 4, methodsVerified = 13, methodsInvalid = 1, errorCount = 1)
+@JVerifyTest(exitCode = 4, methodsVerified = 15, methodsInvalid = 2, errorCount = 2)
 class VerifyBreakContinue {
     static void forLoopBreak() {
         int i = 0;
@@ -203,5 +203,54 @@ class VerifyBreakContinue {
         }
         check(i == 6);
 //      ^^^^^^^^^^^^^ Error: assertion could not be proved
+    }
+
+    // Regression tests for D566037730: an unlabeled break inside a labeled
+    // block targets the enclosing loop (JLS 14.15), not the block. Before the
+    // fix, resolveBreakLabel took the innermost label-stack entry — the block —
+    // so breakInsideLabeledBlockExitsLoop failed and sumToBad verified.
+
+    static void breakInsideLabeledBlockExitsLoop() {
+        int i = 0;
+        while (i < 10) {
+            invariant(0 <= i && i <= 1);
+            inner: {
+                if (i == 1) break; // exits the while loop, not the block
+            }
+            i = i + 1;
+        }
+        check(i == 1);
+    }
+
+    static void labeledBreakExitsBlockOnly() {
+        int i = 0;
+        int hits = 0;
+        while (i < 3) {
+            invariant(0 <= i && i <= 3 && hits == i);
+            skip: {
+                if (i >= 0) break skip; // exits the block only
+                hits = hits - 100;
+            }
+            hits = hits + 1;
+            i = i + 1;
+        }
+        check(hits == 3);
+    }
+
+    static int sumToBad(int n) {
+        precondition(0 <= n && n <= 1000);
+        postcondition((int r) -> r == n * (n + 1) / 2);
+//                               ^^^^^^^^^^^^^^^^^^^^ Error: postcondition could not be proved
+        int i = 0;
+        int s = 0;
+        while (i < n) {
+            invariant(0 <= i && i <= n && s == i * (i + 1) / 2);
+            early: {
+                if (i == 1) break; // exits the while loop early
+            }
+            i = i + 1;
+            s = s + i;
+        }
+        return s;
     }
 }

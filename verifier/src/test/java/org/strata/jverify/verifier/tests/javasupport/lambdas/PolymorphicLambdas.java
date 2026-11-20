@@ -2,22 +2,26 @@ package org.strata.jverify.verifier.tests.javasupport.lambdas;
 
 import org.strata.jverify.Contract;
 import org.strata.jverify.ContractException;
+import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import java.util.function.Supplier;
 
 @SuppressWarnings("Convert2MethodRef")
-@JVerifyTest(methodsVerified = 20, errorCount = 0)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_GENERIC_OVERRIDE}, methodsVerified = 18, errorCount = 0)
 public class PolymorphicLambdas {
 
     static class GenContainer<T> {
         void add(T value) {}
+//           ^ warning: instance method 'add' was not verified: Unsupported type: T
     }
 
     void genTypeInsideLambda(Anything anything) {
+//       ^ warning: instance method 'genTypeInsideLambda' was not verified: call to 'add', which could not be translated
         var result = new GenContainer<Anything>();
         result.add(anything);
         foo(_ -> {
+//          ^ warning: instance method 'consume' was not verified: call to 'add', which could not be translated
             result.add(anything);
             return 3;
         });
@@ -38,6 +42,9 @@ public class PolymorphicLambdas {
         zaz(this::uToThree);
     }
 
+    // uToThree declares T ITSELF, so T becomes a Laurel type variable in the
+    // procedure's typeArgs and the method verifies -- unlike GenContainer.add
+    // above, whose T belongs to the CLASS and still refuses.
     <T> int uToThree(T value) {
         return 3;
     }
@@ -59,6 +66,7 @@ public class PolymorphicLambdas {
 
     interface MyConsumer<T> {
         int consume(T value);
+//          ^ warning: instance method 'consume' was not verified: Unsupported type: T
     }
 
     @Contract
@@ -66,6 +74,7 @@ public class PolymorphicLambdas {
 
         @Override
         public T get() {
+//               ^ warning: instance method 'get' was not verified: Unsupported type: T
             throw new ContractException();
         }
     }

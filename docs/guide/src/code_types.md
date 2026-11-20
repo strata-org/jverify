@@ -1,3 +1,5 @@
+> **Draft: not yet published; examples have not been checked against the current tool.**
+
 # Code types
 In our previous binary search example, we had the following precondition:
 ```java
@@ -9,7 +11,7 @@ precondition(forall((Integer i, Integer j) ->
 Instead of the comment, let's extract the expression into a method so it's self-documenting:
 
 ```java
-@Pure
+@Transparent
 @Erased
 boolean sorted(int[] arr)
 {
@@ -19,33 +21,25 @@ boolean sorted(int[] arr)
 }
 ```
 
-Note that this uses three new concepts, `@Pure`, `@Erased` and `reads`. These are needed for JVerify to accept the code. The following two sub-sections discuss why we need these concepts and how they work.
+Note that this uses three new concepts, `@Transparent`, `@Erased` and `reads`. The following two sub-sections discuss `@Transparent` and `@Erased`; `reads` is covered in [Reading and Modifying Objects](reads_and_modifies.md).
 
-## Pure code
-We say code is pure if it does not have side effects and is deterministic (meaning it produces the same result if provided with the same inputs).
+## Transparent code
+A method annotated with `@Transparent` is compiled to a transparent Laurel procedure: its callers, including contracts, see its body rather than only its contract. In the example above, a caller that knows `sorted(arr)` holds also knows the quantified fact it returns.
 
-JVerify requires that expressions that occur in a nested context are pure. Nested contexts are:
-- Arguments to method calls
-- Expressions that are part of statements, such as the guards of `if` and `loop` statements. Return statements are the exception: their expression may be not pure.
+The rules for `@Transparent` methods are:
+- It may not declare postconditions or a `modifies` clause. A transparent body has no place for either; what the caller learns comes from the body itself.
+- Everything else about the body is checked by the Strata back-end. Strata does not yet accept every statement in a transparent body; for example, loops, writes to the heap, and `throw` are currently rejected there, and Strata reports the offending construct.
+- `@Transparent` is not inherited: an overriding method is transparent only if it is annotated itself.
 
-The rules for pure expressions are as follows:
-- Only methods annotated with `@Pure` can be called.
-- Assignment expressions are not allowed
-- `new` can only be used on records 
-
-The rules for pure blocks are:
-- The last statement of the block must be either a return or an if-else statement.
-- Any statements before the last one and after the contract, must be either:
-  - a variable declaration with an initializer.
-  - an if-then with no else, whose body follows the rules for pure blocks
+Contracts may call methods without `@Transparent` as well, as long as the callee does not modify any existing objects. Such a call tells the contract only what the callee's own contract says.
 
 Summary table:
 
-| | **@Pure code** | **impure code** |
-|---|----------------|-----------------|
-| **Can be called inside a contract** | yes            | no              |
-| **Restricted use of statements** | yes            | no              |
-| **Can update variables** | no             | yes             |
+| | **@Transparent method** | **other method** |
+|---|-----------------|-----------------|
+| **Can be called inside a contract** | yes | yes, if it modifies nothing |
+| **Callers see its body** | yes | no, only its contract |
+| **Can declare postconditions and `modifies`** | no | yes |
 
 ## Erased code
 Since Java 5.0, it has had a feature called generics, which enables the programmer to give the type system additional information, through which it can find bugs it otherwise would not be able to. However, to prevent impacting runtime performance, the Java compiler removes any usage of the generics feature during compilation: a process called _type erasure_.

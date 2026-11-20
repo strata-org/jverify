@@ -1,20 +1,16 @@
 package org.strata.jverify.verifier.tests.javasupport.expressions;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 22)
+@JVerifyTest(errorCount = 0)
 public class ImpureExpressionsVerification {
-    @Pure
+    @Transparent
     int nestedImpureExpressionInPureContext() {
         if (impureM(1) == 1) {
-//          ^^^^^^^ Error: expression is not allowed to invoke a method (impureM)
             return impureM(impureM(2));
-//                 ^^^^^^^ Error: expression is not allowed to invoke a method (impureM)
-//                         ^^^^^^^ Error: expression is not allowed to invoke a method (impureM)
         }
         return impureM(3);
-//             ^^^^^^^ Error: expression is not allowed to invoke a method (impureM)
     }
     
     int nestedImpureExpression() {
@@ -35,7 +31,7 @@ public class ImpureExpressionsVerification {
         }
     }
     
-    // impure because it is not marked as Pure
+    // impure because it is not marked as @Transparent
     int impureM(int input) {
         return input;
     }

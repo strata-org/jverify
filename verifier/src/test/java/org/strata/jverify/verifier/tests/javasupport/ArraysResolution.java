@@ -1,11 +1,12 @@
 package org.strata.jverify.verifier.tests.javasupport;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 22)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_ARRAYS}, exitCode = 22)
 class ArraysResolution {
 
     static void pointArrayOfSize10() {
@@ -46,7 +47,7 @@ class ArraysResolution {
             this.b = b_;
         }
 
-        @Pure
+        @Transparent
         public int getA() {
             reads(this);
             return a;

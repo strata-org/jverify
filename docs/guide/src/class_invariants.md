@@ -1,3 +1,5 @@
+> **Draft: not yet published; examples have not been checked against the current tool.**
+
 # Class Invariants
 Here follows a program that contains a `NullReferenceException`. The class `UserProfile` can be either `Free` or `Premium`, and for performance reasons, the field `premiumFeatures` should only be set when the account is `Premium`. The program:
 
@@ -7,7 +9,7 @@ package org.strata.jverify.examples;
 import static org.strata.jverify.JVerify.*;
 import org.strata.jverify.Invariant;
 import org.strata.jverify.Nullable;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 
 class UserProfile {
     public enum AccountType { Free, Premium }

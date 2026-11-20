@@ -1,11 +1,11 @@
 package org.strata.jverify.verifier.tests.javasupport;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 13, errorCount = 1)
+@JVerifyTest(exitCode = 4, methodsVerified = 13, errorCount = 3)
 class OverloadsTest {
     
     private int f;
@@ -43,13 +43,13 @@ class OverloadsTest {
         this.h = other.h;
     }
 
-    @Pure
+    @Transparent
     public int f() { reads(this); return f; }
-    @Pure
+    @Transparent
     public int g() { reads(this); return g; }
-    @Pure
+    @Transparent
     public int h() { reads(this); return h; }
-    @Pure
+    @Transparent
     public int h(int x) {precondition(x<=100);return x+1;}
 
     public static void foo() {
@@ -91,9 +91,11 @@ class OverloadsTest {
             // Errors
             OverloadsTest c = new OverloadsTest(10, 15, 20);
             check(c.f()==11);
-//          ^^^^^^^^^^^^^^^^ Error: assertion does not hold
+//          ^^^^^^^^^^^^^^^^ Error: assertion could not be proved
             check(c.g()==16);
+//          ^^^^^^^^^^^^^^^^ Error: assertion could not be proved
             check(c.h()==21);
+//          ^^^^^^^^^^^^^^^^ Error: assertion could not be proved
         }
         {
             OverloadsTest c = new OverloadsTest(10, 15, 20);

@@ -1,16 +1,24 @@
 package org.strata.jverify.verifier.tests.javasupport.statements;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
 @SuppressWarnings({"ConditionalBreakInInfiniteLoop", "StatementWithEmptyBody", "ConstantValue"})
+// Three methods are skipped -- P2, P and ignoreCallResult (each caret-pinned below).
+// Every one calls an instance method on implicit `this`, and since neither the callee
+// nor this class is final, a subclass could override it: a possibly-polymorphic call,
+// which the translator refuses. @Transparent is irrelevant here -- ignoreCallResult is not
+// @Transparent and its callee methodWithResult is a plain instance method -- and so is being
+// called: @Transparent P3 calls nothing and verifies. Making a callee (or the class) final,
+// or static, would translate these three, at the cost of the coverage.
 @JVerifyTest(methodsVerified = 13, errorCount = 0)
 class VerifyStatements {
     void forLoop() {
         int i = 0;
         for(i = 0; i < 5; i = i + 1) {
+            invariant(i >= 0 && i <= 5);
         }
         check(i == 5);
     }
@@ -18,9 +26,9 @@ class VerifyStatements {
     void nestedForLoop() {
         int x = 0;
         for (int i = 0; i < 5; i = i + 1) {
-            invariant(x == i * 5);
+            invariant(i >= 0 && i <= 5 && x == i * 5);
             for (int j = 0; j < 5; j = j + 1) {
-                invariant(x == j + i * 5);
+                invariant(j >= 0 && j <= 5 && x == j + i * 5);
                 x = x + 1;
             }
         }
@@ -31,9 +39,12 @@ class VerifyStatements {
         int x = 0;
         outerLoop:
         for (int i = 0; i < 5; i = i + 1) {
+            // Bounds first: they discharge the next invariant's products.
+            invariant(i >= 0 && i <= 5);
             invariant(i <= 2 ? x == i * 5 : x == 12 + (i - 3) * 5);
             
             for (int j = 0; j < 5; j = j + 1) {
+                invariant(j >= 0 && j <= 5);
                 invariant(i <= 2 ? x == j + i * 5 : x == j + 12 + (i - 3) * 5);
                 invariant(i == 2 ? j <= 2 : true);
                 if (i == 2 && j == 2) {
@@ -49,7 +60,7 @@ class VerifyStatements {
         int x = 0;
         do {
             decreases(5 - x);
-            invariant(x <= 5);
+            invariant(x >= 0 && x <= 4);
             x = x + 1;
         } while(x < 5);
         check(x == 5);
@@ -67,17 +78,19 @@ class VerifyStatements {
     }
 
 
-    @Pure
+    @Transparent
     boolean P3(int x, int y, int z) {
-        return x > (y+z);
+        // The widening makes the sum 64-bit, so it carries no int overflow
+        // obligation on the havoced parameters.
+        return x > (long) y + z;
     }
 
-    @Pure
+    @Transparent
     boolean P2(int x, int y) {
         return P3(x,y,0);
     }
 
-    @Pure
+    @Transparent
     boolean P(int x) {
         return P2(x,10);
     }

@@ -1,14 +1,15 @@
 package org.strata.jverify.verifier.tests.javasupport.classes;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 22)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_OTHER}, exitCode = 22)
 public class ClassesExtendingClassesErrors {}
 
 class ExtenderErrors extends ExtendeeErrors {
     
-    @Pure
+    @Transparent
     @Override
     public int pureVirtual(int input) {
 //             ^^^^^^^^^^^ Error: fully defined function 'pureVirtual' is inherited from trait 'ExtendeeErrors' and is not allowed to be re-declared
@@ -20,7 +21,7 @@ class ExtenderErrors extends ExtendeeErrors {
 
 abstract class ExtendeeErrors {
     
-    @Pure
+    @Transparent
     public int pureVirtual(int input) {
         return 3;
     }

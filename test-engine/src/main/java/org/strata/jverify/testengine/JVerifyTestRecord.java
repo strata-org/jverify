@@ -4,9 +4,17 @@ import java.lang.annotation.Annotation;
 
 public record JVerifyTestRecord(String skip, boolean verifyByDefault, boolean useBuiltinContracts,
                                 boolean continueOnErrors, int exitCode,
-                                String[] additionalFiles,
+                                String[] additionalFiles, String[] contractSourcePath,
                                 int methodsInvalid, int errorCount, int methodsVerified,
-                                int methodsSkipped) implements JVerifyTest {
+                                int methodsSkipped,
+                                boolean expectedToFail, Blocker[] blockedBy,
+                                boolean interpret, String entry, int fuel,
+                                String interpreter) implements JVerifyTest {
+    @Override
+    public boolean allowUncheckedExceptions() {
+        return false;
+    }
+
     @Override
     public Class<? extends Annotation> annotationType() {
         return JVerifyTest.class;

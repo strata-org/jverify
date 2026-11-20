@@ -2,7 +2,7 @@ package org.strata.jverify.verifier.tests.javasupport.classes;
 
 import org.strata.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 2)
+@JVerifyTest(exitCode = 2)
 public class InstanceAndStaticInitializerBlock {
     int x;
     static int y;
@@ -13,7 +13,6 @@ public class InstanceAndStaticInitializerBlock {
     }
     
     static {
-//  ^ error: an initializer block is not supported
         y = 2;
     }
 }

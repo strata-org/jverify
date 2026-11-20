@@ -3,7 +3,7 @@ package org.strata.jverify.examples;
 import static org.strata.jverify.JVerify.*;
 
 import org.strata.jverify.Erased;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 
 @SuppressWarnings("ConstantValue")
 class BinarySearch {
@@ -38,7 +38,7 @@ class BinarySearch {
         return -1;
     }
     
-    @Pure
+    @Transparent
     @Erased
     static boolean sorted(int[] arr) {
         reads(arr);

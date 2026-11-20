@@ -21,7 +21,7 @@ interface Container<T> {
  * Interfaces are pure by default
  */
 interface ImmutableContainer<T> extends Container<T> {
-    @Pure
+    @Transparent
     @Override
     default T get() {
         // no reads clause means its empty, 
@@ -46,7 +46,7 @@ interface MutableContainer<T> extends Container<T> {
  * Records are pure by default, so they can be instantiated in a pure context
  */
 record ImmutableContainerImpl<T>(T value) implements ImmutableContainer<T> {
-    @Pure
+    @Transparent
     @Override
     public T get() {
         decreases(0);
@@ -54,7 +54,7 @@ record ImmutableContainerImpl<T>(T value) implements ImmutableContainer<T> {
         return value; // because value is final, it may be read without reads permissions
     }
 
-    @Pure
+    @Transparent
     public static <T> ImmutableContainerImpl<T> createMe(T value) {
         return new ImmutableContainerImpl<T>(value);
     }
@@ -66,7 +66,7 @@ record ImmutableContainerImpl<T>(T value) implements ImmutableContainer<T> {
 class MutableContainerImpl<T> implements MutableContainer<T> {
     private T value;
 
-    @Pure
+    @Transparent
     @Override
     public T get() {
         decreases(0);
@@ -79,7 +79,7 @@ class MutableContainerImpl<T> implements MutableContainer<T> {
         this.value = value;
     }
 
-    @Pure
+    @Transparent
     public static <T> MutableContainer<T> createMe() {
         return new MutableContainerImpl<T>();
 //             ^ error: using 'new' in an expression to create an instance of an impure type is not allowed

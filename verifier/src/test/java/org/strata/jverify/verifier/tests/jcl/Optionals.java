@@ -2,12 +2,13 @@
 package org.strata.jverify.verifier.tests.jcl;
 
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import java.util.Optional;
 
 import static org.strata.jverify.JVerify.check;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 1, errorCount = 2, useBuiltinContracts = true)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_NULLABLE, Blocker.FRONTEND_OTHER}, exitCode = 4, methodsVerified = 1, errorCount = 2, useBuiltinContracts = true)
 public class Optionals {
 
     void testEmpty() {

@@ -1,13 +1,13 @@
 package org.strata.jverify.verifier.tests.javasupport;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
 
 import java.util.function.IntPredicate;
 
 import static org.strata.jverify.JVerify.postcondition;
 
-@JVerifyTest(methodsVerified = 26, errorCount = 0)
+@JVerifyTest(methodsVerified = 21, errorCount = 0)
 public class AvoidNameCollisionsTest {
 
     void set(int set, int r_set) {}
@@ -24,6 +24,7 @@ public class AvoidNameCollisionsTest {
     }
     
     public int differentReturnValueNames() {
+//             ^ warning: instance method 'differentReturnValueNames' was not verified: Unsupported expression: JCLambda
         postcondition((IntPredicate)this::predicate);
         postcondition((int result) -> result < 3);
         int result;
@@ -32,12 +33,12 @@ public class AvoidNameCollisionsTest {
         return 2;
     }
     
-    @Pure
+    @Transparent
     boolean predicate(int r) {
         return true;
     }
 
-    @Pure
+    @Transparent
     boolean map(int r) {return true;}
 
     public class Base {

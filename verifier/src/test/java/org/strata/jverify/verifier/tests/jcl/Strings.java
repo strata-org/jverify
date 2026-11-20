@@ -1,10 +1,11 @@
-// ^ /object-contract.java(37:19-37:61) Related location: this proposition could not be proved
-// ^ /object-contract.java(71:16-71:33) Related location: this proposition could not be proved
-// ^ /object-contract.java(91:16-91:37) Related location: this proposition could not be proved
-// ^ /object-contract.java(91:16-91:37) Related location: this proposition could not be proved
+// ^ /object-contract.java(38:19-38:61) Related location: this proposition could not be proved
+// ^ /object-contract.java(72:16-72:33) Related location: this proposition could not be proved
+// ^ /object-contract.java(92:16-92:37) Related location: this proposition could not be proved
+// ^ /object-contract.java(92:16-92:37) Related location: this proposition could not be proved
 package org.strata.jverify.verifier.tests.jcl;
 
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
@@ -14,7 +15,7 @@ import static org.strata.jverify.JVerify.*;
         "OnlyOneElementUsed",
         "StringOperationCanBeSimplified"
 })
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 13, errorCount = 6)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER, Blocker.STRATA_SEQUENCE_EQUALITY}, exitCode = 4, methodsVerified = 13, errorCount = 6)
 class Strings {
     @SuppressWarnings("unused")
     static final String veryLongLiteral = "One thing, I don't know why. It doesn't even matter how hard you try. Keep that in mind, I designed this rhyme to explain in due time. All I know time is a valuable thing";

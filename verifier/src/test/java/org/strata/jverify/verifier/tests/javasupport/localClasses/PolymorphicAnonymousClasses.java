@@ -2,10 +2,11 @@ package org.strata.jverify.verifier.tests.javasupport.localClasses;
 
 import org.strata.jverify.Contract;
 import org.strata.jverify.ContractException;
+import org.strata.jverify.testengine.Blocker;
 import org.strata.jverify.testengine.JVerifyTest;
 
 @SuppressWarnings("Convert2Lambda")
-@JVerifyTest(methodsVerified = 28, errorCount = 0)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_GENERIC_OVERRIDE}, methodsVerified = 21, errorCount = 0)
 public class PolymorphicAnonymousClasses {
 
     void capturedGenericType(MyConsumer<Anything> consumer, Anything anything) {

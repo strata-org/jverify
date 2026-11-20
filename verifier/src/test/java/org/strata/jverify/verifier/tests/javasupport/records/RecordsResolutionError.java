@@ -2,10 +2,11 @@ package org.strata.jverify.verifier.tests.javasupport.records;
 
 import org.strata.jverify.Impure;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.postcondition;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 22)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_OTHER}, exitCode = 22)
 class RecordsResolutionError {
     record Foo() {}
     static void assignRecordToModifiableObject() {

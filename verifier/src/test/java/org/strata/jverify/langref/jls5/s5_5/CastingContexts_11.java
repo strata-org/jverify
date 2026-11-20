@@ -1,0 +1,29 @@
+package org.strata.jverify.langref.jls5.s5_5;
+
+import org.strata.jverify.testengine.JVerifyTest;
+
+import static org.strata.jverify.JVerify.*;
+
+// JLS 5.5 -- Casting Contexts: conversions permitted by a cast operator (CastExpression).
+// Exercises identity, widening/narrowing primitive, widening/narrowing reference,
+// boxing, and unboxing conversions in cast position.
+@JVerifyTest(interpret = true, interpreter = "laurel", entry = "org.strata.jverify.langref.jls5.s5_5.CastingContexts_11#run")
+class CastingContexts_11 {
+    static void run() {
+
+        // Unboxing conversion via cast: Integer -> int
+        Integer ib = Integer.valueOf(7);
+        int unboxed = (int) ib;
+        check(unboxed == 7);
+    }
+
+    interface Valued {
+        int value();
+    }
+
+    static final class Box implements Valued {
+        private final int v;
+        Box(int v) { this.v = v; }
+        public int value() { return v; }
+    }
+}

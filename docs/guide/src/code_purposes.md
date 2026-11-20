@@ -1,3 +1,5 @@
+> **Draft: not yet published; examples have not been checked against the current tool.**
+
 # Specification, proof and implementation
 
 This section does not introduce any features, but it defines terminology that we commonly use to talk about Java programs using JVerify. When writing Java code that uses JVerify, each piece of code serves one or several of the following goals:
@@ -47,7 +49,7 @@ class BinarySearch {
   }
 
   // specification
-  @Pure
+  @Transparent
   @Erased
   boolean sorted(int[] arr)
   { 

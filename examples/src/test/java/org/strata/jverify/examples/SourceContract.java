@@ -7,6 +7,13 @@ import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
+/*
+ * All 3 verify. `User.test` calls `foo.foo(2)` on an interface-typed receiver, so
+ * an implementation could override `foo`. That used to be refused as not provably
+ * monomorphic and skipped; Laurel now dispatches on the receiver's runtime tag and
+ * CheckOverrideRefinement makes reasoning against `Foo.foo`'s declared contract
+ * sound, so the call verifies against it.
+ */
 @JVerifyTest(methodsVerified = 3, errorCount = 0)
 public class SourceContract {
 
@@ -16,7 +23,9 @@ public class SourceContract {
 
         public int foo(int x) {
             precondition(x > 0);
-            postcondition((int i) -> i >= i + 1);
+            // Unsatisfiable on purpose, without arithmetic: `i + 1`
+            // carries an overflow obligation on the havoced binder.
+            postcondition((int i) -> i != i);
             throw new ContractException();
         }
 

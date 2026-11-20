@@ -1,7 +1,7 @@
 package org.strata.jverify.verifier.tests.verification.shouldVerify;
 
 import org.strata.jverify.Contract;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Verify;
 import org.strata.jverify.testengine.JVerifyTest;
 import org.strata.jverify.testing.LibraryClassA;
@@ -9,10 +9,10 @@ import org.strata.jverify.testing.LibraryClassB;
 
 import static org.strata.jverify.JVerify.check;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 15, errorCount = 1)
+@JVerifyTest(exitCode = 4, methodsVerified = 15, errorCount = 1)
 public class InheritedUnverifiedMembers {
     static class ThroughBaseClass {
-        @Pure
+        @Transparent
         @Verify(false)        
         int notVerifiedPure() {
             return 3;
@@ -46,7 +46,7 @@ public class InheritedUnverifiedMembers {
 
         @Contract
         class IContract implements I {
-            @Pure
+            @Transparent
             @Override
             public int pure() {
                 return 0;
@@ -77,7 +77,7 @@ public class InheritedUnverifiedMembers {
 
     @Contract(value = LibraryClassB.class, pure = true)
     static class LibraryClassBContract {
-        @Pure
+        @Transparent
         @Override
         public boolean equals(Object obj) {
             return true;

@@ -14,7 +14,7 @@ class DummyClass2 implements DummyInterface {
 }
 
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 19, errorCount = 13)
+@JVerifyTest(exitCode = 4, methodsVerified = 19, errorCount = 12)
 class Operators {
     static void Plus() {
         int x = 3;
@@ -153,7 +153,7 @@ class Operators {
     void InstanceOfKO() {
         DummyInterface di = DummyClass.create();
         check(di instanceof DummyClass2);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion does not hold
+//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Error: assertion could not be proved
 
     }
 
@@ -166,7 +166,7 @@ class Operators {
 
     void castNumInvalid(int i) {
         check(i == (short) i);
-//                 ^^^^^^^^^ Error: result of operation could not be proved to satisfy subset type constraint for 'int16'
+//                 ^^^^^^^^^ Error: cast from int32 to int16 does not hold
     }
 
     void castRefTrivial() {
@@ -187,8 +187,7 @@ class Operators {
 
         //noinspection RedundantCast,NewObjectEquality,DataFlowIssue
         var casted = (DummyClass) dc2;
-//                   ^^^^^^^^^^^^^^^^ Error: value of expression (of type 'DummyInterface') is not known to be an instance of type 'DummyClass'
+//                   ^^^^^^^^^^^^^^^^ Error: uncaught exception 'java.lang.ClassCastException' is not thrown does not hold
         check(dc1 == casted);
-//      ^^^^^^^^^^^^^^^^^^^^ Error: assertion does not hold
     }
 }

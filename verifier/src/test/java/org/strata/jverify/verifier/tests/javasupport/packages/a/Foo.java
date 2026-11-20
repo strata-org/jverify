@@ -1,9 +1,9 @@
 package org.strata.jverify.verifier.tests.javasupport.packages.a;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 
 public class Foo {
-    @Pure
+    @Transparent
     public int bar(int x) {
         return 1;
     }

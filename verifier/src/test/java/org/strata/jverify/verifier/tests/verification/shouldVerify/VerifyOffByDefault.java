@@ -6,7 +6,7 @@ import org.strata.jverify.testengine.JVerifyTest;
 import static org.strata.jverify.JVerify.check;
 import static org.strata.jverify.JVerify.precondition;
 
-@JVerifyTest(skip = "Strata: not yet supported", verifyByDefault = false, exitCode = 4, methodsVerified = 1, errorCount = 1)
+@JVerifyTest(verifyByDefault = false, exitCode = 4, methodsVerified = 1, errorCount = 1)
 public class VerifyOffByDefault {}
 
 @Verify
@@ -40,5 +40,12 @@ class CantTranslate {
         var x = 42;
         precondition(x == 3);   // Illegal use, not caught
         return 3;
+    }
+}
+// An unsound reference '==' in code without @Verify refuses the method
+// silently, like any other refusal there.
+class NoAttributeReferenceEquality {
+    static boolean strings(String a, String b) {
+        return a == b;
     }
 }

@@ -10,7 +10,7 @@ import org.strata.jverify.testengine.JVerifyTest;
  * there currently is no corresponding 'verify integer operators' file
  */
 @SuppressWarnings("ConstantValue")
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 2)
+@JVerifyTest(exitCode = 2)
 class ResolutionErrorsIntegerOperators {
     public void foo() {
         var l = 3;

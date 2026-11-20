@@ -1,47 +1,41 @@
 package org.strata.jverify.laurel;
 
-public sealed interface Procedure extends Node permits Procedure.Procedure_, Procedure.Function {
-    public record Procedure_(
-        SourceRange sourceRange,
-        java.lang.String name, java.util.List<Parameter> parameters, java.util.Optional<ReturnType> returnType, java.util.Optional<ReturnParameters> returnParameters, java.util.List<RequiresClause> requires, java.util.Optional<InvokeOnClause> invokeOn, java.util.Optional<OpaqueSpec> opaqueSpec, java.util.Optional<Body> body
-    ) implements Procedure {
-        @Override
-        public java.lang.String operationName() { return "Laurel.procedure"; }
-
-        @Override
-        public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
-            var sexp = $s.newOp("Laurel.procedure", sourceRange());
-            sexp.add($s.serializeIdent(name()));
-            sexp.add($s.serializeSeq(parameters(), "commaSepList", $s::serialize));
-            sexp.add($s.serializeOption(returnType(), $s::serialize));
-            sexp.add($s.serializeOption(returnParameters(), $s::serialize));
-            sexp.add($s.serializeSeq(requires(), "seq", $s::serialize));
-            sexp.add($s.serializeOption(invokeOn(), $s::serialize));
-            sexp.add($s.serializeOption(opaqueSpec(), $s::serialize));
-            sexp.add($s.serializeOption(body(), $s::serialize));
-            return sexp;
-        }
-    }
-
-    public record Function(
-        SourceRange sourceRange,
-        java.lang.String name, java.util.List<Parameter> parameters, java.util.Optional<ReturnType> returnType, java.util.Optional<ReturnParameters> returnParameters, java.util.List<RequiresClause> requires, java.util.Optional<InvokeOnClause> invokeOn, java.util.Optional<OpaqueSpec> opaqueSpec, java.util.Optional<Body> body
-    ) implements Procedure {
-        @Override
-        public java.lang.String operationName() { return "Laurel.function"; }
-
-        @Override
-        public com.amazon.ion.IonSexp toIon(IonSerializer $s) {
-            var sexp = $s.newOp("Laurel.function", sourceRange());
-            sexp.add($s.serializeIdent(name()));
-            sexp.add($s.serializeSeq(parameters(), "commaSepList", $s::serialize));
-            sexp.add($s.serializeOption(returnType(), $s::serialize));
-            sexp.add($s.serializeOption(returnParameters(), $s::serialize));
-            sexp.add($s.serializeSeq(requires(), "seq", $s::serialize));
-            sexp.add($s.serializeOption(invokeOn(), $s::serialize));
-            sexp.add($s.serializeOption(opaqueSpec(), $s::serialize));
-            sexp.add($s.serializeOption(body(), $s::serialize));
-            return sexp;
-        }
+public record Procedure(Identifier name, java.util.List<Identifier> typeArgs, java.util.List<Parameter> inputs, java.util.List<Parameter> outputs, java.util.List<Condition> preconditions, CoroutineContracts contracts, java.util.Optional<AstNode<StmtExpr>> decreases, Body body, java.util.Optional<AstNode<StmtExpr>> invokeOn, boolean isInterpretEntry, java.util.List<AstNode<StmtExpr>> axioms, java.util.Optional<AstNode<HighType>> throwsType, java.util.Optional<Identifier> throwsBinding, boolean throwsInferred, java.util.List<ThrowsOnBlock> throwsOn, java.util.List<Identifier> readsGlobals, java.util.List<Identifier> writesGlobals) implements ToIon {
+    public com.amazon.ion.IonValue toIon(com.amazon.ion.IonSystem ion) {
+        var s = ion.newEmptyStruct();
+        s.put("name", name().toIon(ion));
+        var _l_typeArgs = ion.newEmptyList();
+        for (var e : typeArgs()) _l_typeArgs.add(e.toIon(ion));
+        s.put("typeArgs", _l_typeArgs);
+        var _l_inputs = ion.newEmptyList();
+        for (var e : inputs()) _l_inputs.add(e.toIon(ion));
+        s.put("inputs", _l_inputs);
+        var _l_outputs = ion.newEmptyList();
+        for (var e : outputs()) _l_outputs.add(e.toIon(ion));
+        s.put("outputs", _l_outputs);
+        var _l_preconditions = ion.newEmptyList();
+        for (var e : preconditions()) _l_preconditions.add(e.toIon(ion));
+        s.put("preconditions", _l_preconditions);
+        s.put("contracts", contracts().toIon(ion));
+        s.put("decreases", (decreases().isPresent() ? decreases().get().toIon(ion) : ion.newNull()));
+        s.put("body", body().toIon(ion));
+        s.put("invokeOn", (invokeOn().isPresent() ? invokeOn().get().toIon(ion) : ion.newNull()));
+        s.put("isInterpretEntry", ion.newBool(isInterpretEntry()));
+        var _l_axioms = ion.newEmptyList();
+        for (var e : axioms()) _l_axioms.add(e.toIon(ion));
+        s.put("axioms", _l_axioms);
+        s.put("throwsType", (throwsType().isPresent() ? throwsType().get().toIon(ion) : ion.newNull()));
+        s.put("throwsBinding", (throwsBinding().isPresent() ? throwsBinding().get().toIon(ion) : ion.newNull()));
+        s.put("throwsInferred", ion.newBool(throwsInferred()));
+        var _l_throwsOn = ion.newEmptyList();
+        for (var e : throwsOn()) _l_throwsOn.add(e.toIon(ion));
+        s.put("throwsOn", _l_throwsOn);
+        var _l_readsGlobals = ion.newEmptyList();
+        for (var e : readsGlobals()) _l_readsGlobals.add(e.toIon(ion));
+        s.put("readsGlobals", _l_readsGlobals);
+        var _l_writesGlobals = ion.newEmptyList();
+        for (var e : writesGlobals()) _l_writesGlobals.add(e.toIon(ion));
+        s.put("writesGlobals", _l_writesGlobals);
+        return s;
     }
 }

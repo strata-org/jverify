@@ -7,8 +7,8 @@ import static org.strata.jverify.JVerify.postcondition;
 import static org.strata.jverify.JVerify.precondition;
 
 /**
- * Regression test for arrow-form switches reaching JavaToLaurelCompiler as
- * if/conditional chains. Switches.java covers more forms but stays skipped
+ * Regression test for arrow-form switch statements and expressions.
+ * Switches.java covers more forms but stays skipped
  * pending case-null support.
  */
 @JVerifyTest(exitCode = 4, methodsVerified = 14, errorCount = 1)
@@ -116,7 +116,7 @@ class SwitchDesugaring {
     }
 
     // Non-trivial selectors exercise the selector-hoisting machinery:
-    // the cascade tests $sel against each case constant, so the original
+    // the cascade tests java?sel against each case constant, so the original
     // selector expression should be evaluated once via the synthetic
     // varDecl / LetExpr.
     static void switchStmtNonTrivialSelector(int i) {

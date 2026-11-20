@@ -7,14 +7,12 @@ import static org.strata.jverify.JVerify.*;
 @Contract(value = List.class, pure = true)
 abstract class ListContract<E> implements List<E> {
     
-    @Pure
     static <E> ImmutableList<E> of() {
         postcondition((List<E> r) -> r instanceof ImmutableList<E> il && 
                 il.size() == 0);
         throw new ContractException();
     }
 
-    @Pure
     static <E> List<E> of(E e1) {
         postcondition((List<E> r) -> r instanceof ImmutableList<E> il && 
                 il.size() == 1 && 
@@ -22,7 +20,6 @@ abstract class ListContract<E> implements List<E> {
         throw new ContractException();
     }
 
-    @Pure
     static <E> List<E> of(E e1, E e2) {
         postcondition((List<E> r) -> r instanceof ImmutableList<E> il && 
                 il.size() == 2 && 
@@ -31,7 +28,6 @@ abstract class ListContract<E> implements List<E> {
         throw new ContractException();
     }
 
-    @Pure
     static <E> List<E> of(E e1, E e2, E e3) {
         postcondition((List<E> r) -> r instanceof ImmutableList<E> il && 
                 il.size() == 3 && 
@@ -41,7 +37,7 @@ abstract class ListContract<E> implements List<E> {
     }
 
     @Override
-    @Pure
+    @Transparent
     public E get(@Nat int index) {
         reads(everything());
         decreases(size());
@@ -50,7 +46,7 @@ abstract class ListContract<E> implements List<E> {
     }
 
     @Override
-    @Pure
+    @Transparent
     public int size() {
         reads(everything());
         decreases(0);
@@ -58,7 +54,6 @@ abstract class ListContract<E> implements List<E> {
     }
 
     @Override
-    @Pure
     public boolean isEmpty() {
         reads(everything());
         decreases(0);
@@ -67,7 +62,6 @@ abstract class ListContract<E> implements List<E> {
     }
 
     @Override
-    @Pure
     public boolean contains(Object o) {
         reads(everything());
         decreases(size());
@@ -78,7 +72,6 @@ abstract class ListContract<E> implements List<E> {
     }
 
     @Override
-    @Pure
     public List<E> subList(@Nat int fromIndex, @Nat int toIndex) {
         reads(everything());
         decreases(0);
@@ -94,7 +87,6 @@ abstract class ListContract<E> implements List<E> {
     }
 
     @Override
-    @Pure
     public boolean equals(Object o) {
         reads(everything());
         decreases(0);

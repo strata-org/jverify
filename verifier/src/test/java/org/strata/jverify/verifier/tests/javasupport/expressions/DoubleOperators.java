@@ -2,7 +2,7 @@ package org.strata.jverify.verifier.tests.javasupport.expressions;
 
 import org.strata.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 2)  // Compilation errors due to unsupported modulo operator
+@JVerifyTest(exitCode = 2)  // Compilation errors due to unsupported modulo operator
 @SuppressWarnings("ConstantValue")
 class DoubleOperators {
     public void foo() {
@@ -35,6 +35,15 @@ class DoubleOperators {
         l *= r;
         l /= r;
         l %= 2;
+//        ^ error: modulo operator (%) with floating-point types is not supported
+
+        // Mixed int-left / double-right: binary numeric promotion still yields a
+        // floating-point remainder, so it must be rejected even though the LEFT
+        // operand is int (a check that inspected only the left type missed this).
+        var i = 3;
+        var mixedRemainder = i % 2.0;
+//                             ^ error: modulo operator (%) with floating-point types is not supported
+        i %= 2.0;
 //        ^ error: modulo operator (%) with floating-point types is not supported
     }
 }

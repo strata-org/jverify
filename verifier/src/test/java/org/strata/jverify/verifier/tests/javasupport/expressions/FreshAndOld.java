@@ -4,12 +4,13 @@ import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(methodsVerified = 4, errorCount = 0)
+@JVerifyTest(methodsVerified = 3, errorCount = 0)
 class FreshAndOld {
     int x;
     
     class Anything {}
     void freshTest() {
+//       ^ warning: instance method 'freshTest' was not verified: Unsupported JVerify method: fresh
         var c = new Anything();
         check(fresh(c));
         check(!fresh(this));

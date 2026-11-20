@@ -2,10 +2,11 @@ package org.strata.jverify.verifier.tests.javasupport.interfaces;
 
 import org.strata.jverify.*;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 10, errorCount = 5)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER, Blocker.STRATA_OTHER}, exitCode = 4, methodsVerified = 10, errorCount = 5)
 class InterfacesVerification {
     public void root(I i) {
         var a = i.f(1);
@@ -29,7 +30,7 @@ interface I {
     @Contract
     class IContract implements I {
 
-        @Pure
+        @Transparent
         public int f(int x) {
             precondition(x > 2);
 //                       ^^^^^ Related location: this proposition could not be proved
@@ -60,7 +61,7 @@ class CInvalidContract implements I {
         c = new Container();
     }
     
-    @Pure
+    @Transparent
     @Override
     public int f(int x) {
 //             ^ Error: function's (possibly automatically generated) decreases clause must be below or equal to that in the trait
@@ -80,7 +81,7 @@ class CValid implements I {
     @Nullable Anything obj;
 
     //@InheritContract
-    @Pure
+    @Transparent
     @Override
     public int f(int x) {
         precondition(x > 2);
@@ -106,7 +107,7 @@ class CInvalidImplementation implements I {
     }
 
     //@InheritContract
-    @Pure
+    @Transparent
     @Override
     public int f(int x) {
         precondition(x > 2);

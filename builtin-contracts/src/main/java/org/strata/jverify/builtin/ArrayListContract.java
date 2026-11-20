@@ -4,7 +4,6 @@ import org.strata.jverify.Contract;
 import org.strata.jverify.ContractException;
 import org.strata.jverify.JVerify;
 import org.strata.jverify.Nat;
-import org.strata.jverify.Pure;
 
 import java.util.ArrayList;
 import java.util.stream.Stream;
@@ -26,7 +25,6 @@ abstract class ArrayListContract<E> extends ArrayList<E> {
         postcondition(elements.size() == 0);
     }
 
-    @Pure
     public Stream<E> stream() {
         reads(this);
         decreases(0);
@@ -35,7 +33,6 @@ abstract class ArrayListContract<E> extends ArrayList<E> {
     }
 
     @Override
-    @Pure
     public E get(@Nat int index) {
         reads(this);
         decreases(0);
@@ -45,7 +42,6 @@ abstract class ArrayListContract<E> extends ArrayList<E> {
     }
 
     @Override
-    @Pure
     public int size() {
         reads(this);
         decreases(0);
@@ -54,7 +50,6 @@ abstract class ArrayListContract<E> extends ArrayList<E> {
     }
 
     @Override
-    @Pure
     public boolean isEmpty() {
         reads(this);
         decreases(0);
@@ -63,7 +58,6 @@ abstract class ArrayListContract<E> extends ArrayList<E> {
     }
 
     @Override
-    @Pure
     public boolean contains(Object o) {
         reads(this);
         decreases(size());

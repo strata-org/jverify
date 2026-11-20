@@ -1,3 +1,5 @@
+> **Draft: not yet published; examples have not been checked against the current tool.**
+
 # Termination
 
 Programs that contain loops or recursive calls may run indefinitely. Usually, such behavior is undesired.

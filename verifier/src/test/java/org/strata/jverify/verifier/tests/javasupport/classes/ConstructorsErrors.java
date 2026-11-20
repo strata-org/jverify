@@ -4,7 +4,7 @@ import org.strata.jverify.testengine.JVerifyTest;
 
 import static org.strata.jverify.JVerify.postcondition;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 2)
+@JVerifyTest(exitCode = 2)
 public class ConstructorsErrors {
     class Box {
         private int value;

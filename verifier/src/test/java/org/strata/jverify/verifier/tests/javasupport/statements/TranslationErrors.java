@@ -3,14 +3,30 @@ package org.strata.jverify.verifier.tests.javasupport.statements;
 import org.strata.jverify.Contract;
 import org.strata.jverify.ContractException;
 import org.strata.jverify.Nullable;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 2)
+/**
+ * Multi-blocker fixture (was mislabelled FRONTEND_DIAGNOSTIC). The diagnostics it
+ * pins are now EMITTED -- misplaced contract calls, invariants in a method,
+ * contract methods in a loop, restricted {@code ==}, array-with-initializer -- so
+ * the diagnostics port is not what blocks it. What remains:
+ *
+ * <ul>
+ * <li>FRONTEND_OTHER: switch EXPRESSIONS are refused whole-method
+ * ({@code Unsupported expression: JCSwitchExpression}); {@code forall} of a
+ * non-lambda and a {@code throw} in an {@code if} demote to method warnings with
+ * different wording than the Dafny-era per-construct errors.
+ * <li>STRATA_NULLABLE: {@code @Nullable} parameters compared with null lower to
+ * {@code Unsupported constant type tag: BOT} until Option synthesis lands.
+ * </ul>
+ */
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER, Blocker.STRATA_NULLABLE}, exitCode = 2)
 class TranslationErrors {
-    
+
     void quantifierNeedsLambdaArgument() {
         check(forall((int i) -> i > 0));
         java.util.function.IntPredicate f =
@@ -39,62 +55,68 @@ class TranslationErrors {
             postcondition(x == 3);
             x = x - 1;
         }
+        x = 3;
+        while(x > 0) {
+//      ^ error: throwsOn cases are not allowed in a loop
+            throwsOn(x == 3);
+            x = x - 1;
+        }
     }
 
+    // Switch EXPRESSIONS are refused whole-method now (Unsupported expression:
+    // JCSwitchExpression) rather than per-case, so these methods carry one
+    // method-level warning instead of the Dafny-era per-label errors. Switch
+    // translation is a FRONTEND_OTHER gap, not a diagnostic to restore.
     int switchLabeledStatementGroup(int i) {
+//      ^ warning: instance method 'switchLabeledStatementGroup' was not verified: Unsupported expression: JCSwitchExpression
         var acc = 0;
         var ret = switch (i) {
             case 0:
-//          ^ error: switch labeled statement group is not supported
                 acc += 100;
                 yield 0;
             case 1, 2, 3:
-//          ^ error: switch labeled statement group is not supported
-//          ^ error: switch labeled statement group is not supported
-//          ^ error: switch labeled statement group is not supported
                 acc += 200;
                 yield i * 2;
             default:
-//          ^ error: switch labeled statement group is not supported
                 yield -1;
         };
         return acc + ret;
     }
 
+    // `case 1 + 1 ->` verifies now: the pipeline evaluates a constant case
+    // expression rather than refusing it, so the Dafny-era
+    // "non-literal case constant is not supported" expectation was stale and is
+    // dropped.
     int switchCaseConstantExpr(int i) {
         return switch (i) {
             case 0, 1 -> 0;
             case 1 + 1 -> 1;
-//                 ^ error: non-literal case constant is not supported
             default -> 2;
         };
     }
 
     @Contract(Integer.class)
     static class IntegerContract {
-        @Pure
+        @Transparent
         public int intValue() {
             throw new ContractException();
         }
     }
     
     int switchCasePattern(Integer i) {
+//      ^ warning: instance method 'switchCasePattern' was not verified: Unsupported expression: JCSwitchExpression
         return switch (i) {
             case Integer ii when ii < 0 -> ii * 3;
-//          ^ error: case pattern is not supported
             case Integer ii when 0 < ii -> ii * 2;
-//          ^ error: case pattern is not supported
             default -> 0;
         };
     }
 
     int switchExprBlockBody(int i) {
+//      ^ warning: instance method 'switchExprBlockBody' was not verified: Unsupported expression: JCSwitchExpression
         return switch (i) {
             case 0 -> 0;
             case 1, 2, 3 -> {
-//          ^ error: switch labeled statement group is not supported
-//          ^ error: switch labeled statement group is not supported
-//                          ^ error: switch rule block is not supported
                 var acc = 0;
                 for (int j = 0; j < i; j++) {
                     acc += j * j;
@@ -106,11 +128,11 @@ class TranslationErrors {
     }
 
     int switchThrowBody(int i) {
+//      ^ warning: instance method 'switchThrowBody' was not verified: Unsupported expression: JCSwitchExpression
         return switch (i) {
             case 0 -> throw new RuntimeException();
 //                    ^ error: switch rule throw statement is not supported
             case 1, 2 -> -i;
-//          ^ error: switch labeled statement group is not supported
             default -> i * i * i;
         };
     }
@@ -123,7 +145,7 @@ class TranslationErrors {
 
     // This is intentional: primitives aren't nullable in Java.
     static boolean nullablePrimitive(@Nullable int i) {
-//                                   ^ error: nullable primitive type is not supported
+//                                          ^ error: Unsupported constant type tag: BOT
         return i == 0;
     }
 
@@ -179,9 +201,9 @@ class TranslationErrors {
     void foo() {}
 
     void ifWithThrow(int x) {
+//       ^ warning: instance method 'ifWithThrow' was not verified: throw requires the enclosing method to declare it
         if (x > 0) {
             throw new RuntimeException();
-//          ^ error: statement JCThrow is not supported
         }
     }
     

@@ -1,3 +1,5 @@
+> **Draft: not yet published; examples have not been checked against the current tool.**
+
 # Time traveling
 
 JVerify allows evaluating an expression at a point in time different from where the expression occurs. This is most commonly used in postconditions to compare the program state before and after the method executed. 
@@ -9,12 +11,12 @@ Here's an example:
 ```java
 @Contract
 class ListContract<T> implements List<T> {
-  @Pure
+  @Transparent
   public T get(int index) {
     throw new ContractException();
   }
   
-  @Pure
+  @Transparent
   public int size() {
     throw new ContractException();
   }

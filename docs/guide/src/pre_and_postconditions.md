@@ -66,5 +66,5 @@ class BinarySearch {
 
 If we now change anything in the implementation of `binarySearch` that would change its meaning, JVerify detects that the implementation no longer matches the specification and emits an error.
 
-In the next section, [Code types](code_types.md), we'll improve the code by extracting the sorted predicate from the precondition into a separate method, so it's self-documenting and reusable.
+In a later chapter on code types, which is not yet published, we'll improve the code by extracting the sorted predicate from the precondition into a separate method, so it's self-documenting and reusable.
 

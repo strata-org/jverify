@@ -1,7 +1,7 @@
 package org.strata.jverify.verifier.tests.verification;
 
 import org.strata.jverify.Invariant;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 
 
@@ -28,7 +28,7 @@ public class InvariantsAndStaticMethodsInSameClass {
     }
     
     // Invariant that references instance state
-    @Pure
+    @Transparent
     @Invariant
     private boolean balanceIsNonNegative() {
         reads(this); 

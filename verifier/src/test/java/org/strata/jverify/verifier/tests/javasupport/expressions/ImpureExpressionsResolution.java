@@ -1,35 +1,34 @@
 package org.strata.jverify.verifier.tests.javasupport.expressions;
 
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 2)
+/**
+ * Calls to non-transparent methods and local mutation inside a transparent body:
+ * both are Laurel's to judge, so the front end passes them through.
+ */
+@JVerifyTest(errorCount = 0)
 public class ImpureExpressionsResolution {
-    @Pure
+    @Transparent
     int nestedImpureExpressionInPureContext() {
         if (impureM(1) == 1) {
             var x = impureM(impureM(2));
-//              ^ error: a pure block must end in a return or if-else statement
         }
         return impureM(3);
     }
     
-    @Pure
+    @Transparent
     @SuppressWarnings({"ConstantValue", "StatementWithEmptyBody"})
     int nestedAssignment() {
         var x = 3;
         if ((x += 1) == 4) {
-//             ^ error: since += performs mutation, it may not be used in a pure context
-//                         ^ error: a pure block must end in a return or if-else statement
         }
         if (x++ == 4) {
-//           ^ error: since ++ performs mutation, it may not be used in a pure context
-//                    ^ error: a pure block must end in a return or if-else statement
         }
         return 3;
     }
     
-    // impure because it is not marked as Pure
+    // impure because it is not marked as @Transparent
     int impureM(int input) {
         return input;
     }

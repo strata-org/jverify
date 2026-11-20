@@ -4,7 +4,7 @@ import static org.strata.jverify.JVerify.*;
 import org.strata.jverify.*;
 
 class Fibonacci {
-    @Pure
+    @Transparent
     @Erased
     static @Unbounded @Nat int spec(@Unbounded @Nat int n) {
         return n < 2 ? n : spec(n - 1) + spec(n - 2);

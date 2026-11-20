@@ -2,10 +2,11 @@ package org.strata.jverify.verifier.tests.verification;
 
 import org.strata.jverify.Nat;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 2, errorCount = 1)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_DECREASES}, exitCode = 4, methodsVerified = 2, errorCount = 1)
 class Termination {
     void Recursive(@Nat int x, @Nat int y) {
         decreases(y, x);

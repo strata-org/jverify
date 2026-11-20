@@ -2,11 +2,12 @@ package org.strata.jverify.verifier.tests.javasupport.wildcards;
 
 import org.strata.jverify.Contract;
 import org.strata.jverify.ContractException;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Verify;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 22)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_WILDCARDS}, exitCode = 22)
 public class WildcardsResolution {
     
     boolean isNull(Container<?> elements) {
@@ -51,7 +52,7 @@ public class WildcardsResolution {
     static class Container<T> {
         T value;
 
-        @Pure
+        @Transparent
         public T get() {
             return value;
         }

@@ -5,6 +5,7 @@ import java.util.function.BiPredicate;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
+import java.util.function.LongPredicate;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -79,6 +80,9 @@ public class JVerify {
     public static void postcondition(IntPredicate predicate) {
     }
 
+    public static void postcondition(LongPredicate predicate) {
+    }
+
     /**
      * Declare a postcondition for a void method (or any method whose return
      * value is not needed). The {@link BooleanSupplier} takes no arguments and
@@ -128,8 +132,8 @@ public class JVerify {
     }
 
     /**
-     * Specifies that the given heap object(s) (and its fields) may be read in the current context.
-     * This is only necessary within {@link Pure} methods, which otherwise cannot read the object or its fields.
+     * Specifies that the given heap object (and its fields) may be read in the current context.
+     * JVerify currently accepts this clause but does not use it.
      */
     public static void reads(Object object) {
     }
@@ -138,6 +142,68 @@ public class JVerify {
      * Specify that the given object(s) may be modified in this method.
      */
     public static void modifies(Object object) {
+    }
+
+    /**
+     * Open an <em>exceptional behavior case</em>: when {@code condition} holds on
+     * entry, this method <strong>must</strong> throw. The
+     * condition may only read parameters, not the heap.
+     * <p>
+     * The case's clauses chain off the returned handle, so a case is one
+     * statement and a clause cannot exist without its case:
+     * {@code throwsOn(b == 0).postcondition((AppException e) -> ...).modifies(log);}
+     * Stating any case claims the enumeration is complete: the verifier checks
+     * that every throwing path satisfies some case's condition, so
+     * {@code throwsOn(false)} states the method never throws, which is
+     * different from stating no case at all (which leaves throwing paths
+     * unconstrained).
+     * <p>
+     * Requires the method to declare its thrown type(s) in its {@code throws}
+     * clause. Like every contract primitive, a no-op at runtime.
+     */
+    public static ThrowsOnCase throwsOn(boolean condition) {
+        return ThrowsOnCase.INSTANCE;
+    }
+
+    /**
+     * One exceptional behavior case, opened by {@link #throwsOn}. The clause
+     * methods mirror the normal-exit vocabulary — {@code postcondition} and
+     * {@code modifies} — scoped to this case's throwing path, exactly as
+     * Laurel reuses {@code ensures}/{@code modifies} inside a
+     * {@code throwsOn} block. Each returns the case so clauses chain; all are
+     * no-ops at runtime.
+     */
+    public static final class ThrowsOnCase {
+        private static final ThrowsOnCase INSTANCE = new ThrowsOnCase();
+
+        private ThrowsOnCase() {
+        }
+
+        /**
+         * Exceptional postcondition of this case: when the case's throw
+         * happens, the property holds of the thrown value.
+         * <p>
+         * The lambda's parameter must be typed at the method's declared throws
+         * type (the least common ancestor, for a multi-type {@code throws}
+         * clause); narrow to a specific exception type inside the property
+         * with {@code instanceof} and a cast, e.g.
+         * {@code .postcondition((AppException e) -> implies(e instanceof ParseError, ((ParseError) e).code > 0))}.
+         * Several {@code postcondition} clauses in one case conjoin.
+         */
+        public <E extends Throwable> ThrowsOnCase postcondition(Predicate<E> property) {
+            return this;
+        }
+
+        /**
+         * Exceptional frame of this case: on the throwing path it covers, only
+         * the given object(s) may be modified. Same argument forms as
+         * {@link JVerify#modifies},
+         * including {@link JVerify#everything()}. A case with no stated frame
+         * gets the same default as an unstated {@link JVerify#modifies}.
+         */
+        public ThrowsOnCase modifies(Object object) {
+            return this;
+        }
     }
 
     /**
@@ -176,6 +242,12 @@ public class JVerify {
     public static int old(int value) {
         throw new ContractException();
     }
+    public static long old(long value) {
+        throw new ContractException();
+    }
+    public static boolean old(boolean value) {
+        throw new ContractException();
+    }
 
     /**
      * Provides observational equality. Two values are observationally equal if they can not be distinguished.
@@ -187,6 +259,25 @@ public class JVerify {
      * For pure types, shallow structural equality implies observational equality, because:
      * - JVerify makes using `==` (reference equality) illegal
      * - pure types only have immutable fields
+     * <p>
+     * <b>Current limitation - the pure case is not yet implemented.</b> Nothing gets
+     * structural {@code jequals} today. Every reference type lowers to an opaque Laurel
+     * composite ({@code JavaToLaurelCompiler.translateType}), and {@code Eq} on a
+     * composite is rewritten to reference equality, so records - which are pure -
+     * compare by identity rather than by contents.
+     * <p>
+     * This is unsound in the negation direction, not merely incomplete: the verifier
+     * proves {@code !jequals(p, q)} for two separately constructed records with equal
+     * components, so a branch guarded on {@code jequals} is treated as dead and a false
+     * assertion inside it is never checked. See {@code tests/javasupport/Jequals.java},
+     * which pins the current behaviour so it cannot change unnoticed.
+     * <p>
+     * Records are expected to stop being composites once Laurel gains a value/record
+     * ("Frozen") type. Until then there is no translatable structural equality for
+     * records in verified code: a record's {@code equals()} has no translatable
+     * structural meaning, so it fails loudly rather than offering a working
+     * alternative. Do not rely on a
+     * proved {@code !jequals(...)} over pure operands.
      */
     public static <T> boolean jequals(T left, T right) {
         throw new VerificationMethodExecutedException();
@@ -215,11 +306,19 @@ public class JVerify {
         throw new VerificationMethodExecutedException();
     }
 
+    public static boolean forall(LongPredicate predicate) {
+        throw new VerificationMethodExecutedException();
+    }
+
     public static <T> boolean exists(Predicate<T> predicate) {
         throw new VerificationMethodExecutedException();
     }
 
     public static boolean exists(IntPredicate predicate) {
+        throw new VerificationMethodExecutedException();
+    }
+
+    public static boolean exists(LongPredicate predicate) {
         throw new VerificationMethodExecutedException();
     }
 
@@ -421,6 +520,33 @@ public class JVerify {
         <R> Set<R> map(Function<T, R> mapping);
     }
 
+    /**
+     * A map from {@code int} to {@code int}: the primitive specialization of {@link Map},
+     * as {@link IntSequence} is of {@link Sequence}. Java generics admit only reference
+     * types, so {@code Map<Integer, Integer>} yields boxed values that {@code ==} cannot
+     * compare and whose {@code intValue()} is opaque; keeping keys and values primitive
+     * lets ordinary integer operators apply.
+     *
+     * <p>This map is TOTAL: every key has a value, so there is no {@code contains}. A key
+     * outside the range you care about holds an unconstrained value -- constrain the range
+     * your contract uses.
+     *
+     * <p>Verification-only, like the rest of this class: it has no implementation.
+     */
+    public interface IntMap {
+        /**
+         * Returns the value mapped to the given {@code key}. This map is TOTAL: every key has a
+         * value, so there is no {@code contains} and no absence to guard against.
+         *
+         * <p>Both the key and the result are {@link Unbounded}, matching the Laurel total map this
+         * lowers to, whose values are the unconstrained integer. A plain {@code int} binding would
+         * carry an {@code int32} range it cannot discharge, so bind results to
+         * {@code @Unbounded int} and state any range you rely on -- for code units, say
+         * {@code 0 <= m.get(i) && m.get(i) <= 65535} -- as a contract.
+         */
+        @Unbounded int get(@Unbounded int key);
+    }
+
     public interface Map<K, V> {
         /**
          * Returns {@code true} if this map contains the specified key.
@@ -428,8 +554,9 @@ public class JVerify {
         boolean contains(K element);
 
         /**
-         * Returns the value mapped to the given {@code key},
-         * which must exist in the map.
+         * Returns the value mapped to the given {@code key}. This read is TOTAL: a key that is
+         * not in the map yields an unconstrained value rather than an error, so guard with
+         * {@link #contains} wherever absence matters.
          */
         V get(K key);
 

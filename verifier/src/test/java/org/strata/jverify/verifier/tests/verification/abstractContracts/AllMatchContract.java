@@ -2,13 +2,14 @@ package org.strata.jverify.verifier.tests.verification.abstractContracts;
 
 import org.strata.jverify.*;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import java.util.function.IntPredicate;
 import java.util.stream.IntStream;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(skip = "Strata: not yet supported", methodsVerified = 2, errorCount = 0)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.FRONTEND_OTHER, Blocker.STRATA_LAMBDA_VALUES}, methodsVerified = 2, errorCount = 0)
 public class AllMatchContract {
 
     @SuppressWarnings("ConstantValue")
@@ -23,7 +24,7 @@ public class AllMatchContract {
 
     @Contract(IntPredicate.class)
     static class IntPredicateContract implements IntPredicate {
-        @Pure
+        @Transparent
         public boolean test(int value) {
             precondition(isAbstractBoolean());
             throw new ContractException();
@@ -34,12 +35,12 @@ public class AllMatchContract {
     static abstract class IntStreamContract implements IntStream {
         // Using a method instead of a final field, since the backend does not support abstract constants in traits
         @Erased
-        @Pure
+        @Transparent
         public JVerify.IntSequence values() {
             throw new ContractException();
         }
 
-        @Pure
+        @Transparent
         public boolean allMatch(IntPredicate predicate) {
             precondition(JVerify.forall((int i) ->
                     implies(values().contains(i),
@@ -48,7 +49,6 @@ public class AllMatchContract {
             throw new ContractException();
         }
 
-        @Pure
         public static IntStream range(int startInclusive, int endExclusive) {
             precondition(startInclusive <= endExclusive);
             postcondition((IntStreamContract r) -> jequals(r.values(), JVerify.range(startInclusive, endExclusive)));

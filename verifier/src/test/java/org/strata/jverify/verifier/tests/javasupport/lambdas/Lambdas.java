@@ -2,11 +2,12 @@ package org.strata.jverify.verifier.tests.javasupport.lambdas;
 
 import org.strata.jverify.*;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
 @SuppressWarnings({"FieldMayBeFinal", "Convert2MethodRef", "ConstantValue"})
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 21, errorCount = 3)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_LAMBDA_VALUES}, exitCode = 4, methodsVerified = 21, errorCount = 3)
 public class Lambdas {
     private static final SomethingDoer containsMethodReference = Lambdas::staticDoSomething;
     private static final SomethingDoer containsLambda = (int x, int y) -> staticDoSomething(x, y);
@@ -17,7 +18,7 @@ public class Lambdas {
         }
     };
     
-    @Pure
+    @Transparent
     static int staticDoSomething(int x, int y) {
         return 3;
     }
@@ -126,18 +127,18 @@ public class Lambdas {
         pureFunctionUser((Integer x) -> x);
     }
 
-    @Pure
+    @Transparent
     static int doSomethingTwiceStatic(SomethingDoer doer) {
         var y = doer.doSomething(1, 2);
         return doer.doSomething(2, y);
     }
 
-    @Pure
+    @Transparent
     int doSomethingTwice(SomethingDoer doer) {
         var y = doer.doSomething(1, 2);
         return doer.doSomething(2, y);
     }
-    @Pure
+    @Transparent
     int doSomethingTwiceWithLambdas(SomethingDoerWithLambdas doer) {
         var y = doer.doSomething(this, 1, 2);
         return doer.doSomething(this, 2, y);
@@ -149,18 +150,18 @@ public class Lambdas {
         var z = doer.doSomething(2, y);
     }
 
-    @Pure
+    @Transparent
     public boolean instancePredicate() {
         return true;
     }
 
-    @Pure
+    @Transparent
     public int add(int x, int y) {
         assume(false);
         return x + y;
     }
 
-    @Pure
+    @Transparent
     public static int staticAdd(int x, int y) {
         assume(false);
         return x + y;
@@ -218,13 +219,13 @@ interface SomeClassMaker {
 }
 
 interface SomethingDoerWithLambdas {
-    @Pure
+    @Transparent
     @EmptyContract
     int doSomething(Lambdas lambdas, int x, int y);
 }
 
 interface SomethingDoer {
-    @Pure
+    @Transparent
     @EmptyContract
     int doSomething(int x, int y);
 }
@@ -260,6 +261,6 @@ interface SomethingDoerWithSpec {
 }
 
 interface PureFunction<I, O> {
-    @Pure
+    @Transparent
     O apply(I input);
 }

@@ -41,9 +41,23 @@ public @interface JVerifyTest {
      */
     boolean verifyByDefault() default true;
     boolean useBuiltinContracts() default false;
+    /**
+     * Whether to run verification even when the Java-to-Laurel compilation
+     * reported errors. When false (default), any compilation error aborts
+     * before verification starts; when true, verification proceeds anyway.
+     * Note this gates only compilation errors, not per-method verification
+     * failures, which are always reported independently.
+     */
     boolean continueOnErrors() default false;
     int exitCode() default 0;
     String[] additionalFiles() default {};
+    /**
+     * Contract sources (directories of {@code .java} files, or jars) passed as
+     * the verifier's {@code contractSourcePath}, relative to the test file's
+     * directory. Carets in a directory's {@code .java} files annotate the
+     * diagnostics reported in that contract file.
+     */
+    String[] contractSourcePath() default {};
     /**
      * Expected number of Java methods to fail verification.
      */
@@ -59,4 +73,46 @@ public @interface JVerifyTest {
      * Expected number of Java methods to have been skipped during verification.
      */
     int methodsSkipped() default -1;
+
+    /**
+     * Mark this test as an EXPECTED FAILURE (xfail): the feature under test is
+     * known-broken today. The engine still RUNS it, but inverts the outcome:
+     *  - if it still fails as expected -> reported as skipped (build stays green);
+     *  - if it now unexpectedly PASSES (all expectations met) -> the build FAILS
+     *    (XPASS), signalling that the marker should be removed.
+     * This replaces the old {@code skip="..."} short-circuit, so a feature that
+     * starts working can never stay silently skipped. Every xfail must list its
+     * {@link #blockedBy()}.
+     */
+    boolean expectedToFail() default false;
+
+    /**
+     * The blocker(s) that make this an {@link #expectedToFail()} test. Must be
+     * non-empty when {@code expectedToFail} is true. A test lists ALL of its
+     * blockers; it is only expected to start passing once every one has cleared.
+     */
+    Blocker[] blockedBy() default {};
+
+    /**
+     * Run the program in --interpret mode (concretely execute {@link #entry()})
+     * instead of verifying it. See {@code VerifierOptions.interpret}.
+     */
+    boolean interpret() default false;
+    /**
+     * The entry point to execute in {@link #interpret()} mode, in
+     * {@code pkg.Class#method} form. Ignored unless {@code interpret} is true.
+     */
+    String entry() default "";
+    /**
+     * Execution-step budget (fuel) for {@link #interpret()} mode. {@code <= 0}
+     * leaves the interpreter default in place. Ignored unless interpreting.
+     */
+    int fuel() default -1;
+    String interpreter() default "";
+
+    /**
+     * What to pass for the bytecode verifier's --allow-unchecked-exceptions
+     * option: the project-level {@code @AllowUncheckedExceptions} default.
+     */
+    boolean allowUncheckedExceptions() default false;
 }

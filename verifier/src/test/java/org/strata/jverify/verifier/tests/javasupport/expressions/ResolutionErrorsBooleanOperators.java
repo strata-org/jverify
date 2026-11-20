@@ -2,7 +2,7 @@ package org.strata.jverify.verifier.tests.javasupport.expressions;
 
 import org.strata.jverify.testengine.JVerifyTest;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 2)
+@JVerifyTest(exitCode = 2)
 @SuppressWarnings("ConstantValue")
 class ResolutionErrorsBooleanOperators {
     public void foo() {

@@ -2,19 +2,19 @@ package org.strata.jverify.builtin;
 
 import org.strata.jverify.Contract;
 import org.strata.jverify.ContractException;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import java.util.Map;
 
 @Contract(pure = true)
 abstract class MapEntryContract<K, V> implements Map.Entry<K, V> {
     @Override
-    @Pure
+    @Transparent
     public K getKey() {
         throw new ContractException();
     }
 
     @Override
-    @Pure
+    @Transparent
     public V getValue() {
         throw new ContractException();
     }

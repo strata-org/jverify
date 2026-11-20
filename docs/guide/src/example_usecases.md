@@ -1,3 +1,5 @@
+> **Draft: not yet published; examples have not been checked against the current tool.**
+
 # Example use-cases
 This section contains a number of small code examples that hopefully give you an idea of what types of bugs you can prevent by using JVerify.
 

@@ -1,0 +1,176 @@
+package org.strata.java.bytecode.verifier.compiler;
+
+import org.strata.jverify.laurel.AstNode;
+import org.strata.jverify.laurel.FileRange;
+import org.strata.jverify.laurel.StmtExpr;
+
+import java.util.ArrayDeque;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * Everything the bytecode translator shares with the driver: the compilation
+ * services, the per-class policy state, and the {@link MethodScope} of the
+ * method being translated. One instance per compilation; {@link #beginMethod}
+ * replaces the method scope wholesale, so per-method state cannot leak
+ * between methods.
+ */
+final class TranslationContext {
+
+    final Reporter reporter;
+    final SourceMap src;
+    final LaurelFactory lf;
+    final ClassResolver resolver;
+    final CompositeModel composites;
+    final MethodGraph graph;
+
+    TranslationContext(Reporter reporter, SourceMap src, LaurelFactory lf,
+                       ClassResolver resolver, CompositeModel composites, MethodGraph graph) {
+        this.reporter = reporter;
+        this.src = src;
+        this.lf = lf;
+        this.resolver = resolver;
+        this.composites = composites;
+        this.graph = graph;
+    }
+
+    /** The library contracts consulted at call sites; never null ({@link LibraryContracts#none()} by default). */
+    LibraryContracts contracts = LibraryContracts.none();
+    /** Translating a library contract member rather than a program method. */
+    boolean contractMode;
+    final Set<String> constructorCalls = new java.util.HashSet<>();
+    /**
+     * A lambda materialized as a value (BodyTranslator.materializeLambda) whose
+     * synthetic impl method still has to be translated as {@code sort}'s
+     * override of the functional interface's method, so its body is checked
+     * against the interface's contract.
+     */
+    record PendingLambda(String sort, String samSort, BodyTranslator.LambdaHandle handle) {
+    }
+    final Deque<PendingLambda> pendingLambdas = new ArrayDeque<>();
+    /** Every lambda sort ever queued: a method translated twice queues its lambdas once. */
+    final Set<String> queuedLambdaSorts = new java.util.HashSet<>();
+    final Map<String, org.strata.jverify.laurel.Procedure> missingContractProcs = new java.util.LinkedHashMap<>();
+    /** The globals that model static fields and class initialization. */
+    final StaticFields statics = new StaticFields();
+    /** Calls and static reads per source line, for explaining a failed assertion about a static field. */
+    final StaticEffectNotes staticNotes = new StaticEffectNotes();
+
+    // --- Per-class state ---
+
+    /** Fqn of the class whose method is being translated: the type of `this`. */
+    String currentClassFqn;
+    /** Type-parameter names in scope (method + enclosing class): refuse as "Unsupported type: T". */
+    Set<String> typeParams = Set.of();
+    /**
+     * The subset of {@link #typeParams} that become Laurel {@code TVar}s: the
+     * METHOD's own type parameters, which the procedure declares in its
+     * {@code typeArgs}, plus, in a JArray member, the JArray class's type
+     * parameter, which the {@code JArray} composite declares. Any other CLASS
+     * type parameter stays refused: its composite is emitted with no
+     * {@code typeArgs}, so a {@code TVar} naming it would not resolve.
+     */
+    Set<String> methodTypeParams = Set.of();
+    /**
+     * The subset of {@link #typeParams} whose bound carries {@code @Impure}
+     * ({@code <T extends @Impure Object>}): a value of such a type is a heap
+     * object, so {@code ==} on it stays a reference comparison.
+     */
+    Set<String> impureTypeParams = Set.of();
+
+    // --- Per-method state ---
+
+    /** The mutable state of one method's translation. */
+    static final class MethodScope {
+
+        /** The method being translated (callee edges are recorded on it). */
+        final MethodGraph.MethodInfo info;
+        /** Local-name renames in effect (postcondition lambda param -> $result). */
+        Map<String, String> renames = Map.of();
+        /** Converting a contract argument (precondition/postcondition/invariant/modifies). */
+        boolean inContract;
+        /**
+         * Translating an instance member of the built-in JArray class: its
+         * receiver is {@code JArray<TArrayElement>}, its {@code modifies(this)}
+         * is {@code self?#contentsVersion}.
+         */
+        boolean arrayModelMember;
+        /**
+         * Translating a {@code @Transparent} program method: implicit runtime
+         * exceptions stay assertions (its body becomes a transparent function,
+         * which cannot throw).
+         */
+        boolean pure;
+        /** Declared exceptional join class (fqn) from the throws clause, or null. */
+        String throwsJoin;
+        /**
+         * The method's {@code throws} is inferred (undeclared unchecked exceptions
+         * may escape): a throw outside {@link #throwsJoin} is no longer refused.
+         */
+        boolean throwsInferred;
+        /** Catch types (fqns) of enclosing try BODIES, innermost first. */
+        final Deque<List<String>> enclosingCatchTypes = new ArrayDeque<>();
+        /** The current method's class-typed return sort, or null. */
+        String returnSort;
+        /**
+         * Translating a relocated source-contract method as its contractee's (see
+         * Declarations.sourceContracts). Its body is the contract header followed by
+         * {@code throw new ContractException()}, which marks it "contract only"; no
+         * implementation is emitted for it, so that throw is
+         * dropped rather than coverage-checked.
+         */
+        boolean relocatedContract;
+
+        /** Java-label bookkeeping for the loop-label scheme. */
+        final Deque<LabelEntry> labelStack = new ArrayDeque<>();
+        String pendingLabel;
+
+
+        /**
+         * Nodes that were emitted as STATEMENTS: the rerange stop set, so a
+         * wrapping statement's range stamping leaves nested statements'
+         * already assigned ranges untouched.
+         */
+        final Set<AstNode<StmtExpr>> statementNodes = Collections.newSetFromMap(new IdentityHashMap<>());
+
+        MethodScope(MethodGraph.MethodInfo info) {
+            this.info = info;
+        }
+    }
+
+    /** The scope of the method being translated; replaced by {@link #beginMethod}. */
+    MethodScope method;
+
+    /** Open a fresh method scope; all per-method state starts from scratch. */
+    void beginMethod(MethodGraph.MethodInfo info) {
+        method = new MethodScope(info);
+    }
+
+    // --- Laurel loop-label scheme ---
+
+    record LabelEntry(String javaLabel, String breakLabel, String continueLabel) {
+    }
+
+    // Label numbering is compilation-scoped (corpus-pinned), so the counters
+    // live here, not on the method scope.
+    private int labelCounter = 0;
+    int switchSelCounter = 0;
+
+    String freshLabel(String prefix) {
+        return prefix + "_" + (labelCounter++);
+    }
+
+    /**
+     * Stamp {@code range} over a finished statement's subtree (stopping at
+     * nested statements) and record the result as a statement node.
+     */
+    AstNode<StmtExpr> placeStatement(AstNode<StmtExpr> stmt, FileRange range) {
+        AstNode<StmtExpr> placed = LaurelTrees.rerange(stmt, range, method.statementNodes);
+        method.statementNodes.add(placed);
+        return placed;
+    }
+}

@@ -9,7 +9,7 @@ public class SumCache {
     ArrayList<Integer> numbers = new ArrayList<>();
     int sum = 0;
 
-    @Pure
+    @Transparent
     @Invariant
     boolean validSum() {
 //          ^^^^^^^^ Related location: this is the postcondition that could not be proved
@@ -29,7 +29,7 @@ public class SumCache {
 //      ^^^^^^^ Error: a postcondition could not be proved on this return path    
     }
     
-    @Pure
+    @Transparent
     public static boolean willAddOverflow(int a, int b) {
         if (a > 0 && b > 0) {
             return a > Integer.MAX_VALUE - b;
@@ -41,7 +41,7 @@ public class SumCache {
     }
 
     // Let this return an '@Unbounded int' once we implement https://github.com/strata-org/jverify/issues/340
-    @Pure 
+    @Transparent 
     static int unsafeSum(int a, int b) {
         assume(false); // Skip the overflow check. Improve this when https://github.com/strata-org/jverify/issues/339 is resolved
         return a + b;

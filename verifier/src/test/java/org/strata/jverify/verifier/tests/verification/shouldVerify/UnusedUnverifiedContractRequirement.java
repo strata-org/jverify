@@ -8,7 +8,7 @@ import java.util.List;
 
 import static org.strata.jverify.JVerify.postcondition;
 
-@JVerifyTest(skip = "Strata: not yet supported", methodsVerified = 9, errorCount = 0)
+@JVerifyTest(methodsVerified = 9, errorCount = 0)
 public class UnusedUnverifiedContractRequirement {
 
     @Verify(false)

@@ -33,8 +33,8 @@ public class InternalClassContractErrors {
     }
 
     @Contract(Foo.class)
-//  ^ error: class 'Foo' must not be referenced by more than one @Contract annotation
     static class FooContract2 extends Foo {
+//         ^ error: class 'Foo' must not be referenced by more than one @Contract annotation
         void bar(int x) {
             precondition(x < 0);
         }
@@ -43,6 +43,6 @@ public class InternalClassContractErrors {
     static class ConcreteClass {}
 
     @Contract(ConcreteClass.class)
-//  ^ error: class 'ConcreteClass' must not have an externally defined contract because all its contracts can be defined internally
     static class ConcreteClassContract {}
+//         ^ error: class 'ConcreteClass' must not have an externally defined contract because all its contracts can be defined internally
 }

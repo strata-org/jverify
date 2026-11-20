@@ -9,7 +9,7 @@ import java.util.stream.Stream;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 6, errorCount = 1)
+@JVerifyTest(exitCode = 4, methodsVerified = 6, errorCount = 1)
 public class LibraryContractGhostFieldVerification {
     static void test(BigInteger v) {
         precondition(DummyBigIntegerContract.convert(v).value == 1);
@@ -24,7 +24,7 @@ public class LibraryContractGhostFieldVerification {
     <T> T useAbsAndGet(List<T> list) {
         @SuppressWarnings("DataFlowIssue") 
         var x = list.get(-3);
-//                       ^^ Error: value does not satisfy the subset constraints of 'nat31'
+//                       ^^ Error: precondition does not hold
         return list.get(Math.abs(-3));
     }
 }
@@ -36,7 +36,7 @@ class DummyBigIntegerContract {
     int value;
 
     // specifies a pure body using the contract class
-    @Pure
+    @Transparent
     int intValue() {
         reads(this);
         //noinspection ConstantValue
@@ -44,7 +44,7 @@ class DummyBigIntegerContract {
         return value;
     }
 
-    @Pure
+    @Transparent
     @Erased
     public static DummyBigIntegerContract convert(BigInteger bi) {
         return JVerify.<BigInteger, DummyBigIntegerContract>cast(bi);
@@ -57,7 +57,7 @@ class DummyBigIntegerContract {
     }
 
     // Test static pure bodyless method
-    @Pure
+    @Transparent
     public static DummyBigIntegerContract valueOf(long val) {
         throw new ContractException();
     }
@@ -66,7 +66,7 @@ class DummyBigIntegerContract {
 @Contract(value = Stream.class, pure = true)
 abstract class StreamContract<T> implements Stream<T> {
     @Erased
-    @Pure
+    @Transparent
     public static <T> StreamContract<T> fromStream(Stream<T> s) {
         return JVerify.<Stream<T>, StreamContract<T>>cast(s);
     }

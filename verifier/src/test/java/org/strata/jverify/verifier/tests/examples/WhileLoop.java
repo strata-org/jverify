@@ -16,7 +16,10 @@ class WhileLoop {
     }
 
     static int sumTo(int n) {
-        precondition(0 <= n && n <= 65535);
+        // 46340 = floor(sqrt(Integer.MAX_VALUE)): n * (n + 1) in the spec is
+        // overflow-checked like any other arithmetic, and at the old bound
+        // of 65535 the product really exceeds Integer.MAX_VALUE.
+        precondition(0 <= n && n <= 46340);
         postcondition((int res) -> res == n * (n + 1) / 2);
         int i = 0;
         int s = 0;

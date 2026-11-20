@@ -49,4 +49,4 @@ error: this invariant could not be proved on entry
 
 In this section, we've used invariants to prove that no uncaught exceptions occur inside the loop.
 
-In the next sections, [Pre- and post-conditions](pre_and_postconditions.md), [Code types](code_types.md), [Forall and exists](forall_and_exists.md), we will introduce the tools needed to prove the correctness of the above `binarySearch` example, and we will also use invariants to prove facts that hold after the loop exits.
+In the next sections, [Pre- and post-conditions](pre_and_postconditions.md) and [Quantifiers](quantifiers.md), we will introduce the tools needed to prove the correctness of the above `binarySearch` example, and we will also use invariants to prove facts that hold after the loop exits.

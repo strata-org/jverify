@@ -20,7 +20,7 @@ class UserProfile {
     }
 
     @Erased
-    @Pure
+    @Transparent
     @Invariant // Makes this a pre- and post-condition of all public methods
     private boolean valid() {
         reads(this);

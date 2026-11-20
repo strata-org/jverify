@@ -14,6 +14,7 @@
 <!-- - [Uncaught Exceptions](uncaught_exceptions.md) -->
 - [Loop Invariants](loop_invariants.md)
 - [Pre- and post-conditions](pre_and_postconditions.md)
+- [Exceptions](exceptions.md)
 <!-- - [Code Types](code_types.md) -->
 - [Quantifiers](quantifiers.md)
 <!-- - [Code Purposes](code_purposes.md) -->
@@ -21,8 +22,7 @@
 - [Integers](integers.md)
 <!-- - [Abstract contracts](abstract_contracts.md) -->
 
-# Working with objects
-
+<!-- Draft chapters of a future "Working with objects" part: -->
 <!-- - [Reading and Modifying](reads_and_modifies.md) -->
 <!-- - [Time Traveling](time_traveling.md) -->
 <!-- - [Working with Null](working_with_null.md) -->

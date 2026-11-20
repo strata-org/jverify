@@ -2,7 +2,7 @@ package org.strata.jverify.examples;
 
 import org.strata.jverify.Invariant;
 import org.strata.jverify.Nullable;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 
 import static org.strata.jverify.JVerify.modifies;
 import static org.strata.jverify.JVerify.reads;
@@ -13,7 +13,7 @@ public class Order {
     private Status status;
     private @Nullable String trackingNumber;
 
-    @Pure
+    @Transparent
     @Invariant
     private boolean Valid() {
         reads(this);

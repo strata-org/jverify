@@ -2,15 +2,16 @@ package org.strata.jverify.verifier.tests.examples;
 
 import org.strata.jverify.Erased;
 import org.strata.jverify.Nat;
-import org.strata.jverify.Pure;
+import org.strata.jverify.Transparent;
 import org.strata.jverify.Unbounded;
 import org.strata.jverify.testengine.JVerifyTest;
+import org.strata.jverify.testengine.Blocker;
 
 import static org.strata.jverify.JVerify.*;
 
-@JVerifyTest(skip = "Strata: not yet supported", exitCode = 4, methodsVerified = 2, errorCount = 4)
+@JVerifyTest(expectedToFail = true, blockedBy = {Blocker.STRATA_OTHER}, exitCode = 4, methodsVerified = 2, errorCount = 4)
 class FibonacciInvalid {
-    @Pure
+    @Transparent
     @Erased
     static @Unbounded @Nat int Spec(@Unbounded @Nat int n) {
         return n < 2 ? n : Spec(n - 1) + Spec(n - 2);
