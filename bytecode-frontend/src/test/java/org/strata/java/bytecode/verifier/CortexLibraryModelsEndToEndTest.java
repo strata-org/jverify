@@ -253,7 +253,7 @@ class CortexLibraryModelsEndToEndTest {
                 import static org.strata.jverify.JVerify.check;
 
                 class BuilderRefused {
-                    static void number(StringBuilder sb) { sb.append(3); }
+                    static void object(StringBuilder sb, Object o) { sb.append(o); }
                     static void truncate(StringBuilder sb) { sb.setLength(1); }
                     static int length(StringBuilder sb) { return sb.length(); }
                     static void parameter(StringBuilder sb, String s) { sb.append(s); }
@@ -261,7 +261,7 @@ class CortexLibraryModelsEndToEndTest {
                     static void ok() { check(true); }
                 }
                 """),
-                "string conversion of int in a concatenation",
+                "string conversion of Object in StringBuilder.append",
                 "StringBuilder.setLength with a length other than the constant 0",
                 LIBRARY + "java.lang.StringBuilder.length' could not be translated: the library method"
                         + " 'java.lang.AbstractStringBuilder.length' could not be translated: not supported by the direct"

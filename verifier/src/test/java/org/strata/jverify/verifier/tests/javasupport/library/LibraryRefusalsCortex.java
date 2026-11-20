@@ -11,7 +11,7 @@ import static org.strata.jverify.JVerify.*;
  * one per method, each with the reason the library method was refused for: a
  * native method; an abstract method; a method that reads a static field of a
  * library class, which no translated initializer assigns; a method refused
- * for a construct in a method it calls; a virtual call whose receiver may be
+ * for a call it makes (String.valueOf of an Object); a virtual call whose receiver may be
  * of a class whose override is refused; and a method that calls a refused one
  * only through another program method, which is refused for it in turn.
  */
@@ -41,9 +41,9 @@ class LibraryRefusalsCortex {
 //             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ error: the library method 'java.util.ArrayList.<init>' could not be translated: not supported by the direct Cortex translation: static fields of library classes (java.util.ArrayList.DEFAULTCAPACITY_EMPTY_ELEMENTDATA)
     }
 
-    static void ranged(int[] a) {
-        java.util.Arrays.fill(a, 0, 1, 7);
-//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ error: the library method 'java.util.Arrays.fill' could not be translated: the library method 'java.util.Arrays.rangeCheck' could not be translated: not supported by the direct Cortex translation: string conversion of int in a concatenation
+    static String stringified(Object o) {
+        return java.util.Objects.toString(o);
+//             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ error: the library method 'java.util.Objects.toString' could not be translated: not supported by the direct Cortex translation: string conversion of Object in String.valueOf
     }
 
     @InterpretEntry

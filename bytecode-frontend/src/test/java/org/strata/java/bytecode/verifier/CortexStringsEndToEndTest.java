@@ -86,6 +86,21 @@ class CortexStringsEndToEndTest {
                 () -> messages(ran).toString());
     }
 
+    /**
+     * The run ended at an unmodelled input, and nothing after it ran: the one diagnostic says that
+     * {@code property} does not hold, or, when the stop left the method that detected it, names the
+     * composite {@code kind} (the interpreter reports a raise that came through a call with the call's
+     * metadata, which has no summary).
+     */
+    private static void assertNotModelled(JVerifyResults.Ran ran, String kind, String property) {
+        assertEquals(1, ran.verificationResults().verificationFailedMethods(), () -> messages(ran).toString());
+        assertEquals(1, messages(ran).size(), () -> messages(ran).toString());
+        String m = messages(ran).getFirst();
+        // contains, not endsWith: the static-effect notes may follow ("; a static field may have been changed ...")
+        assertTrue(m.contains(property + " does not hold") || m.contains("uncaught exception '" + kind + "' is not thrown does not hold"),
+                () -> messages(ran).toString());
+    }
+
     private static final String IDENTITY = """
             import org.strata.jverify.InterpretEntry;
             import static org.strata.jverify.JVerify.check;
@@ -434,16 +449,17 @@ class CortexStringsEndToEndTest {
                 """));
     }
 
-    /** Operands with no text form in the Core yet, and other invokedynamic uses, are refused with a reason. */
+    /** Operands whose text is a toString() call, and other invokedynamic uses, are refused with a reason. */
     @Test
-    void concatenationOfNumbersAndOtherIndyAreRefused(@TempDir Path tmp) throws Exception {
+    void concatenationOfObjectsAndOtherIndyAreRefused(@TempDir Path tmp) throws Exception {
         var ran = interpret(tmp, "Refused.java", "Refused#ok", """
                 import org.strata.jverify.InterpretEntry;
                 import static org.strata.jverify.JVerify.check;
 
                 class Refused {
                     static String field;
-                    static String number(int i) { return "" + i; }
+                    static String object(Object o) { return "x" + o; }   // javac converts o with String.valueOf first
+                    static String valueOfObject(Object o) { return String.valueOf(o); }
                     static Runnable lambda() { return () -> {}; }
                     static String fromField() { return "x" + field; }
                     static String fromParameter(String s) { String t = s; return t + "!"; }
@@ -460,9 +476,245 @@ class CortexStringsEndToEndTest {
         String prefix = "error: not supported by the direct Cortex translation: ";
         String mayBeNull = prefix + BytecodeToCortexCompiler.MAYBE_NULL_STRING;
         assertEquals(List.of(
-                prefix + "string conversion of int in a concatenation",
+                prefix + "string conversion of Object in String.valueOf",
+                prefix + "string conversion of Object in String.valueOf",
                 prefix + "invokedynamic run",
                 mayBeNull, mayBeNull, mayBeNull, mayBeNull, mayBeNull, mayBeNull), messages(ran));
+    }
+
+    private static final String CHAR_AT = """
+            import org.strata.jverify.InterpretEntry;
+            import static org.strata.jverify.JVerify.check;
+
+            class CharAt {
+                @InterpretEntry
+                static void run() {
+                    String s = "a\\tb\\"c";
+                    check(s.charAt(0) == 'a');
+                    check(s.charAt(1) == '\\t');
+                    check(s.charAt(3) == '"');
+                    check("\\s".charAt(0) == ' ');
+                    String ab = "ab";
+                    String cd = "cd";
+                    check((ab + cd).charAt(3) == 'd');
+                    check(("x" + 5).charAt(1) == '5');
+                    boolean caught = false;
+                    try {
+                        s.charAt(s.length());
+                    } catch (StringIndexOutOfBoundsException e) {
+                        caught = true;
+                    }
+                    check(caught);
+                    caught = false;
+                    try {
+                        s.charAt(-1);
+                    } catch (IndexOutOfBoundsException e) {
+                        caught = true;
+                    }
+                    check(caught);
+                    check(%s);
+                }
+            }
+            """;
+
+    /** charAt is the character at the index, escapes included, and an index out of range throws. */
+    @Test
+    void charAtReadsTheTextAndChecksTheIndex(@TempDir Path tmp) throws Exception {
+        assertPasses(interpret(tmp, "CharAt.java", "CharAt#run", CHAR_AT.formatted("s.charAt(2) == 'b'")));
+        assertFails(interpret(tmp, "CharAt.java", "CharAt#run", CHAR_AT.formatted("s.charAt(2) == 'c'")));
+    }
+
+    private static final String HASH = """
+            import org.strata.jverify.InterpretEntry;
+            import static org.strata.jverify.JVerify.check;
+
+            class Hash {
+                static int sw(String s) {
+                    switch (s) {
+                        case "a": return 1;
+                        case "b": return 2;
+                        default: return 0;
+                    }
+                }
+                static int expr(String s) {
+                    return switch (s) {
+                        case "a" -> 1;
+                        case "b" -> 2;
+                        default -> 0;
+                    };
+                }
+                @InterpretEntry
+                static void run() {
+                    check("".hashCode() == 0);
+                    check("a".hashCode() == 97);
+                    check("hello".hashCode() == 99162322);
+                    check("polygenelubricants".hashCode() == Integer.MIN_VALUE);   // the sum overflows
+                    String he = "he";
+                    check((he + "llo").hashCode() == "hello".hashCode());
+                    check(sw("b") == 2 && sw("a") == 1 && sw("zz") == 0);
+                    check(expr("b") == 2 && expr("a") == 1 && expr("zz") == 0);
+                    check(%s);
+                }
+            }
+            """;
+
+    /** hashCode is the JLS formula in int arithmetic, which javac's switch on a String relies on. */
+    @Test
+    void hashCodeIsTheFormulaAndSwitchOnStringsWorks(@TempDir Path tmp) throws Exception {
+        assertPasses(interpret(tmp, "Hash.java", "Hash#run", HASH.formatted("\"Aa\".hashCode() == \"BB\".hashCode()")));
+        assertFails(interpret(tmp, "Hash.java", "Hash#run", HASH.formatted("\"Aa\".hashCode() == \"Ab\".hashCode()")));
+    }
+
+    private static final String NUMBERS = """
+            import org.strata.jverify.InterpretEntry;
+            import static org.strata.jverify.JVerify.check;
+
+            class Numbers {
+                @InterpretEntry
+                static void run() {
+                    int i = 5;
+                    int m = -7;
+                    int min = Integer.MIN_VALUE;
+                    long l = 1234567890123L;
+                    char c = 'q';
+                    byte b = -3;
+                    short sh = 300;
+                    check(("x" + i).equals("x5"));
+                    check(("" + m).equals("-7"));
+                    check(("" + min).equals("-2147483648"));
+                    check((l + "").equals("1234567890123"));
+                    check(("" + c + c).equals("qq"));
+                    check(("" + b + "|" + sh).equals("-3|300"));
+                    check(String.valueOf(i).equals("5"));
+                    check(String.valueOf(c).equals("q"));
+                    check(String.valueOf(true).equals("true"));
+                    check(String.valueOf(l).equals("1234567890123"));
+                    char[] cs = {'a', 'b'};
+                    check(String.valueOf(cs).equals("ab"));
+                    check(new String(cs).equals("ab"));
+                    check(new String(cs) != "ab");
+                    check(new String(new char[0]).equals(""));
+                    StringBuilder sb = new StringBuilder();
+                    sb.append(i).append(c).append(m);
+                    check(sb.toString().equals("5q-7"));
+                    check(%s);
+                }
+            }
+            """;
+
+    /** Integers and chars convert to text as the JLS says, in concatenation, StringBuilder.append and String.valueOf; a char[] is its characters. */
+    @Test
+    void numbersCharsAndCharArraysConvertToText(@TempDir Path tmp) throws Exception {
+        assertPasses(interpret(tmp, "Numbers.java", "Numbers#run", NUMBERS.formatted("(\"\" + (i - m)).equals(\"12\")")));
+        assertFails(interpret(tmp, "Numbers.java", "Numbers#run", NUMBERS.formatted("(\"\" + (i - m)).equals(\"-2\")")));
+    }
+
+    private static final String LOWER = """
+            import org.strata.jverify.InterpretEntry;
+            import static org.strata.jverify.JVerify.check;
+
+            class Lower {
+                @InterpretEntry
+                static void run() {
+                    String s = "HeLLo, World 1!";
+                    check(s.toLowerCase().equals("hello, world 1!"));
+                    check("abc".toLowerCase().equals("abc"));
+                    check("".toLowerCase().equals(""));
+                    check("I".toLowerCase().equals("i"));     // the model assumes a non-Turkic default locale
+                    check(%s);
+                    check(false);                              // not reached when the call before ends the run
+                }
+            }
+            """;
+
+    /**
+     * toLowerCase maps A..Z to a..z and leaves the other ASCII characters. A character outside ASCII
+     * ends the run with the one diagnostic that names the limit: the user's checks after it do not run,
+     * and the half-lowered text is never used.
+     */
+    @Test
+    void toLowerCaseIsModelledForAscii(@TempDir Path tmp) throws Exception {
+        assertFails(interpret(tmp, "Lower.java", "Lower#run", LOWER.formatted("s.toLowerCase().length() == s.length()")));
+        var ran = interpret(tmp, "Lower.java", "Lower#run", LOWER.formatted("s.toLowerCase().equals(s)"));
+        assertEquals(2, messages(ran).size(), () -> messages(ran).toString());   // the probe and check(false)
+        assertNotModelled(interpret(tmp, "Lower.java", "Lower#run",
+                LOWER.formatted("\"\\u00c4B\".toLowerCase().equals(\"\\u00e4b\")")), BytecodeToCortexCompiler.NOT_MODELLED_ASCII, BytecodeToCortexCompiler.NON_ASCII_LOWER_CASE);
+    }
+
+    private static final String ASTRAL = """
+            import org.strata.jverify.InterpretEntry;
+            import static org.strata.jverify.JVerify.check;
+
+            class Astral {
+                @InterpretEntry
+                static void run() {
+                    String s = "\\uD83D\\uDE00";      // one code point, two UTF-16 units in Java
+                    String e = "\\u00e9";            // outside ASCII, within the Basic Multilingual Plane
+                    check(e.length() == 1 && e.charAt(0) == '\\u00e9' && e.hashCode() == 233);
+                    check(%s);
+                    check(false);                  // not reached when the call before ends the run
+                }
+            }
+            """;
+
+    /**
+     * length, charAt and hashCode are modelled on code points, which are Java's UTF-16 units only within
+     * the Basic Multilingual Plane: a text with a supplementary character ends the run with the one
+     * diagnostic, instead of a verdict Java would not give (`hashCode() == 128512`, `charAt(0) == 0x1F600`
+     * or `length() == 1` are all false in Java).
+     */
+    @Test
+    void textOutsideTheBasicMultilingualPlaneIsNotModelled(@TempDir Path tmp) throws Exception {
+        for (String probe : List.of("s.hashCode() == 128512", "s.charAt(0) == 0x1F600", "s.length() == 1",
+                "s.hashCode() == 1772899")) {
+            assertNotModelled(interpret(tmp, "Astral.java", "Astral#run", ASTRAL.formatted(probe)),
+                    BytecodeToCortexCompiler.NOT_MODELLED_BMP, BytecodeToCortexCompiler.NON_BMP_TEXT);
+        }
+    }
+
+    private static final String GUARDED = """
+            import org.strata.jverify.InterpretEntry;
+            import static org.strata.jverify.JVerify.check;
+
+            class Guarded {
+                static final String S = "\\uD83D\\uDE00";
+                static class C { static int h = S.hashCode(); }
+                static int returnedFromFinally() {
+                    int r = 0;
+                    try { r = S.length(); } finally { return r; }
+                }
+                static int assignedInFinally() {
+                    int r = 0;
+                    try { r = S.length(); } finally { r = -1; }
+                    return r;
+                }
+                @InterpretEntry
+                static void run() {
+                    boolean caught = false;
+                    %s
+                    check(false);                  // not reached: the run ended at the unmodelled call
+                }
+            }
+            """;
+
+    /**
+     * The stop of an unmodelled call passes through the handlers that catch everything: a
+     * {@code finally} (with or without a {@code return}), a {@code catch (Throwable)}, and the
+     * class-initialization guard, which must not wrap it in an {@code ExceptionInInitializerError}
+     * the program could catch. The run ends with the one diagnostic in every case.
+     */
+    @Test
+    void notModelledPassesThroughFinallyAndClassInitialization(@TempDir Path tmp) throws Exception {
+        for (String body : List.of(
+                "check(returnedFromFinally() == 0);",
+                "check(assignedInFinally() == -1);",
+                "try { S.length(); } finally { check(false); }",
+                "try { S.length(); } catch (Throwable t) { caught = true; } check(caught);",
+                "try { int x = C.h; } catch (ExceptionInInitializerError e) { caught = true; } check(caught);",
+                "try { int x = C.h; } finally { caught = true; } check(caught);")) {
+            assertNotModelled(interpret(tmp, "Guarded.java", "Guarded#run", GUARDED.formatted(body)),
+                    BytecodeToCortexCompiler.NOT_MODELLED_BMP, BytecodeToCortexCompiler.NON_BMP_TEXT);
+        }
     }
 
     /**

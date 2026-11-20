@@ -122,13 +122,34 @@ import java.util.Set;
  * {@code $string$init} allocates once, under a guard in the prologue of every
  * method that uses a string constant; so equal constants are one object in
  * every method, as in the JVM's string pool (JLS 3.10.5), and {@code ==} on
- * them is reference equality. {@code String.length()},
- * {@code String.equals(Object)} and the constructors {@code String()} and
- * {@code String(String)} are modelled inline on that field.
+ * them is reference equality. {@code String.length()}, {@code charAt},
+ * {@code equals(Object)}, {@code hashCode}, {@code toLowerCase}, the
+ * constructors {@code String()}, {@code String(String)} and
+ * {@code String(char[])} and the static {@code valueOf} of a {@code char[]},
+ * a {@code boolean}, a {@code char} or an integer are modelled on that field,
+ * with the Core's string operators ({@code Str.Length}, {@code Str.At},
+ * {@code Str.ToCode}, {@code Str.FromCode}, {@code Str.FromInt}); the loops
+ * of {@code hashCode}, {@code String(char[])} and {@code toLowerCase} are the
+ * procedures {@code $string$hashCode}, {@code $string$fromChars} and
+ * {@code $string$toLowerCase}. The Core indexes and counts code points where
+ * Java counts UTF-16 units, so {@code length}, {@code charAt} and
+ * {@code hashCode} are modelled only for text within the Basic Multilingual
+ * Plane, and {@code toLowerCase} only for ASCII text, lowered as every
+ * default locale but the Turkic ones does (Java's rule for the rest depends
+ * on the Unicode tables and the default locale). A text outside the modelled
+ * domain is a run-time condition, so these methods check it and, when it
+ * fails, end the run with a diagnostic that names the limit
+ * ({@link MethodTranslator#notModelled}; the handlers that catch everything,
+ * {@code finally} and the class-initialization guards, rethrow it): a verdict
+ * is never given on behaviour the model does not cover. A {@code char} that is a lone
+ * surrogate has no text ({@code Str.FromCode} leaves it to a solver), so the
+ * interpreter stops at its use.
  * String concatenation ({@code invokedynamic} on {@code StringConcatFactory})
  * joins the operands' texts with {@code Str.Concat} into a new String object;
  * a String operand, constructor argument or {@code intern} receiver that may
- * be null is refused. {@code String.intern()} is
+ * be null is refused, and so is an operand of another reference type,
+ * which javac converts with {@code String.valueOf(Object)} first: its text
+ * is a {@code toString()} call whose result may be null. {@code String.intern()} is
  * the procedure {@code $string$intern} over a pool, a linked list of
  * {@code $string$pool} nodes; when a program interns, each constant joins the
  * pool at its first {@code ldc}, so a string interned earlier with the same
@@ -186,7 +207,7 @@ import java.util.Set;
  * as {@code @Transparent}), {@code @Nat} and {@code @Unbounded}, {@code null}
  * literals and null tests, floating point, fields of library classes, class
  * literals, {@code invokedynamic} other than string concatenation (and, in a
- * concatenation, operands that are neither String nor boolean) and monitors;
+ * concatenation, operands of a reference type other than String) and monitors;
  * arrays of references,
  * multi-dimensional arrays, arrays in static fields of library classes, a
  * {@code baload} or {@code bastore} on an array whose static type is not
@@ -294,6 +315,46 @@ public final class BytecodeToCortexCompiler {
             + " as a concatenation or StringBuilder.append operand, String constructor argument or intern() receiver";
     /** The procedure that implements {@code String.intern} on the pool. */
     public static final String STRING_INTERN = "$string$intern";
+    /** The procedure that computes {@code String.hashCode} of a text. */
+    public static final String STRING_HASH_CODE = "$string$hashCode";
+    /** The procedure that builds the text of a {@code char[]}, for {@code String(char[])} and {@code String.valueOf(char[])}. */
+    public static final String STRING_FROM_CHARS = "$string$fromChars";
+    /** The procedure that lower-cases a text, for {@code String.toLowerCase()}; ASCII only. */
+    public static final String STRING_TO_LOWER_CASE = "$string$toLowerCase";
+    /** The procedure that tells whether every code point of a text is in the Basic Multilingual Plane. */
+    public static final String STRING_IS_BMP = "$string$isBmp";
+    /**
+     * The composites of the objects {@link MethodTranslator#notModelled} throws, one per property, so
+     * that a handler that catches everything can rethrow the object under its property
+     * ({@link MethodTranslator#rethrowNotModelled}). Frontend-private, not Java objects and not
+     * {@code Throwable}s, so no {@code catch} of a type matches them. Named after the property:
+     * when the object leaves the method that threw it, the interpreter reports the raise with the
+     * metadata of the call it came through, which has no summary, and its fallback diagnostic names
+     * the composite ("uncaught exception '...' is not thrown").
+     */
+    public static final String NOT_MODELLED_ASCII = "$notModelled$nonAsciiTextInToLowerCase";
+    public static final String NOT_MODELLED_BMP = "$notModelled$textOutsideTheBasicMultilingualPlane";
+    static final String NOT_MODELLED_PREFIX = "$notModelled$";
+    /**
+     * The property {@code toLowerCase} requires of its text, reported as "... does not hold" when the
+     * text has a character outside ASCII. The model lowers ASCII as every default locale but the Turkic
+     * ones does ({@code I} to {@code i}); it assumes such a locale, and says so here.
+     */
+    public static final String NON_ASCII_LOWER_CASE = "the text of String.toLowerCase is ASCII"
+            + " (the model lowers only ASCII, as in a non-Turkic default locale)";
+    /**
+     * The property {@code length}, {@code charAt} and {@code hashCode} require of their text, reported as
+     * "... does not hold" when a code point is outside the Basic Multilingual Plane, where Java's UTF-16
+     * units and the Core's code points differ.
+     */
+    public static final String NON_BMP_TEXT = "the text has no character outside the Basic Multilingual Plane"
+            + " (String.length, charAt and hashCode are modelled on code points, Java counts UTF-16 units)";
+    static final String STRING_INDEX_OUT_OF_BOUNDS = "java.lang.StringIndexOutOfBoundsException";
+    /** The property each {@link #NOT_MODELLED_PREFIX} composite stands for, in the order the checks are emitted. */
+    static final List<Map.Entry<String, String>> NOT_MODELLED = List.of(
+            Map.entry(NOT_MODELLED_ASCII, NON_ASCII_LOWER_CASE), Map.entry(NOT_MODELLED_BMP, NON_BMP_TEXT));
+    /** The String helper procedures the program calls, among {@link #STRING_HASH_CODE}, {@link #STRING_FROM_CHARS}, {@link #STRING_TO_LOWER_CASE} and {@link #STRING_IS_BMP}. */
+    private final Set<String> stringHelpers = new LinkedHashSet<>();
     /** Whether the program calls {@code String.intern}, so the pool is built. */
     private boolean internUsed;
     static final String INIT_FLAG = "<initialized>";
@@ -419,6 +480,18 @@ public final class BytecodeToCortexCompiler {
         if (internUsed) {
             procedures.put(STRING_INTERN, stringInternProcedure());
         }
+        if (stringHelpers.contains(STRING_HASH_CODE)) {
+            procedures.put(STRING_HASH_CODE, stringHashCodeProcedure());
+        }
+        if (stringHelpers.contains(STRING_FROM_CHARS)) {
+            procedures.put(STRING_FROM_CHARS, stringFromCharsProcedure());
+        }
+        if (stringHelpers.contains(STRING_TO_LOWER_CASE)) {
+            procedures.put(STRING_TO_LOWER_CASE, stringToLowerCaseProcedure());
+        }
+        if (stringHelpers.contains(STRING_IS_BMP)) {
+            procedures.put(STRING_IS_BMP, stringIsBmpProcedure());
+        }
         var composites = composites();
         // Java arrays are covariant (JLS 4.10.3). The array parents are composites of the program
         // only when it names an array type.
@@ -458,6 +531,11 @@ public final class BytecodeToCortexCompiler {
                         new Field(POOL_NEXT, new Ty.Named(STRING_POOL)),
                         new Field(POOL_HAS_NEXT, new Ty.Bool()))));
                 work.add(STRING);
+                continue;
+            }
+            if (c.startsWith(NOT_MODELLED_PREFIX)) {
+                // Frontend-private, not a Java object: no parent, so no catch of a type matches it.
+                out.put(c, new Composite(c, List.of(), List.of()));
                 continue;
             }
             var parents = new ArrayList<String>();
@@ -1641,6 +1719,139 @@ public final class BytecodeToCortexCompiler {
                 Optional.empty(), List.of(), Optional.of(body), false, NO_LOCATION);
     }
 
+    private static Expr coreOp(String name, Expr... args) {
+        return new Expr.Op(name, List.of(args));
+    }
+
+    private static Cmd set(String name, Expr value) {
+        return new Cmd.Set(name, Optional.of(value), NO_LOCATION);
+    }
+
+    private static Cmd init(String name, Ty ty) {
+        return new Cmd.Init(name, ty, Optional.empty(), NO_LOCATION);
+    }
+
+    /**
+     * The blocks of a counted loop: after {@code entry}, which must set the
+     * count {@code n} (declared here, with the counter {@code i}),
+     * {@code step} runs for each {@code i} from 0 to {@code n - 1}.
+     */
+    private static List<Block> countedLoop(List<Cmd> entry, List<Cmd> step) {
+        var all = new ArrayList<Cmd>();
+        all.add(init("i", new Ty.Int()));
+        all.add(init("n", new Ty.Int()));
+        all.addAll(entry);
+        all.add(set("i", new Expr.Int(0)));
+        var body = new ArrayList<Cmd>(step);
+        body.add(set("i", coreOp("Int.Add", new Expr.Var("i"), new Expr.Int(1))));
+        return List.of(
+                new Block("entry", all, new Transfer.Goto("loop", NO_LOCATION)),
+                new Block("loop", List.of(), new Transfer.CondGoto(coreOp("Int.Lt", new Expr.Var("i"), new Expr.Var("n")),
+                        "step", "done", NO_LOCATION)),
+                new Block("step", body, new Transfer.Goto("loop", NO_LOCATION)),
+                new Block("done", List.of(), new Transfer.Finish(NO_LOCATION)));
+    }
+
+    /**
+     * The blocks of a loop over the code points of the text {@code arg0}:
+     * {@code step} runs for each index {@code i} after {@code c} is set to
+     * the code point there. The procedure's other locals are {@code entry}'s.
+     */
+    private static List<Block> codePointLoop(List<Cmd> entry, List<Cmd> step) {
+        var all = new ArrayList<Cmd>();
+        all.add(init("c", new Ty.Int()));
+        all.addAll(entry);
+        all.add(set("n", coreOp("Str.Length", new Expr.Var("arg0"))));
+        var body = new ArrayList<Cmd>();
+        body.add(set("c", coreOp("Str.ToCode", coreOp("Str.At", new Expr.Var("arg0"), new Expr.Var("i")))));
+        body.addAll(step);
+        return countedLoop(all, body);
+    }
+
+    private static Procedure helper(String name, List<Param> inputs, List<Param> outputs, List<Block> blocks) {
+        return new Procedure(name, inputs, outputs, Optional.empty(), List.of(), Optional.of(new Body("entry", blocks, List.of())),
+                false, NO_LOCATION);
+    }
+
+    /**
+     * {@code $string$hashCode(arg0) returns result, bmp}: {@code String.hashCode}
+     * of the text {@code arg0} as specified, {@code s[0]*31^(n-1) + ... +
+     * s[n-1]} in {@code int} arithmetic, computed as {@code h = 31*h + s[i]}
+     * over the code points of the text, and whether every code point is in the
+     * Basic Multilingual Plane, where it is one UTF-16 unit, so that the sum is
+     * Java's. The caller requires {@code bmp} ({@link #NON_BMP_TEXT}).
+     */
+    private Procedure stringHashCodeProcedure() {
+        var h = new Expr.Var(RESULT);
+        var blocks = codePointLoop(
+                List.of(set(RESULT, new Expr.Bv(32, 0)), set("bmp", new Expr.Bool(true))),
+                List.of(set(RESULT, coreOp("Bv32.Add", coreOp("Bv32.Mul", h, new Expr.Bv(32, 31)),
+                                coreOp("Int.ToBv32", new Expr.Var("c")))),
+                        set("bmp", inBmp(new Expr.Var("bmp")))));
+        return helper(STRING_HASH_CODE, List.of(new Param("arg0", new Ty.String_())),
+                List.of(new Param(RESULT, new Ty.Bv(32)), new Param("bmp", new Ty.Bool())), blocks);
+    }
+
+    /** {@code acc} and "the code point {@code c} is in the Basic Multilingual Plane", in a code-point loop. */
+    private static Expr inBmp(Expr acc) {
+        return coreOp("Bool.And", acc, coreOp("Int.Lt", new Expr.Var("c"), new Expr.Int(0x10000)));
+    }
+
+    /**
+     * {@code $string$isBmp(arg0) returns result}: whether every code point of
+     * the text {@code arg0} is in the Basic Multilingual Plane, so that the
+     * code points the Core indexes and counts are Java's UTF-16 units.
+     * {@code length} and {@code charAt} require it ({@link #NON_BMP_TEXT}).
+     */
+    private Procedure stringIsBmpProcedure() {
+        var blocks = codePointLoop(
+                List.of(set(RESULT, new Expr.Bool(true))),
+                List.of(set(RESULT, inBmp(new Expr.Var(RESULT)))));
+        return helper(STRING_IS_BMP, List.of(new Param("arg0", new Ty.String_())),
+                List.of(new Param(RESULT, new Ty.Bool())), blocks);
+    }
+
+    /**
+     * {@code $string$fromChars(arg0) returns result}: the text whose code
+     * points are the elements of the {@code char[]} {@code arg0}, in order
+     * ({@code String(char[])}, {@code String.valueOf(char[])}). A lone
+     * surrogate has no text: {@code Str.FromCode} leaves it unevaluated, and
+     * the interpreter stops at the next use of the result.
+     */
+    private Procedure stringFromCharsProcedure() {
+        Ty.Array chars = arrayType(ConstantDescs.CD_char.arrayType(), NO_LOCATION);
+        var arg = new Expr.Var("arg0");
+        var blocks = countedLoop(
+                List.of(init("c", new Ty.Bv(32)), new Cmd.ArrayLength("n", arg, NO_LOCATION), set(RESULT, new Expr.Str(""))),
+                List.of(new Cmd.ReadElem("c", arg, new Expr.Var("i"), chars.elem(), NO_LOCATION),
+                        set(RESULT, coreOp("Str.Concat", new Expr.Var(RESULT),
+                                coreOp("Str.FromCode", coreOp("Bv32.ToInt", new Expr.Var("c")))))));
+        return helper(STRING_FROM_CHARS, List.of(new Param("arg0", chars)), List.of(new Param(RESULT, new Ty.String_())), blocks);
+    }
+
+    /**
+     * {@code $string$toLowerCase(arg0) returns result, ascii}: the text
+     * {@code arg0} with {@code A}..{@code Z} replaced by {@code a}..{@code z},
+     * and whether every character is ASCII. Java's {@code toLowerCase()}
+     * follows the Unicode tables and the default locale: outside ASCII the
+     * result here is the input, and the caller requires {@code ascii}
+     * ({@link #NON_ASCII_LOWER_CASE}) so that such a run ends with that
+     * diagnostic rather than a wrong text. Within ASCII the only
+     * locale-dependent letter is {@code I}, which the Turkic locales lower to
+     * a dotless i; the model assumes a default locale that is not Turkic.
+     */
+    private Procedure stringToLowerCaseProcedure() {
+        var c = new Expr.Var("c");
+        Expr upper = coreOp("Bool.And", coreOp("Int.Le", new Expr.Int('A'), c), coreOp("Int.Le", c, new Expr.Int('Z')));
+        Expr lowered = new Expr.Ite(upper, coreOp("Int.Add", c, new Expr.Int('a' - 'A')), c);
+        var blocks = codePointLoop(
+                List.of(set(RESULT, new Expr.Str("")), set("ascii", new Expr.Bool(true))),
+                List.of(set("ascii", coreOp("Bool.And", new Expr.Var("ascii"), coreOp("Int.Lt", c, new Expr.Int(128)))),
+                        set(RESULT, coreOp("Str.Concat", new Expr.Var(RESULT), coreOp("Str.FromCode", lowered)))));
+        return helper(STRING_TO_LOWER_CASE, List.of(new Param("arg0", new Ty.String_())),
+                List.of(new Param(RESULT, new Ty.String_()), new Param("ascii", new Ty.Bool())), blocks);
+    }
+
     private String declareInitFlag(String fqn, FileRange at) {
         return declareFlag(globalName(fqn, INIT_FLAG), at);
     }
@@ -1893,6 +2104,8 @@ public final class BytecodeToCortexCompiler {
         /** The stack-map frame at each bytecode offset that has one. */
         private final Map<Integer, StackMapFrameInfo> frames = new HashMap<>();
         private final Set<Integer> handlerBlocks = new java.util.HashSet<>();
+        /** The prelude block ({@link #catchAnyPrelude}) of each catch-everything handler block, by handler block id. */
+        private final Map<Integer, String> catchAnyPreludes = new HashMap<>();
         /** {@link #localTypes} at the end of each translated block. */
         private final Map<Integer, Map<Integer, String>> exitTypes = new HashMap<>();
         private int fresh;
@@ -2035,13 +2248,16 @@ public final class BytecodeToCortexCompiler {
                     continue;
                 }
                 Optional<String> catchType = Optional.empty();
+                String target = "b" + t.handlerBlk();
                 if (t.type() != null) {
                     String c = classFqn(t.type());
                     referenced.add(c);
                     catchType = Optional.of(c);
+                } else {
+                    String own = target;
+                    target = catchAnyPreludes.computeIfAbsent(t.handlerBlk(), h -> catchAnyPrelude(own));
                 }
-                handlers.add(new Handler(covered, catchType, stackVar(0, Kind.A), "b" + t.handlerBlk(),
-                        methodRange));
+                handlers.add(new Handler(covered, catchType, stackVar(0, Kind.A), target, methodRange));
             }
             var copies = new ArrayList<Cmd>();
             boolean isStatic = method.flags().has(AccessFlag.STATIC);
@@ -2505,6 +2721,7 @@ public final class BytecodeToCortexCompiler {
                 String failedBefore = freshLabel();
                 guardHandlers.add(new Handler(covered, Optional.empty(), caughtBefore, failedBefore, at));
                 startBlock(failedBefore);
+                rethrowNotModelled(caughtBefore, at);
                 cmds.add(new Cmd.Set(failed, Optional.of(new Expr.Bool(true)), at));
                 cmds.add(new Cmd.Throw(new Expr.Var(caughtBefore), Optional.of(uncaught(THROWABLE)), at));
                 seal(new Transfer.Finish(at));
@@ -2527,6 +2744,7 @@ public final class BytecodeToCortexCompiler {
             String handler = freshLabel();
             guardHandlers.add(new Handler(List.of(call), Optional.empty(), caught, handler, at));
             startBlock(handler);
+            rethrowNotModelled(caught, at);
             cmds.add(new Cmd.Set(failed, Optional.of(new Expr.Bool(true)), at));
             String isError = temp(new Ty.Bool());
             cmds.add(new Cmd.InstanceOf(isError, new Expr.Var(caught), new Ty.Named(ERROR), at));
@@ -2672,6 +2890,85 @@ public final class BytecodeToCortexCompiler {
             cmds.add(new Cmd.Throw(new Expr.Var(e), Optional.of(uncaught(exception)), at));
             seal(new Transfer.Finish(at));
             startBlock(cont);
+        }
+
+        /**
+         * Ends the run unless the property of {@code kind} (a
+         * {@link #NOT_MODELLED} composite) holds: on the other path, an
+         * object of that composite is thrown with the property as the
+         * summary, so the diagnostic reads "{@code property} does not hold"
+         * at {@code at}. A thrown object, unlike a failed assertion, stops
+         * the method and every caller (the interpreter continues after an
+         * assertion), and no {@code catch} of a type matches a composite that
+         * is not a {@code Throwable}; the handlers that catch everything
+         * (javac's {@code finally}, the class-initialization guards) rethrow
+         * it first ({@link #rethrowNotModelled}). For the models of library
+         * methods whose domain is a run-time property of the data (the text is
+         * ASCII, is within the Basic Multilingual Plane): the translation
+         * cannot refuse the method statically, and must not give a verdict
+         * outside the model.
+         */
+        private void notModelled(Expr holds, String kind, FileRange at) {
+            String fail = freshLabel();
+            String cont = freshLabel();
+            seal(new Transfer.CondGoto(holds, cont, fail, at));
+            startBlock(fail);
+            referenced.add(kind);
+            String e = temp(new Ty.Named(kind));
+            cmds.add(new Cmd.New(e, kind, at));
+            cmds.add(new Cmd.Throw(new Expr.Var(e), Optional.of(propertyOf(kind)), at));
+            seal(new Transfer.Finish(at));
+            startBlock(cont);
+        }
+
+        private static String propertyOf(String kind) {
+            return NOT_MODELLED.stream().filter(e -> e.getKey().equals(kind)).findFirst().orElseThrow().getValue();
+        }
+
+        /**
+         * At the start of a handler that catches everything: if the caught
+         * value {@code caught} is a {@link #NOT_MODELLED} object, rethrows it
+         * under its property, before the handler's own code runs. A
+         * {@code finally} with a {@code return} would otherwise swallow the
+         * stop and give a verdict on a path the model does not cover, and the
+         * class-initialization guard would wrap it in an
+         * {@code ExceptionInInitializerError} a program can catch. The
+         * rethrow carries the property as its summary again, since the object
+         * does not; the diagnostic is then located at the handler, or, when
+         * the object leaves the method, at the call it came through, with the
+         * composite's name ({@link #NOT_MODELLED_BMP}).
+         */
+        private void rethrowNotModelled(String caught, FileRange at) {
+            for (var kind : NOT_MODELLED) {
+                referenced.add(kind.getKey());
+                String is = temp(new Ty.Bool());
+                cmds.add(new Cmd.InstanceOf(is, new Expr.Var(caught), new Ty.Named(kind.getKey()), at));
+                String rethrow = freshLabel();
+                String next = freshLabel();
+                seal(new Transfer.CondGoto(new Expr.Var(is), rethrow, next, at));
+                startBlock(rethrow);
+                cmds.add(new Cmd.Throw(new Expr.Var(caught), Optional.of(kind.getValue()), at));
+                seal(new Transfer.Finish(at));
+                startBlock(next);
+            }
+        }
+
+        /**
+         * The block a catch-everything handler of the program ({@code finally},
+         * or a {@code catch} whose exception table entry has no type) enters
+         * first: {@link #rethrowNotModelled} on the binder, then its own
+         * block {@code target}. Built in blocks that no handler covers (those
+         * of the prologue), so the rethrow leaves the method.
+         */
+        private String catchAnyPrelude(String target) {
+            int saved = blockId;
+            blockId = -1;
+            String prelude = freshLabel();
+            startBlock(prelude);
+            rethrowNotModelled(stackVar(0, Kind.A), methodRange);
+            seal(new Transfer.Goto(target, methodRange));
+            blockId = saved;
+            return prelude;
         }
 
         private String uncaught(@Nullable String type) {
@@ -3241,7 +3538,7 @@ public final class BytecodeToCortexCompiler {
                 throw refuse("the array method " + name, at);
             }
             boolean isStatic = o == Opcode.INVOKESTATIC;
-            if (target.equals(STRING) && !isStatic && stringMethod(name, desc, at)) {
+            if (target.equals(STRING) && stringMethod(name, desc, isStatic, at)) {
                 return;
             }
             if (libraryMethod(target, name, desc, isStatic, at)) {
@@ -3356,9 +3653,11 @@ public final class BytecodeToCortexCompiler {
          * Each argument is converted to text (JLS 5.1.11) and the texts are
          * joined with {@code Str.Concat} into the {@code $value} of a new
          * String object: a concatenation is never a pooled literal, as javac
-         * folds constant operands before emitting the call. Converted: String
-         * arguments (their text) and {@code boolean}; any other type is refused
-         * until the Core offers a text form of numbers and characters.
+         * folds constant operands before emitting the call. Converted
+         * ({@link #textOf}): String arguments (their text), {@code boolean},
+         * {@code char} and the integer types. An operand of another reference
+         * type does not reach the call: javac converts it with
+         * {@code String.valueOf(Object)} first, which is refused.
          */
         private void invokeDynamic(InvokeDynamicInstruction indy, FileRange at) {
             String name = indy.name().stringValue();
@@ -3402,7 +3701,7 @@ public final class BytecodeToCortexCompiler {
             }
             var texts = new ArrayList<Expr>();
             for (int i = 0; i < args.size(); i++) {
-                texts.add(textOf(args.get(i), desc.parameterType(i), at));
+                texts.add(textOf(args.get(i), desc.parameterType(i), "a concatenation", at));
             }
             Expr text = new Expr.Str("");
             boolean first = true;
@@ -3431,34 +3730,78 @@ public final class BytecodeToCortexCompiler {
         }
 
         /**
-         * The text of a concatenation operand of static type {@code type}
-         * (JLS 5.1.11). A String operand that may be null would read a field
-         * of nothing, so it is refused ({@link #requireNonNull}); a null
-         * String would concatenate as {@code "null"}, which needs a null in
-         * the translation first.
+         * The text of a value of static type {@code type} (the string
+         * conversion, JLS 5.1.11) in {@code where}, a concatenation,
+         * {@code StringBuilder.append} or {@code String.valueOf}. A String
+         * operand that may be null would read a field of nothing, so it is
+         * refused ({@link #requireNonNull}); a null String would convert to
+         * {@code "null"}, which needs a null in the translation first. Any
+         * other reference type is refused: its text is {@code toString()}, a
+         * call whose result may be null. A {@code char} is the one-character
+         * text of its code ({@code Str.FromCode}; a lone surrogate has none,
+         * and the interpreter stops at the use of the text); an integer is
+         * its decimal digits with a {@code -} sign ({@code Str.FromInt}).
          */
-        private Expr textOf(Value v, ClassDesc type, FileRange at) {
+        private Expr textOf(Value v, ClassDesc type, String where, FileRange at) {
             return switch (type.descriptorString()) {
                 case "Ljava/lang/String;" -> {
                     requireNonNull(v, at);
                     yield stringValue(v.expr, at);
                 }
                 case "Z" -> new Expr.Ite(isZero(v.expr), new Expr.Str("false"), new Expr.Str("true"));
-                default -> throw refuse("string conversion of " + type.displayName() + " in a concatenation", at);
+                case "C" -> op("Str.FromCode", toInt(32, v.expr));
+                case "B", "S", "I" -> integerText(toInt(32, v.expr), at);
+                case "J" -> integerText(toInt(64, v.expr), at);
+                default -> throw refuse("string conversion of " + type.displayName() + " in " + where, at);
             };
+        }
+
+        /** The decimal text of the mathematical integer {@code i}, with a {@code -} sign when negative (JLS 5.1.11). */
+        private Expr integerText(Expr i, FileRange at) {
+            String n = temp(new Ty.Int());
+            cmds.add(new Cmd.Set(n, Optional.of(i), at));
+            var v = new Expr.Var(n);
+            return new Expr.Ite(op("Int.Lt", v, new Expr.Int(0)),
+                    op("Str.Concat", new Expr.Str("-"), op("Str.FromInt", op("Int.Neg", v))),
+                    op("Str.FromInt", v));
         }
 
         /**
          * The {@code java.lang.String} methods the translation models inline,
-         * on the receiver's {@code $value}; the operands are popped and the
-         * result pushed. Returns false for a method it does not model.
+         * on the receiver's or the result's {@code $value}; the operands are
+         * popped and the result pushed. Returns false for a method it does
+         * not model. {@code String.valueOf} of a {@code char[]}, a
+         * {@code boolean}, a {@code char} or an integer is a new String with
+         * the argument's text; of an {@code Object} it is refused
+         * ({@link #textOf}).
          */
-        private boolean stringMethod(String name, MethodTypeDesc desc, FileRange at) {
-            switch (name + desc.descriptorString()) {
+        private boolean stringMethod(String name, MethodTypeDesc desc, boolean isStatic, FileRange at) {
+            String key = name + desc.descriptorString();
+            if (isStatic) {
+                switch (key) {
+                    case "valueOf([C)Ljava/lang/String;" -> newString(charsText(pop(), at), at);
+                    case "valueOf(Z)Ljava/lang/String;", "valueOf(C)Ljava/lang/String;", "valueOf(I)Ljava/lang/String;",
+                            "valueOf(J)Ljava/lang/String;", "valueOf(Ljava/lang/Object;)Ljava/lang/String;" ->
+                            newString(textOf(pop(), desc.parameterType(0), "String.valueOf", at), at);
+                    default -> {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            switch (key) {
                 case "length()I" -> stringLength(at);
+                case "charAt(I)C" -> stringCharAt(at);
                 case "equals(Ljava/lang/Object;)Z" -> stringEquals(at);
-                case "<init>()V" -> stringConstructor(Optional.empty(), at);
-                case "<init>(Ljava/lang/String;)V" -> stringConstructor(Optional.of(pop()), at);
+                case "hashCode()I" -> stringHashCode(at);
+                case "toLowerCase()Ljava/lang/String;" -> stringToLowerCase(at);
+                case "<init>()V" -> stringConstructor(new Expr.Str(""), at);
+                case "<init>(Ljava/lang/String;)V" -> {
+                    var src = pop();
+                    requireNonNull(src, at);
+                    stringConstructor(stringValue(src.expr, at), at);
+                }
+                case "<init>([C)V" -> stringConstructor(charsText(pop(), at), at);
                 case "intern()Ljava/lang/String;" -> stringIntern(at);
                 default -> {
                     return false;
@@ -3477,12 +3820,90 @@ public final class BytecodeToCortexCompiler {
         /**
          * {@code s.length()}: {@code Str.Length} of the text, narrowed to
          * {@code bv32}. {@code Str.Length} counts code points where Java
-         * counts UTF-16 units, so the two differ on text outside the Basic
-         * Multilingual Plane.
+         * counts UTF-16 units, so the text is first required to be within the
+         * Basic Multilingual Plane ({@link #requireBmp}).
          */
         private void stringLength(FileRange at) {
             var s = pop();
-            push(Kind.I, toBv(32, op("Str.Length", stringValue(s.expr, at))), null, at);
+            Expr text = stringValue(s.expr, at);
+            requireBmp(text, at);
+            push(Kind.I, toBv(32, op("Str.Length", text)), null, at);
+        }
+
+        /**
+         * The run ends unless every code point of {@code text} is in the Basic
+         * Multilingual Plane ({@link #STRING_IS_BMP}, {@link #NON_BMP_TEXT}):
+         * there the code points the Core indexes and counts are Java's UTF-16
+         * units. A scan of the text per call.
+         */
+        private void requireBmp(Expr text, FileRange at) {
+            stringHelpers.add(STRING_IS_BMP);
+            String bmp = temp(new Ty.Bool());
+            cmds.add(new Cmd.Call(List.of(bmp), STRING_IS_BMP, List.of(text), at));
+            notModelled(new Expr.Var(bmp), NOT_MODELLED_BMP, at);
+        }
+
+        /**
+         * {@code s.charAt(i)}: the code of the character at {@code i}
+         * ({@code Str.ToCode} of {@code Str.At}), after the check that
+         * {@code i} is in range, which throws
+         * {@code StringIndexOutOfBoundsException}. Like {@link #stringLength},
+         * it indexes code points, so the text is first required to be within
+         * the Basic Multilingual Plane ({@link #requireBmp}).
+         */
+        private void stringCharAt(FileRange at) {
+            var index = pop();
+            var s = pop();
+            Expr text = stringValue(s.expr, at);
+            requireBmp(text, at);
+            String n = temp(new Ty.Int());
+            cmds.add(new Cmd.Set(n, Optional.of(op("Str.Length", text)), at));
+            Expr i = toInt(32, index.expr);
+            throwIf(op("Bool.Or", op("Int.Lt", i, new Expr.Int(0)), op("Int.Ge", i, new Expr.Var(n))),
+                    STRING_INDEX_OUT_OF_BOUNDS, at);
+            push(Kind.I, toBv(32, op("Str.ToCode", op("Str.At", text, i))), null, at);
+        }
+
+        /**
+         * {@code s.hashCode()}: a call to {@link #STRING_HASH_CODE} on the
+         * text, which also tells whether the text is within the Basic
+         * Multilingual Plane; the run ends if not ({@link #NON_BMP_TEXT}).
+         */
+        private void stringHashCode(FileRange at) {
+            var s = pop();
+            stringHelpers.add(STRING_HASH_CODE);
+            Expr text = stringValue(s.expr, at);
+            String h = temp(new Ty.Bv(32));
+            String bmp = temp(new Ty.Bool());
+            cmds.add(new Cmd.Call(List.of(h, bmp), STRING_HASH_CODE, List.of(text), at));
+            notModelled(new Expr.Var(bmp), NOT_MODELLED_BMP, at);
+            push(Kind.I, new Expr.Var(h), null, at);
+        }
+
+        /**
+         * {@code s.toLowerCase()}: a new String with the text
+         * {@link #STRING_TO_LOWER_CASE} computes; the run ends if a character
+         * was not ASCII ({@link #NON_ASCII_LOWER_CASE}, which also states the
+         * locale assumption). Always a new object: the API leaves open whether
+         * an unchanged text is {@code s} itself.
+         */
+        private void stringToLowerCase(FileRange at) {
+            var s = pop();
+            stringHelpers.add(STRING_TO_LOWER_CASE);
+            Expr text = stringValue(s.expr, at);
+            String lower = temp(new Ty.String_());
+            String ascii = temp(new Ty.Bool());
+            cmds.add(new Cmd.Call(List.of(lower, ascii), STRING_TO_LOWER_CASE, List.of(text), at));
+            notModelled(new Expr.Var(ascii), NOT_MODELLED_ASCII, at);
+            newString(new Expr.Var(lower), at);
+        }
+
+        /** The text of the {@code char[]} {@code chars}, by a call to {@link #STRING_FROM_CHARS}. */
+        private Expr charsText(Value chars, FileRange at) {
+            stringHelpers.add(STRING_FROM_CHARS);
+            String t = temp(new Ty.String_());
+            cmds.add(new Cmd.Call(List.of(t), STRING_FROM_CHARS, List.of(chars.expr), at));
+            return new Expr.Var(t);
         }
 
         /**
@@ -3509,16 +3930,16 @@ public final class BytecodeToCortexCompiler {
         }
 
         /**
-         * {@code new String()} or {@code new String(s)}: the object, already
-         * allocated by {@code new}, gets the empty text or {@code s}'s. It is
-         * a new object, {@code !=} to every other String (JLS 12.5) and
-         * {@code equals} to {@code s}; {@code ==} to a literal of the same text
-         * does not hold, since literals are pooled and this is not.
+         * {@code new String()}, {@code new String(s)} or
+         * {@code new String(chars)}: the object, already allocated by
+         * {@code new}, gets the text {@code text}: the empty text, {@code s}'s
+         * or the characters'. It is a new object, {@code !=} to every other
+         * String (JLS 12.5) and {@code equals} to {@code s}; {@code ==} to a
+         * literal of the same text does not hold, since literals are pooled
+         * and this is not.
          */
-        private void stringConstructor(Optional<Value> src, FileRange at) {
+        private void stringConstructor(Expr text, FileRange at) {
             var self = pop();
-            src.ifPresent(v -> requireNonNull(v, at));
-            Expr text = src.isPresent() ? stringValue(src.get().expr, at) : new Expr.Str("");
             cmds.add(new Cmd.WriteField(self.expr, STRING, STRING_VALUE, text, at));
         }
 
@@ -3635,7 +4056,7 @@ public final class BytecodeToCortexCompiler {
                 case "append" -> {
                     var v = pop();
                     var self = pop();
-                    Expr text = textOf(v, desc.parameterType(0), at);
+                    Expr text = textOf(v, desc.parameterType(0), "StringBuilder.append", at);
                     Expr current = builderText(self.expr, at);
                     cmds.add(new Cmd.WriteField(self.expr, STRING_BUILDER, STRING_VALUE, op("Str.Concat", current, text), at));
                     pushBack(self, at);
